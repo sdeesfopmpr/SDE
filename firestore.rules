@@ -1,0 +1,123 @@
+rules_version = '2';
+
+// SDE · EsFO — Regras de segurança do Firestore (etapa 1)
+// Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
+// Tudo o que não está liberado aqui é bloqueado.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funções auxiliares ----------
+    function logado() { return request.auth != null; }
+    function caminhoPerfil(uid) { return /databases/$(database)/documents/usuarios/$(uid); }
+    function caminhoConfig() { return /databases/$(database)/documents/config/sistema; }
+    function eu() { return get(caminhoPerfil(request.auth.uid)).data; }
+    function ativo() {
+      return logado() && exists(caminhoPerfil(request.auth.uid)) && eu().status == 'ativo';
+    }
+    function nivel(n) { return ativo() && eu().nivel >= n; }
+    function txt(s, a, b) { return s is string && s.size() >= a && s.size() <= b; }
+    function cpfValido(c) { return c is string && c.matches('^[0-9]{11}$'); }
+
+    // Dados de um pedido de acesso (criado pelo próprio usuário)
+    function pedidoValido(d, uid) {
+      return d.keys().hasAll(['tipo', 'nome', 'guerra', 'cpf', 'email', 'nivel', 'status', 'criadoEm'])
+        && d.keys().hasOnly(['tipo', 'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto',
+                             'cpf', 'email', 'nivel', 'status', 'criadoEm'])
+        && txt(d.nome, 3, 120)
+        && txt(d.guerra, 2, 40)
+        && cpfValido(d.cpf)
+        && d.email == request.auth.token.email
+        && d.criadoEm == request.time
+        && (
+          (d.tipo == 'cadete'
+             && d.ano in ['1º CFO', '2º CFO', '3º CFO', 'CHOE']
+             && txt(d.turma, 0, 3)
+             && txt(d.pelotao, 1, 3))
+          || (d.tipo == 'coordenacao' && txt(d.posto, 2, 40))
+        )
+        // o CPF tem de ser registrado no mesmo envio (garante CPF único)
+        && getAfter(/databases/$(database)/documents/cpfs/$(d.cpf)).data.uid == uid;
+    }
+
+    function cadeteValido(d) {
+      return d.keys().hasOnly(['nome', 'guerra', 'ano', 'turma', 'pelotao', 'uid',
+                               'ativo', 'criadoEm', 'atualizadoEm'])
+        && txt(d.nome, 3, 120)
+        && txt(d.guerra, 2, 40)
+        && d.ano in ['1º CFO', '2º CFO', '3º CFO', 'CHOE']
+        && txt(d.turma, 0, 3)
+        && txt(d.pelotao, 1, 3)
+        && d.ativo is bool;
+    }
+
+    // ---------- Configuração geral ----------
+    // Existe a partir do momento em que o primeiro administrador se cadastra.
+    match /config/sistema {
+      allow get: if logado();
+      allow create: if logado()
+        && request.resource.data.keys().hasOnly(['adminInicial', 'criadoEm'])
+        && request.resource.data.adminInicial == request.auth.uid
+        && request.resource.data.criadoEm == request.time
+        && getAfter(caminhoPerfil(request.auth.uid)).data.nivel == 3;
+      allow update, delete: if false;
+    }
+
+    // ---------- Usuários (contas de acesso) ----------
+    match /usuarios/{uid} {
+      // cada um lê o próprio perfil; o nível 3 lê todos
+      allow get: if logado() && (request.auth.uid == uid || nivel(3));
+      allow list: if nivel(3);
+
+      // pedido de acesso: sempre pendente e nível 0...
+      // ...exceto o primeiro usuário do sistema, que vira administrador (nível 3)
+      allow create: if logado()
+        && request.auth.uid == uid
+        && pedidoValido(request.resource.data, uid)
+        && (
+          (request.resource.data.nivel == 0 && request.resource.data.status == 'pendente')
+          || (request.resource.data.nivel == 3
+              && request.resource.data.status == 'ativo'
+              && !exists(caminhoConfig())
+              && getAfter(caminhoConfig()).data.adminInicial == uid)
+        );
+
+      // só o nível 3 aprova, recusa, bloqueia e muda nível; o usuário não altera o próprio perfil
+      allow update: if nivel(3)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['nivel', 'status', 'cadeteId', 'analisadoPor', 'analisadoEm'])
+        && request.resource.data.nivel in [0, 1, 2, 3]
+        && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
+
+      allow delete: if nivel(3);
+    }
+
+    // ---------- Registro de CPF (impede dois cadastros com o mesmo CPF) ----------
+    match /cpfs/{cpf} {
+      allow get: if nivel(3) || (logado() && resource.data.uid == request.auth.uid);
+      allow create: if logado()
+        && cpfValido(cpf)
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(caminhoPerfil(request.auth.uid)).data.cpf == cpf;
+      allow update: if false;
+      allow delete: if nivel(3);
+    }
+
+    // ---------- Cadetes ----------
+    // Nome, nome de guerra, turma e pelotão: visíveis a todos os usuários ativos.
+    match /cadetes/{id} {
+      allow read: if ativo();
+      allow create, update: if nivel(3) && cadeteValido(request.resource.data);
+      allow delete: if nivel(3);
+
+      // CPF fica separado: só o próprio cadete e o nível 3 enxergam.
+      match /privado/{docId} {
+        allow read: if nivel(3) || (ativo() && eu().cadeteId == id);
+        allow write: if nivel(3)
+          && request.resource.data.keys().hasOnly(['cpf'])
+          && cpfValido(request.resource.data.cpf);
+      }
+    }
+  }
+}
