@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapa 1)
+// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 3)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -117,6 +117,78 @@ service cloud.firestore {
         allow write: if nivel(3)
           && request.resource.data.keys().hasOnly(['cpf'])
           && cpfValido(request.resource.data.cpf);
+      }
+    }
+
+    // ---------- Anotações (AAD e FO+) ----------
+    function meuCadete() { return eu().get('cadeteId', ''); }
+
+    // Anotação lançada até terça 23h59 → defesa até a quarta seguinte 23h59min59s de Brasília
+    // (= quinta 02h59min59s UTC). A partir de quarta 00h00 → prazo da semana seguinte.
+    // Ou seja: a primeira "quinta 02:59:59 UTC" que esteja pelo menos 24 h à frente.
+    function prazoValido(p) {
+      return p is timestamp
+        && p >= request.time + duration.value(1, 'd')
+        && p < request.time + duration.value(8, 'd')
+        && p.dayOfWeek() == 4
+        && p.hours() == 2 && p.minutes() == 59 && p.seconds() == 59;
+    }
+
+    function anotacaoValida(d) {
+      let c = get(/databases/$(database)/documents/cadetes/$(d.cadeteId)).data;
+      return d.keys().hasAll(['tipo', 'cadeteId', 'cadeteNome', 'cadeteGuerra', 'cadeteAno', 'cadeteTurma',
+                              'cadetePelotao', 'anotadorUid', 'anotadorNome', 'descricao', 'fatoEm',
+                              'criadoEm', 'prazo'])
+        && d.keys().hasOnly(['tipo', 'cadeteId', 'cadeteNome', 'cadeteGuerra', 'cadeteAno', 'cadeteTurma',
+                             'cadetePelotao', 'anotadorUid', 'anotadorNome', 'descricao', 'fatoEm',
+                             'criadoEm', 'prazo'])
+        && d.tipo in ['aad', 'fo']
+        && c.ativo == true
+        && d.cadeteNome == c.nome && d.cadeteGuerra == c.guerra && d.cadeteAno == c.ano
+        && d.cadeteTurma == c.turma && d.cadetePelotao == c.pelotao
+        && d.cadeteId != meuCadete()                 // ninguém se anota
+        && d.anotadorUid == request.auth.uid
+        && txt(d.anotadorNome, 2, 60)
+        && txt(d.descricao, 5, 1000)
+        && d.fatoEm is timestamp
+        && d.fatoEm <= request.time + duration.value(10, 'm')
+        && d.fatoEm >= request.time - duration.value(30, 'd')
+        && d.criadoEm == request.time
+        && prazoValido(d.prazo);
+    }
+
+    match /anotacoes/{aid} {
+      // nível 3 vê tudo; o cadete vê as que recebeu; o anotador vê as que lançou
+      allow read: if nivel(3)
+        || (ativo() && (resource.data.anotadorUid == request.auth.uid
+                        || resource.data.cadeteId == meuCadete()));
+
+      // lançar: nível 2 ou 3. Ninguém edita nem apaga depois.
+      allow create: if nivel(2) && anotacaoValida(request.resource.data);
+
+      // o cadete só marca a hora em que enviou a defesa, e só até o prazo
+      allow update: if ativo()
+        && resource.data.cadeteId == meuCadete()
+        && resource.data.tipo == 'aad'
+        && request.time <= resource.data.prazo
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
+        && request.resource.data.defesaEm == request.time;
+
+      allow delete: if false;
+
+      // Defesa escrita: só o próprio cadete (até o prazo) e o nível 3.
+      match /defesa/{docId} {
+        function anot() { return get(/databases/$(database)/documents/anotacoes/$(aid)).data; }
+        allow read: if nivel(3) || (ativo() && anot().cadeteId == meuCadete());
+        allow create, update: if ativo()
+          && docId == 'texto'
+          && anot().cadeteId == meuCadete()
+          && anot().tipo == 'aad'
+          && request.time <= anot().prazo
+          && request.resource.data.keys().hasOnly(['texto', 'enviadaEm'])
+          && txt(request.resource.data.texto, 1, 3000)
+          && request.resource.data.enviadaEm == request.time;
+        allow delete: if false;
       }
     }
   }

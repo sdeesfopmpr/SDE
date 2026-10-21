@@ -161,6 +161,44 @@
     .tabela .acoes { text-align: left; }
   }
 
+  /* ---------- Anotações ---------- */
+  textarea { resize: vertical; min-height: 90px; }
+  .busca-cadete { display: grid; grid-template-columns: 170px 1fr; gap: 8px; }
+  @media (max-width: 480px) { .busca-cadete { grid-template-columns: 1fr; } }
+  .sugestoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sugestoes button {
+    font: inherit; font-size: 14px; border: 1px solid var(--borda); background: #fff; border-radius: 16px;
+    padding: 4px 12px; cursor: pointer;
+  }
+  .sugestoes button:hover { border-color: var(--verde); background: var(--verde-claro); }
+  .sugestoes .turma { color: var(--suave); font-size: 12px; margin-left: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--verde); color: #fff;
+    border-radius: 16px; padding: 4px 6px 4px 12px; font-size: 14px; font-weight: 600;
+  }
+  .chip button { background: rgba(255,255,255,.2); color: #fff; border: 0; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; line-height: 20px; padding: 0; font-size: 13px; }
+
+  .anot { border: 1px solid var(--borda); border-radius: 8px; padding: 14px; margin-bottom: 12px; background: #fff; }
+  .anot-cab { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .tag { border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 800; letter-spacing: .03em; }
+  .tag.aad { background: var(--erro-fundo); color: var(--erro); }
+  .tag.fo { background: var(--verde-claro); color: var(--ok); }
+  .anot-desc { margin: 4px 0 10px; white-space: pre-wrap; }
+  .anot-meta { font-size: 13px; color: var(--suave); }
+  .defesa-box { border-top: 1px dashed var(--borda); margin-top: 10px; padding-top: 10px; }
+  .defesa-txt { white-space: pre-wrap; background: var(--fundo); border-radius: 6px; padding: 8px 10px; margin: 6px 0 0; font-size: 14px; }
+  .prazo { font-size: 13px; font-weight: 700; }
+  .prazo.aberto { color: var(--alerta); }
+  .prazo.fechado { color: var(--suave); }
+  .grupo-titulo { font-size: 15px; margin: 18px 0 8px; padding: 6px 10px; background: var(--verde-claro); color: var(--verde); border-radius: 6px; }
+  .tabela .num { width: 36px; color: var(--suave); }
+  .tabela .desc { white-space: pre-wrap; }
+  .resumo { display: flex; gap: 16px; flex-wrap: wrap; color: var(--suave); font-size: 14px; margin-bottom: 6px; }
+  .resumo strong { color: var(--texto); }
+  .ciclo-escolha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .ciclo-escolha select { width: auto; }
+
   /* ---------- Aviso flutuante ---------- */
   .aviso {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
@@ -310,6 +348,67 @@
 
     <div class="aba" id="aba-inicio" role="tabpanel"></div>
 
+    <!-- Minhas anotações (todos os cadetes) -->
+    <div class="aba" id="aba-minhas" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Minhas anotações</h2>
+        <p class="legenda" style="margin-bottom:12px">As anotações aparecem aqui assim que são lançadas. A defesa escrita pode ser enviada ou alterada até <strong>quarta-feira, 23h59</strong> da semana da anotação.</p>
+        <div id="listaMinhas"></div>
+      </div>
+    </div>
+
+    <!-- Lançar anotação (nível 2 e 3) -->
+    <div class="aba" id="aba-lancar" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Lançar anotação</h2>
+        <form id="formAnot" novalidate>
+          <label>Tipo</label>
+          <div class="tipo-escolha" role="radiogroup">
+            <label><input type="radio" name="tipoAnot" value="aad" checked><span>AAD · alteração</span></label>
+            <label><input type="radio" name="tipoAnot" value="fo"><span>FO+ · fato positivo</span></label>
+          </div>
+
+          <label for="buscaCadete">Cadete(s) anotado(s)</label>
+          <div class="busca-cadete">
+            <select id="filtroTurma" aria-label="Filtrar por turma"></select>
+            <input id="buscaCadete" type="search" autocomplete="off" placeholder="Digite o nome de guerra">
+          </div>
+          <div id="sugestoes" class="sugestoes"></div>
+          <div id="escolhidos" class="chips"></div>
+          <div class="ajuda">Pode escolher vários cadetes de uma vez (até 15): cada um recebe a sua anotação.</div>
+
+          <div class="linha" style="grid-template-columns: 1fr 1fr;">
+            <div><label for="aData">Data do fato</label><input id="aData" type="date"></div>
+            <div><label for="aHora">Hora do fato</label><input id="aHora" type="time"></div>
+          </div>
+
+          <label for="aDesc">Descrição</label>
+          <textarea id="aDesc" rows="4" maxlength="1000" placeholder="Descreva o que foi constatado"></textarea>
+          <div class="ajuda" id="aPrazo"></div>
+
+          <div id="msgAnot" class="msg" hidden></div>
+          <button class="btn cheio" type="submit" id="btnLancar">Lançar anotação</button>
+        </form>
+      </div>
+      <div class="cartao">
+        <h2>Lançadas por você</h2>
+        <div id="listaLancadas"></div>
+      </div>
+    </div>
+
+    <!-- Anotações da semana (nível 3) -->
+    <div class="aba" id="aba-semana" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Anotações da semana</h2>
+        <div class="ciclo-escolha">
+          <label for="selCiclo" style="margin:0">Semana com prazo de defesa em</label>
+          <select id="selCiclo"></select>
+        </div>
+        <div id="resumoSemana" class="resumo"></div>
+        <div id="listaSemana"></div>
+      </div>
+    </div>
+
     <div class="aba" id="aba-acessos" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Pedidos pendentes <span class="contador" id="contPendentes" hidden></span></h2>
@@ -339,7 +438,8 @@ import {
   sendPasswordResetEmail, signOut
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp
+  getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
+  query, where, Timestamp
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -477,18 +577,47 @@ let perfil = null;          // perfil do usuário logado (usuarios/{uid})
 let perfilCarregado = false;
 let ocupado = false;        // true enquanto o pedido está sendo enviado
 let pararPerfil = null;
-let pararUsuarios = null;
 let usuarios = [];          // lista para a aba Acessos
+let cadetes = [];           // cadetes ativos (para lançar anotações)
+let minhas = [];            // anotações recebidas
+let lancadas = [];          // anotações lançadas por mim
+let semana = [];            // anotações do ciclo escolhido (nível 3)
+const defesas = {};         // id da anotação -> { texto, enviadaEm, versao }
+const rascunhos = {};       // id da anotação -> texto sendo digitado
 let abaAtual = "inicio";
+
+// Assinaturas em tempo real, por nome (para ligar/desligar conforme o nível)
+const assinaturas = {};
+function assinar(nome, chave, iniciar) {
+  const atual = assinaturas[nome];
+  if (atual && atual.chave === chave) return;
+  if (atual) atual.parar();
+  assinaturas[nome] = { chave, parar: iniciar() };
+}
+function desassinar(nome) {
+  if (assinaturas[nome]) { assinaturas[nome].parar(); delete assinaturas[nome]; }
+}
 
 function pararTudo() {
   if (pararPerfil) { pararPerfil(); pararPerfil = null; }
-  if (pararUsuarios) { pararUsuarios(); pararUsuarios = null; }
+  Object.keys(assinaturas).forEach(desassinar);
 }
 
 // ================== Autenticação ==================
+function limparMemoria() {
+  usuarios = []; cadetes = []; minhas = []; lancadas = []; semana = [];
+  for (const k of Object.keys(defesas)) delete defesas[k];
+  for (const k of Object.keys(rascunhos)) delete rascunhos[k];
+  escolhidos.clear();
+  abaAtual = "inicio";
+  ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos", "#sugestoes",
+   "#listaPendentes", "#listaAtivos", "#listaInativos"].forEach((s) => $(s).replaceChildren());
+  $("#aDesc").value = "";
+}
+
 onAuthStateChanged(auth, (user) => {
   pararTudo();
+  limparMemoria();
   perfil = null;
   perfilCarregado = false;
   if (!user) {
@@ -718,7 +847,10 @@ $("#formPedido").addEventListener("submit", async (e) => {
 // ================== Sistema (usuário ativo) ==================
 function abasDisponiveis() {
   const abas = [{ id: "inicio", nome: "Início" }];
-  if (perfil.nivel >= 3) abas.push({ id: "acessos", nome: "Acessos" });
+  if (perfil.cadeteId) abas.push({ id: "minhas", nome: "Minhas anotações", contador: "contMinhas" });
+  if (perfil.nivel >= 2) abas.push({ id: "lancar", nome: "Lançar anotação" });
+  if (perfil.nivel >= 3) abas.push({ id: "semana", nome: "Anotações da semana" });
+  if (perfil.nivel >= 3) abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
   return abas;
 }
 
@@ -730,17 +862,28 @@ function abrirApp() {
   nav.replaceChildren(...abas.map((a) => h("button", {
     type: "button", role: "tab", "aria-selected": a.id === abaAtual ? "true" : "false",
     "data-aba": a.id, onclick: () => trocarAba(a.id)
-  }, a.nome, a.id === "acessos" ? h("span", { class: "contador", id: "contAba", hidden: true }) : null)));
+  }, a.nome, a.contador ? h("span", { class: "contador", id: a.contador, hidden: true }) : null)));
 
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + abaAtual; });
   desenharInicio();
 
+  // Minhas anotações
+  if (perfil.cadeteId) assinarMinhas(); else desassinar("minhas");
+
+  // Lançar (nível 2+)
+  if (perfil.nivel >= 2) { prepararLancamento(); assinarCadetes(); assinarLancadas(); }
+  else { desassinar("cadetes"); desassinar("lancadas"); }
+
+  // Nível 3
   if (perfil.nivel >= 3) {
-    if (!pararUsuarios) assinarUsuarios();
-    else desenharAcessos();
-  } else if (pararUsuarios) {
-    pararUsuarios(); pararUsuarios = null;
+    prepararCiclos();
+    assinarUsuarios();
+    assinarSemana();
+    desenharAcessos();
+  } else {
+    desassinar("usuarios"); desassinar("semana");
   }
+  desenharMinhas();
   mostrar("v-app");
 }
 
@@ -748,6 +891,13 @@ function trocarAba(id) {
   abaAtual = id;
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
+}
+
+function contador(id, n) {
+  const c = document.getElementById(id);
+  if (!c) return;
+  c.textContent = n;
+  c.hidden = !n;
 }
 
 // ---------- Início ----------
@@ -763,8 +913,7 @@ function desenharInicio() {
   );
 
   const proximas = [];
-  if (p.nivel >= 1) proximas.push("Minhas anotações e defesa escrita (até quarta-feira, 23h59)", "Consulta da MCE recebida após a dosimetria");
-  if (p.nivel >= 2) proximas.push("Lançamento de anotações e FO+");
+  if (p.nivel >= 1) proximas.push("Consulta da MCE recebida após a dosimetria");
   if (p.nivel >= 3) proximas.push("Cadastro de cadetes e escalas de serviço", "Dashboard de dosimetria", "Geração da NAMCE em PDF");
 
   $("#aba-inicio").replaceChildren(
@@ -781,15 +930,429 @@ function desenharInicio() {
   );
 }
 
+// ================== Ciclo semanal ==================
+// Anotações lançadas até terça-feira 23h59 entram na semana; a partir de quarta 00h00 vão
+// para a semana seguinte. A defesa fica aberta até quarta-feira 23h59min59s (Brasília = UTC−3),
+// ou seja, quinta-feira 02h59min59s UTC. As regras do servidor conferem o mesmo cálculo:
+// o prazo é a primeira "quinta 02:59:59 UTC" que esteja pelo menos 24 h à frente do lançamento.
+const DIA = 86400000;
+function proximoPrazo(base = new Date()) {
+  const t = base.getTime();
+  for (let i = 0; i < 10; i++) {
+    const c = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + i, 2, 59, 59, 0);
+    if (new Date(c).getUTCDay() === 4 && c - DIA >= t) return new Date(c);
+  }
+  return null;
+}
+
+function prazoTexto(ts) {
+  const d = ts && ts.toDate ? ts.toDate() : ts;
+  if (!d) return "";
+  const dia = d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "2-digit" });
+  return `${dia}, às 23h59`;
+}
+
+function prazoAberto(ts) {
+  return ts && ts.toMillis && Date.now() <= ts.toMillis();
+}
+
+function dataFato(ts) {
+  if (!ts || !ts.toDate) return "";
+  return ts.toDate().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function cadeteRotulo(a) {
+  const t = `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""} · Pel. ${a.cadetePelotao}`;
+  return `${a.cadeteAno === "CHOE" ? "Al-Of" : "Cad."} ${a.cadeteGuerra} (${t})`;
+}
+
+function tagTipo(tipo) {
+  return h("span", { class: "tag " + (tipo === "fo" ? "fo" : "aad") }, tipo === "fo" ? "FO+" : "AAD");
+}
+
+function porData(a, b) {
+  return (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0);
+}
+
+// ================== Minhas anotações ==================
+function assinarMinhas() {
+  assinar("minhas", perfil.cadeteId, () => onSnapshot(
+    query(collection(db, "anotacoes"), where("cadeteId", "==", perfil.cadeteId)),
+    (snap) => {
+      minhas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porData);
+      carregarDefesasMinhas();
+      desenharMinhas();
+    },
+    (err) => {
+      console.error(err);
+      $("#listaMinhas").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar suas anotações."));
+    }
+  ));
+}
+
+/** Busca o texto da defesa das anotações que já têm defesa (só quando muda). */
+async function carregarDefesasMinhas() {
+  for (const a of minhas) {
+    if (!a.defesaEm) continue;
+    const versao = a.defesaEm.seconds;
+    if (defesas[a.id] && defesas[a.id].versao === versao) continue;
+    try {
+      const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
+      if (s.exists()) defesas[a.id] = { ...s.data(), versao };
+    } catch (err) { console.error(err); }
+  }
+  desenharMinhas();
+}
+
+function desenharMinhas() {
+  const alvo = $("#listaMinhas");
+  if (!perfil || !perfil.cadeteId) return;
+  const pendentes = minhas.filter((a) => a.tipo === "aad" && prazoAberto(a.prazo) && !a.defesaEm).length;
+  contador("contMinhas", pendentes);
+
+  if (!minhas.length) {
+    alvo.replaceChildren(h("p", { class: "vazio" }, "Você não tem anotações."));
+    return;
+  }
+  alvo.replaceChildren(...minhas.map(cartaoMinha));
+}
+
+function cartaoMinha(a) {
+  const filhos = [
+    h("div", { class: "anot-cab" },
+      tagTipo(a.tipo),
+      h("strong", {}, "Fato em " + dataFato(a.fatoEm)),
+      h("span", { class: "anot-meta" }, "· anotado por " + a.anotadorNome)
+    ),
+    h("p", { class: "anot-desc" }, a.descricao)
+  ];
+
+  if (a.tipo === "aad") {
+    const def = defesas[a.id];
+    const aberto = prazoAberto(a.prazo);
+    const box = h("div", { class: "defesa-box" });
+
+    if (aberto) {
+      box.append(h("div", { class: "prazo aberto" }, "Defesa até " + prazoTexto(a.prazo)));
+      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa (opcional)", "aria-label": "Defesa" });
+      ta.value = rascunhos[a.id] ?? (def ? def.texto : "");
+      ta.addEventListener("input", () => { rascunhos[a.id] = ta.value; });
+      const btn = h("button", { class: "btn peq", type: "button", style: "margin-top:8px" }, def ? "Atualizar defesa" : "Enviar defesa");
+      btn.addEventListener("click", () => enviarDefesa(a, ta.value, btn));
+      box.append(ta, btn);
+      if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + ". Você pode alterar até o prazo."));
+    } else {
+      box.append(h("div", { class: "prazo fechado" }, "Prazo de defesa encerrado (" + prazoTexto(a.prazo) + ")"));
+      if (def) box.append(h("div", { class: "defesa-txt" }, def.texto));
+      else if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + "."));
+      else box.append(h("div", { class: "ajuda" }, "Nenhuma defesa enviada."));
+    }
+    filhos.push(box);
+  }
+  return h("div", { class: "anot" }, filhos);
+}
+
+async function enviarDefesa(a, texto, btn) {
+  texto = (texto || "").trim();
+  if (!texto) { avisar("Escreva a defesa antes de enviar.", true); return; }
+  if (!prazoAberto(a.prazo)) { avisar("O prazo de defesa já terminou.", true); return; }
+  btn.disabled = true;
+  try {
+    const lote = writeBatch(db);
+    lote.set(doc(db, "anotacoes", a.id, "defesa", "texto"), { texto, enviadaEm: serverTimestamp() });
+    lote.update(doc(db, "anotacoes", a.id), { defesaEm: serverTimestamp() });
+    await lote.commit();
+    defesas[a.id] = { texto, versao: -1 };
+    delete rascunhos[a.id];
+    avisar("Defesa enviada.");
+  } catch (err) {
+    console.error(err);
+    avisar(err.code === "permission-denied" ? "Não foi possível enviar: o prazo pode ter terminado." : "Não foi possível enviar. Tente de novo.", true);
+    btn.disabled = false;
+  }
+}
+
+// ================== Lançar anotação (nível 2 e 3) ==================
+const escolhidos = new Map();   // cadeteId -> cadete
+let lancamentoPronto = false;
+
+function assinarCadetes() {
+  assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
+    cadetes = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.ativo).sort(ordenar);
+    desenharSugestoes();
+  }, (err) => console.error(err)));
+}
+
+function assinarLancadas() {
+  const uid = auth.currentUser.uid;
+  assinar("lancadas", uid, () => onSnapshot(
+    query(collection(db, "anotacoes"), where("anotadorUid", "==", uid)),
+    (snap) => {
+      lancadas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porData);
+      desenharLancadas();
+    },
+    (err) => console.error(err)
+  ));
+}
+
+function hojeLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return { data: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hora: `${p(d.getHours())}:${p(d.getMinutes())}` };
+}
+
+function prepararLancamento() {
+  if (lancamentoPronto) return;
+  lancamentoPronto = true;
+  $("#filtroTurma").replaceChildren(
+    h("option", { value: "" }, "Todas as turmas"),
+    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a))
+  );
+  const agora = hojeLocal();
+  $("#aData").value = agora.data;
+  $("#aHora").value = agora.hora;
+  $("#buscaCadete").addEventListener("input", desenharSugestoes);
+  $("#filtroTurma").addEventListener("change", desenharSugestoes);
+  $("#formAnot").addEventListener("submit", lancarAnotacao);
+  atualizarPrazoInfo();
+  setInterval(atualizarPrazoInfo, 60000);
+}
+
+function atualizarPrazoInfo() {
+  $("#aPrazo").textContent = "Anotações lançadas até terça-feira 23h59 entram na semana atual; a partir de quarta, na seguinte. "
+    + "Prazo de defesa das anotações lançadas agora: " + prazoTexto(proximoPrazo()) + ".";
+}
+
+function desenharSugestoes() {
+  const termo = $("#buscaCadete").value.trim().toLowerCase();
+  const turma = $("#filtroTurma").value;
+  const box = $("#sugestoes");
+  if (!termo && !turma) { box.replaceChildren(); desenharEscolhidos(); return; }
+  const lista = cadetes.filter((c) =>
+    c.id !== perfil.cadeteId && !escolhidos.has(c.id) &&
+    (!turma || c.ano === turma) &&
+    (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo))
+  ).slice(0, 12);
+  box.replaceChildren(...(lista.length ? lista.map((c) => h("button", {
+    type: "button",
+    onclick: () => {
+      if (escolhidos.size >= 15) { avisar("Máximo de 15 cadetes por lançamento.", true); return; }
+      escolhidos.set(c.id, c);
+      $("#buscaCadete").value = "";
+      desenharSugestoes();
+      $("#buscaCadete").focus();
+    }
+  }, c.guerra, h("span", { class: "turma" }, `${c.ano}${c.turma ? "/" + c.turma : ""} ${c.pelotao}`)))
+    : [h("span", { class: "ajuda" }, cadetes.length ? "Nenhum cadete encontrado." : "Nenhum cadete cadastrado ainda.")]));
+  desenharEscolhidos();
+}
+
+function desenharEscolhidos() {
+  $("#escolhidos").replaceChildren(...[...escolhidos.values()].map((c) => h("span", { class: "chip" },
+    c.guerra,
+    h("button", { type: "button", "aria-label": `Remover ${c.guerra}`, onclick: () => { escolhidos.delete(c.id); desenharSugestoes(); } }, "×")
+  )));
+}
+
+async function lancarAnotacao(e) {
+  e.preventDefault();
+  mensagem("#msgAnot", "");
+  const tipo = document.querySelector('input[name="tipoAnot"]:checked').value;
+  const descricao = $("#aDesc").value.trim().replace(/[ \t]+/g, " ");
+  const data = $("#aData").value, hora = $("#aHora").value;
+  const fato = new Date(`${data}T${hora}`);
+
+  if (!escolhidos.size) { mensagem("#msgAnot", "Escolha pelo menos um cadete."); return; }
+  if (!data || !hora || isNaN(fato)) { mensagem("#msgAnot", "Informe a data e a hora do fato."); return; }
+  if (fato.getTime() > Date.now() + 5 * 60000) { mensagem("#msgAnot", "A data do fato não pode estar no futuro."); return; }
+  if (fato.getTime() < Date.now() - 30 * 86400000) { mensagem("#msgAnot", "O fato tem mais de 30 dias. Fale com a coordenação."); return; }
+  if (descricao.length < 5) { mensagem("#msgAnot", "Descreva o que foi constatado."); return; }
+
+  const nomes = [...escolhidos.values()].map((c) => c.guerra).join(", ");
+  if (!confirm(`Lançar ${tipo === "fo" ? "FO+" : "AAD"} para ${escolhidos.size} cadete(s)?\n\n${nomes}\n\nDepois de lançada, a anotação não pode ser editada nem apagada.`)) return;
+
+  const btn = $("#btnLancar");
+  btn.disabled = true;
+  const prazo = Timestamp.fromDate(proximoPrazo());
+  const anotadorNome = nomeCurto(perfil).toUpperCase();
+  try {
+    const lote = writeBatch(db);
+    for (const c of escolhidos.values()) {
+      lote.set(doc(collection(db, "anotacoes")), {
+        tipo,
+        cadeteId: c.id, cadeteNome: c.nome, cadeteGuerra: c.guerra,
+        cadeteAno: c.ano, cadeteTurma: c.turma || "", cadetePelotao: c.pelotao,
+        anotadorUid: auth.currentUser.uid, anotadorNome,
+        descricao,
+        fatoEm: Timestamp.fromDate(fato),
+        criadoEm: serverTimestamp(),
+        prazo
+      });
+    }
+    await lote.commit();
+    avisar(`Anotação lançada para ${escolhidos.size} cadete(s).`);
+    escolhidos.clear();
+    $("#aDesc").value = "";
+    const agora = hojeLocal();
+    $("#aData").value = agora.data; $("#aHora").value = agora.hora;
+    desenharSugestoes();
+  } catch (err) {
+    console.error(err);
+    mensagem("#msgAnot", "Não foi possível lançar. Confira os dados e tente de novo.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function desenharLancadas() {
+  const lista = lancadas.slice(0, 30);
+  $("#listaLancadas").replaceChildren(
+    lista.length
+      ? h("table", { class: "tabela" },
+          h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"))),
+          h("tbody", {}, lista.map((a) => h("tr", {},
+            h("td", {}, dataFato(a.fatoEm)),
+            h("td", {}, cadeteRotulo(a)),
+            h("td", {}, tagTipo(a.tipo)),
+            h("td", { class: "desc" }, a.descricao)
+          ))))
+      : h("p", { class: "vazio" }, "Você ainda não lançou anotações.")
+  );
+}
+
+// ================== Anotações da semana (nível 3) ==================
+const ORDEM_TURMA = { "3º CFO": 0, "2º CFO": 1, "CHOE": 2, "1º CFO": 3 };
+let ciclosProntos = false;
+
+function prepararCiclos() {
+  if (ciclosProntos) return;
+  ciclosProntos = true;
+  const recebendo = proximoPrazo();                       // semana que está recebendo anotações
+  const anterior = new Date(recebendo.getTime() - 7 * DIA); // semana que fechou na terça
+  const agora = Date.now();
+  const sel = $("#selCiclo");
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(recebendo.getTime() - i * 7 * DIA);
+    let rotulo = "";
+    if (i === 0) rotulo = " (recebendo anotações)";
+    else if (d.getTime() >= agora) rotulo = " (lançamentos encerrados · defesas abertas)";
+    else if (i === 1) rotulo = " (prazo encerrado · dosimetria)";
+    sel.append(h("option", { value: String(d.getTime()) }, prazoTexto(d) + rotulo));
+  }
+  // de quarta a sexta, abre na semana que acabou de fechar (a da dosimetria)
+  sel.value = String(agora <= anterior.getTime() + 2 * DIA ? anterior.getTime() : recebendo.getTime());
+  sel.addEventListener("change", assinarSemana);
+}
+
+function assinarSemana() {
+  const ms = +$("#selCiclo").value;
+  assinar("semana", ms, () => onSnapshot(
+    query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(ms))),
+    (snap) => {
+      semana = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      desenharSemana();
+    },
+    (err) => {
+      console.error(err);
+      $("#listaSemana").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações."));
+    }
+  ));
+}
+
+function grupoDe(a) { return `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""}`; }
+
+function desenharSemana() {
+  const aad = semana.filter((a) => a.tipo === "aad");
+  const fo = semana.filter((a) => a.tipo === "fo");
+  const comDefesa = aad.filter((a) => a.defesaEm).length;
+  const ms = +$("#selCiclo").value;
+  const aberto = Date.now() <= ms;
+
+  $("#resumoSemana").replaceChildren(
+    h("span", {}, h("strong", {}, aad.length), " AAD"),
+    h("span", {}, h("strong", {}, fo.length), " FO+"),
+    h("span", {}, h("strong", {}, comDefesa), " com defesa"),
+    h("span", {}, Date.now() <= ms - DIA ? "Recebendo anotações até terça 23h59"
+      : aberto ? "Defesas abertas até quarta 23h59" : "Prazo de defesa encerrado")
+  );
+
+  if (!semana.length) {
+    $("#listaSemana").replaceChildren(h("p", { class: "vazio" }, "Nenhuma anotação nesta semana."));
+    return;
+  }
+
+  const partes = [];
+  if (fo.length) {
+    partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
+    partes.push(tabelaSemana(fo.sort((a, b) => ordenarAnot(a, b)), false));
+  }
+  const grupos = {};
+  aad.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  Object.keys(grupos)
+    .sort((x, y) => (ORDEM_TURMA[x.split("/")[0]] ?? 9) - (ORDEM_TURMA[y.split("/")[0]] ?? 9) || x.localeCompare(y))
+    .forEach((g) => {
+      partes.push(h("h3", { class: "grupo-titulo" }, g));
+      partes.push(tabelaSemana(grupos[g].sort(ordenarAnot), true));
+    });
+  $("#listaSemana").replaceChildren(...partes);
+}
+
+function ordenarAnot(a, b) {
+  return a.cadeteGuerra.localeCompare(b.cadeteGuerra, "pt-BR") || (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0);
+}
+
+function tabelaSemana(lista, comDefesa) {
+  return h("table", { class: "tabela" },
+    h("thead", {}, h("tr", {},
+      h("th", { class: "num" }, "Nº"), h("th", {}, "Fato"), h("th", {}, "Cadete"),
+      h("th", {}, comDefesa ? "AAD" : "Descrição"), h("th", {}, "Anotador"),
+      comDefesa ? h("th", {}, "Defesa") : null)),
+    h("tbody", {}, lista.map((a, i) => h("tr", {},
+      h("td", { class: "num" }, i + 1),
+      h("td", {}, dataFato(a.fatoEm)),
+      h("td", {}, h("strong", {}, a.cadeteGuerra),
+        h("div", { class: "ajuda" }, comDefesa ? `Pel. ${a.cadetePelotao}` : `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
+      h("td", { class: "desc" }, a.descricao),
+      h("td", {}, a.anotadorNome),
+      comDefesa ? h("td", {}, celulaDefesa(a)) : null
+    )))
+  );
+}
+
+function celulaDefesa(a) {
+  if (!a.defesaEm) return h("span", { class: "ajuda" }, "Sem defesa");
+  const box = h("div", {});
+  const def = defesas[a.id];
+  if (def && def.versao === a.defesaEm.seconds) {
+    box.append(h("div", { class: "defesa-txt" }, def.texto));
+    return box;
+  }
+  const btn = h("button", { class: "btn sec peq", type: "button" }, "Ver defesa");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
+      defesas[a.id] = { ...(s.exists() ? s.data() : { texto: "(defesa não encontrada)" }), versao: a.defesaEm.seconds };
+      box.replaceChildren(h("div", { class: "defesa-txt" }, defesas[a.id].texto));
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      avisar("Não foi possível abrir a defesa.", true);
+    }
+  });
+  box.append(btn, h("div", { class: "ajuda" }, "Enviada em " + dataHora(a.defesaEm)));
+  return box;
+}
+
 // ---------- Acessos (nível 3) ----------
 function assinarUsuarios() {
-  pararUsuarios = onSnapshot(collection(db, "usuarios"), (snap) => {
+  assinar("usuarios", "todos", () => onSnapshot(collection(db, "usuarios"), (snap) => {
     usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     desenharAcessos();
   }, (err) => {
     console.error(err);
     $("#listaPendentes").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar os usuários. Confira se as regras de segurança foram publicadas."));
-  });
+  }));
 }
 
 function ordenar(a, b) {

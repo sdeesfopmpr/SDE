@@ -16,10 +16,15 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 
 O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedidos ficam pendentes até um nível 3 aprovar na aba Acessos.
 
+## Semana disciplinar
+- Anotações lançadas até **terça-feira 23h59** entram na semana; a partir de quarta 00h00 vão para a semana seguinte.
+- A defesa escrita fica aberta até **quarta-feira 23h59** (travado nas regras do servidor).
+- Quinta-feira: dosimetria.
+
 ## Etapas
 - [x] 1. Login, pedido de acesso, aprovação e regras de segurança
-- [ ] 2. Minhas anotações e defesa
-- [ ] 3. Lançamento de anotações e FO+
+- [x] 2. Minhas anotações e defesa
+- [x] 3. Lançamento de anotações e FO+ (e lista provisória "Anotações da semana" para o nível 3)
 - [ ] 4. Cadetes, escalas e dashboard de dosimetria
 - [ ] 5. NAMCE em PDF
 - [ ] 6. Teste com cadetes e liberação
