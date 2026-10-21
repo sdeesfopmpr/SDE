@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 3)
+// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 4)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -85,7 +85,8 @@ service cloud.firestore {
       // só o nível 3 aprova, recusa, bloqueia e muda nível; o usuário não altera o próprio perfil
       allow update: if nivel(3)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['nivel', 'status', 'cadeteId', 'analisadoPor', 'analisadoEm'])
+             .hasOnly(['nivel', 'status', 'cadeteId', 'analisadoPor', 'analisadoEm',
+                       'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto'])
         && request.resource.data.nivel in [0, 1, 2, 3]
         && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
 
@@ -101,6 +102,15 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && getAfter(caminhoPerfil(request.auth.uid)).data.cpf == cpf;
       allow update: if false;
+      allow delete: if nivel(3);
+    }
+
+    // ---------- CPF → cadete (para ligar a conta a um cadete cadastrado antes pela coordenação) ----------
+    match /cpfCadete/{cpf} {
+      allow read: if nivel(3);
+      allow create, update: if nivel(3) && cpfValido(cpf)
+        && request.resource.data.keys().hasOnly(['cadeteId'])
+        && request.resource.data.cadeteId is string;
       allow delete: if nivel(3);
     }
 
@@ -166,13 +176,17 @@ service cloud.firestore {
       // lançar: nível 2 ou 3. Ninguém edita nem apaga depois.
       allow create: if nivel(2) && anotacaoValida(request.resource.data);
 
-      // o cadete só marca a hora em que enviou a defesa, e só até o prazo
-      allow update: if ativo()
-        && resource.data.cadeteId == meuCadete()
-        && resource.data.tipo == 'aad'
-        && request.time <= resource.data.prazo
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
-        && request.resource.data.defesaEm == request.time;
+      // o cadete só marca a hora em que enviou a defesa, e só até o prazo;
+      // o nível 3 só grava a MCE publicada e a anulação (nunca altera o texto da anotação)
+      allow update: if (ativo()
+          && resource.data.cadeteId == meuCadete()
+          && resource.data.tipo == 'aad'
+          && request.time <= resource.data.prazo
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
+          && request.resource.data.defesaEm == request.time)
+        || (nivel(3)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['mce', 'anulada', 'anuladaPor', 'anuladaEm', 'anuladaMotivo']));
 
       allow delete: if false;
 
@@ -190,6 +204,27 @@ service cloud.firestore {
           && request.resource.data.enviadaEm == request.time;
         allow delete: if false;
       }
+    }
+
+    // ---------- Dosimetria (decisões; invisíveis ao cadete até a publicação) ----------
+    match /dosimetria/{aid} {
+      allow read, write: if nivel(3);
+    }
+
+    // ---------- NAMCEs (rascunho e publicadas) ----------
+    match /namces/{id} {
+      allow read, write: if nivel(3);
+    }
+
+    // ---------- Escalas de serviço (para bloquear conflitos) ----------
+    match /escalas/{id} {
+      allow read, delete: if nivel(3);
+      allow create, update: if nivel(3)
+        && request.resource.data.cadeteId is string
+        && request.resource.data.inicio is timestamp
+        && request.resource.data.fim is timestamp
+        && request.resource.data.fim > request.resource.data.inicio
+        && txt(request.resource.data.servico, 1, 200);
     }
   }
 }

@@ -230,6 +230,75 @@
   .ciclo-escolha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   .ciclo-escolha select { width: auto; }
 
+  /* ---------- Dosimetria ---------- */
+  .namce-cab { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; align-items: end; }
+  .namce-cab label { margin: 0 0 4px; font-size: 13px; }
+  .namce-cab .acao { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media (max-width: 760px) { .namce-cab { grid-template-columns: 1fr 1fr; } }
+  .selo-pub { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 13px; }
+  .selo-pub.rascunho { background: var(--alerta-fundo); color: var(--alerta); }
+  .selo-pub.publicada { background: #e4f4ea; color: var(--ok); }
+  .filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0 10px; }
+  .filtros input[type=search] { flex: 1; min-width: 200px; }
+  .filtros select { width: auto; }
+  .check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; cursor: pointer; }
+  .check input { width: auto; }
+  .legenda-blocos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--suave); }
+  .legenda-blocos span { display: inline-flex; align-items: center; gap: 5px; }
+  .bl { display: inline-block; width: 16px; height: 12px; border-radius: 3px; border: 1px solid var(--borda); background: #fff; }
+  .bl.sel { background: var(--verde); border-color: var(--verde); }
+  .bl.escala { background: repeating-linear-gradient(45deg, #f6d4d0, #f6d4d0 3px, #fff 3px, #fff 6px); border-color: #e3a49c; }
+  .bl.outra { background: #dfe1ec; border-color: #c4c8db; }
+  .bl.sobrepoe { background: #f1f2f6; border-style: dashed; }
+  .bl.sel.conflito { box-shadow: 0 0 0 2px var(--erro); }
+
+  .grupo-dosi { margin: 18px 0 8px; }
+  .dosi { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .dosi.pendente { border-left: 4px solid var(--ouro); }
+  .dosi.decidida { border-left: 4px solid var(--verde); }
+  .dosi.com-conflito { border-left: 4px solid var(--erro); }
+  .dosi-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .dosi-cab .num { color: var(--suave); font-size: 13px; min-width: 22px; }
+  .dosi-cab strong { font-size: 15px; }
+  .dosi-desc { margin: 4px 0 8px; white-space: pre-wrap; font-size: 14px; }
+  .dosi-meta { font-size: 12.5px; color: var(--suave); }
+  .dosi-corpo { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: start; }
+  @media (max-width: 760px) { .dosi-corpo { grid-template-columns: 1fr; } }
+  .blocos { display: flex; gap: 10px; flex-wrap: wrap; }
+  .dia { border: 1px solid var(--borda); border-radius: 8px; padding: 4px 6px 6px; }
+  .dia-nome { font-size: 11px; font-weight: 700; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .dia-blocos { display: flex; gap: 4px; flex-wrap: wrap; }
+  .bloco {
+    font: inherit; font-size: 12px; font-weight: 700; padding: 4px 6px; min-width: 50px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--borda); background: #fff; color: var(--texto); line-height: 1.1; text-align: center;
+  }
+  .bloco small { display: block; font-weight: 500; font-size: 10px; color: var(--suave); }
+  .bloco:hover:not(:disabled) { border-color: var(--verde); }
+  .bloco.sel { background: var(--verde); border-color: var(--verde); color: #fff; }
+  .bloco.sel small { color: #d8daf2; }
+  .bloco.sel.conflito { box-shadow: 0 0 0 2px var(--erro); }
+  .bloco.escala { background: repeating-linear-gradient(45deg, #f6d4d0, #f6d4d0 4px, #fff 4px, #fff 8px); border-color: #e3a49c; color: #8a2a1f; cursor: not-allowed; }
+  .bloco.outra { background: #dfe1ec; color: #5a5e70; cursor: not-allowed; }
+  .bloco.sobrepoe { background: #f6f7fa; border-style: dashed; color: #9a9db0; cursor: not-allowed; }
+  .decisoes { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
+  .decisoes .linha-dec { display: flex; gap: 4px; flex-wrap: wrap; }
+  .dec {
+    font: inherit; font-size: 13px; font-weight: 700; padding: 5px 9px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--borda); background: #fff; color: var(--texto);
+  }
+  .dec.ativo { background: var(--ouro); border-color: var(--ouro-esc); color: #1b1d2b; }
+  .decisoes input { padding: 6px 8px; font-size: 13px; }
+  .mce-texto { font-size: 13px; font-weight: 700; color: var(--verde); }
+  .aviso-conf { font-size: 12.5px; color: var(--erro); font-weight: 600; margin-top: 4px; }
+  .tag.anulada { background: #eceef2; color: var(--suave); text-decoration: line-through; }
+  .anot.anulada { opacity: .65; }
+  .mce-box { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--verde-claro); font-size: 14px; }
+  .mce-box strong { color: var(--verde-esc); }
+  .btn-link-perigo { background: none; border: 0; color: var(--erro); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; padding: 0; }
+  .edicao { display: grid; grid-template-columns: 2fr 1.2fr 1fr .7fr .7fr auto; gap: 6px; align-items: center; }
+  .edicao input, .edicao select { padding: 5px 7px; font-size: 13px; }
+  @media (max-width: 760px) { .edicao { grid-template-columns: 1fr 1fr; } }
+
   /* ---------- Aviso flutuante ---------- */
   .aviso {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
@@ -443,15 +512,93 @@
     </div>
 
     <!-- Anotações da semana (nível 3) -->
+    <!-- Dosimetria (nível 3) -->
     <div class="aba" id="aba-semana" role="tabpanel" hidden>
       <div class="cartao">
-        <h2>Anotações da semana</h2>
+        <h2>Dosimetria</h2>
         <div class="ciclo-escolha">
           <label for="selCiclo" style="margin:0">Semana com prazo de defesa em</label>
           <select id="selCiclo"></select>
         </div>
+        <div id="namceCab" class="namce-cab"></div>
         <div id="resumoSemana" class="resumo"></div>
-        <div id="listaSemana"></div>
+        <div class="filtros">
+          <input id="buscaDosi" type="search" placeholder="Buscar cadete ou descrição">
+          <label class="check"><input type="checkbox" id="soPendentes"> Só pendentes</label>
+        </div>
+        <div class="legenda-blocos">
+          <span><i class="bl livre"></i>Livre</span>
+          <span><i class="bl sel"></i>Aplicado</span>
+          <span><i class="bl escala"></i>Escala de serviço</span>
+          <span><i class="bl outra"></i>Outra MCE do cadete</span>
+          <span><i class="bl sobrepoe"></i>Sobreposição</span>
+          <span><i class="bl sel conflito"></i>Conflito com escala lançada depois</span>
+        </div>
+      </div>
+      <div id="listaSemana"></div>
+    </div>
+
+    <!-- Escalas (nível 3) -->
+    <div class="aba" id="aba-escalas" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Escalas de serviço</h2>
+        <p class="legenda">Os horários de serviço bloqueiam os blocos de MCE que coincidem com eles. A importação de PDF está sendo preparada; por enquanto, lance manualmente.</p>
+        <form id="formEscala" novalidate>
+          <label for="eBusca">Cadete</label>
+          <div class="busca-cadete">
+            <select id="eFiltroTurma" aria-label="Filtrar por turma"></select>
+            <input id="eBusca" type="search" autocomplete="off" placeholder="Digite o nome de guerra">
+          </div>
+          <div id="eSugestoes" class="sugestoes"></div>
+          <div id="eEscolhidos" class="chips"></div>
+          <div class="linha" style="grid-template-columns: 1fr 1fr;">
+            <div><label for="eInicio">Início</label><input id="eInicio" type="datetime-local"></div>
+            <div><label for="eFim">Fim</label><input id="eFim" type="datetime-local"></div>
+          </div>
+          <label for="eServico">Serviço</label>
+          <input id="eServico" maxlength="200" placeholder="Ex.: Sentinela da Guarda, Eleições 2º turno">
+          <div id="msgEscala" class="msg" hidden></div>
+          <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
+        </form>
+      </div>
+      <div class="cartao">
+        <h2>Escalas no fim de semana</h2>
+        <div class="ciclo-escolha">
+          <label for="selFds" style="margin:0">Fim de semana</label>
+          <select id="selFds"></select>
+        </div>
+        <div id="listaEscalas"></div>
+      </div>
+    </div>
+
+    <!-- Cadetes (nível 3) -->
+    <div class="aba" id="aba-cadetes" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Cadastrar cadete</h2>
+        <p class="legenda">Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo CPF, a conta é ligada a este cadastro na aprovação.</p>
+        <form id="formCadete" novalidate>
+          <label for="cNome">Nome completo</label>
+          <input id="cNome" maxlength="120">
+          <label for="cGuerra">Nome de guerra</label>
+          <input id="cGuerra" maxlength="40" style="text-transform: uppercase">
+          <div class="linha">
+            <div><label for="cAno">Curso / ano</label><select id="cAno"></select></div>
+            <div><label for="cTurma">Turma</label><select id="cTurma"></select></div>
+            <div><label for="cPelotao">Pelotão</label><select id="cPelotao"></select></div>
+          </div>
+          <label for="cCpf">CPF</label>
+          <input id="cCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+          <div id="msgCadete" class="msg" hidden></div>
+          <button class="btn cheio" type="submit" id="btnCadete">Cadastrar</button>
+        </form>
+      </div>
+      <div class="cartao">
+        <h2>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span></h2>
+        <div class="filtros">
+          <select id="cFiltroTurma" aria-label="Filtrar por turma"></select>
+          <input id="cBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
+        </div>
+        <div id="listaCadetes"></div>
       </div>
     </div>
 
@@ -485,7 +632,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
-  query, where, Timestamp
+  query, where, Timestamp, setDoc
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -652,13 +799,17 @@ function pararTudo() {
 
 // ================== Autenticação ==================
 function limparMemoria() {
-  usuarios = []; cadetes = []; minhas = []; lancadas = []; semana = [];
+  $("#aviso").hidden = true;
+  usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
+  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; cabW = null; editandoCadete = null;
+  for (const k of Object.keys(anotExtra)) delete anotExtra[k];
+  for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
   for (const k of Object.keys(rascunhos)) delete rascunhos[k];
   escolhidos.clear();
   abaAtual = "inicio";
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos", "#sugestoes",
-   "#listaPendentes", "#listaAtivos", "#listaInativos"].forEach((s) => $(s).replaceChildren());
+   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#listaEscalas", "#listaCadetes"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
 }
 
@@ -896,8 +1047,12 @@ function abasDisponiveis() {
   const abas = [{ id: "inicio", nome: "Início" }];
   if (perfil.cadeteId) abas.push({ id: "minhas", nome: "Minhas anotações", contador: "contMinhas" });
   if (perfil.nivel >= 2) abas.push({ id: "lancar", nome: "Lançar anotação" });
-  if (perfil.nivel >= 3) abas.push({ id: "semana", nome: "Anotações da semana" });
-  if (perfil.nivel >= 3) abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
+  if (perfil.nivel >= 3) {
+    abas.push({ id: "semana", nome: "Dosimetria" });
+    abas.push({ id: "escalas", nome: "Escalas" });
+    abas.push({ id: "cadetes", nome: "Cadetes" });
+    abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
+  }
   return abas;
 }
 
@@ -924,11 +1079,15 @@ function abrirApp() {
   // Nível 3
   if (perfil.nivel >= 3) {
     prepararCiclos();
+    prepararEscalas();
+    prepararCadetes();
     assinarUsuarios();
     assinarSemana();
+    assinarEscalasLista();
     desenharAcessos();
+    desenharCadetes();
   } else {
-    desassinar("usuarios"); desassinar("semana");
+    ["usuarios", "semana", "dosi", "escalasDosi", "namces", "escalasLista"].forEach(desassinar);
   }
   desenharMinhas();
   mostrar("v-app");
@@ -960,8 +1119,7 @@ function desenharInicio() {
   );
 
   const proximas = [];
-  if (p.nivel >= 1) proximas.push("Consulta da MCE recebida após a dosimetria");
-  if (p.nivel >= 3) proximas.push("Cadastro de cadetes e escalas de serviço", "Dashboard de dosimetria", "Geração da NAMCE em PDF");
+  if (p.nivel >= 3) proximas.push("Importação das escalas de serviço em PDF", "Geração da NAMCE em PDF");
 
   $("#aba-inicio").replaceChildren(
     h("div", { class: "cartao" },
@@ -1054,7 +1212,7 @@ async function carregarDefesasMinhas() {
 function desenharMinhas() {
   const alvo = $("#listaMinhas");
   if (!perfil || !perfil.cadeteId) return;
-  const pendentes = minhas.filter((a) => a.tipo === "aad" && prazoAberto(a.prazo) && !a.defesaEm).length;
+  const pendentes = minhas.filter((a) => a.tipo === "aad" && !a.anulada && !a.mce && prazoAberto(a.prazo) && !a.defesaEm).length;
   contador("contMinhas", pendentes);
 
   if (!minhas.length) {
@@ -1067,16 +1225,34 @@ function desenharMinhas() {
 function cartaoMinha(a) {
   const filhos = [
     h("div", { class: "anot-cab" },
-      tagTipo(a.tipo),
+      a.anulada ? h("span", { class: "tag anulada" }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo),
       h("strong", {}, "Fato em " + dataFato(a.fatoEm)),
       h("span", { class: "anot-meta" }, "· anotado por " + a.anotadorNome)
     ),
     h("p", { class: "anot-desc" }, a.descricao)
   ];
 
+  if (a.anulada) {
+    filhos.push(h("div", { class: "mce-box" }, h("strong", {}, "Anotação anulada"),
+      ` pela coordenação (${a.anuladaPor || ""}). Motivo: ${a.anuladaMotivo || "—"}`));
+    return h("div", { class: "anot anulada" }, filhos);
+  }
+
+  if (a.tipo === "aad" && a.mce) {
+    const m = a.mce;
+    const txt = {
+      blocos: [h("strong", {}, "MCE: "), m.texto],
+      justif: [h("strong", {}, "Justificada"), " — defesa aceita, sem MCE."],
+      transf: [h("strong", {}, "Transferida"), " para a próxima NAMCE."],
+      td: [h("strong", {}, "Trabalho Didático (TD)"), " — verifique a atividade com o Oficial Coordenador até o fim do expediente de sexta-feira."],
+      cumprida: [h("strong", {}, "Já cumprida.")]
+    }[m.decisao] || [h("strong", {}, "MCE: "), m.texto];
+    filhos.push(h("div", { class: "mce-box" }, ...txt, h("div", { class: "ajuda" }, "NAMCE nº " + m.namce)));
+  }
+
   if (a.tipo === "aad") {
     const def = defesas[a.id];
-    const aberto = prazoAberto(a.prazo);
+    const aberto = prazoAberto(a.prazo) && !a.mce;
     const box = h("div", { class: "defesa-box" });
 
     if (aberto) {
@@ -1089,7 +1265,7 @@ function cartaoMinha(a) {
       box.append(ta, btn);
       if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + ". Você pode alterar até o prazo."));
     } else {
-      box.append(h("div", { class: "prazo fechado" }, "Prazo de defesa encerrado (" + prazoTexto(a.prazo) + ")"));
+      box.append(h("div", { class: "prazo fechado" }, a.mce ? "Defesa encerrada (NAMCE publicada)" : "Prazo de defesa encerrado (" + prazoTexto(a.prazo) + ")"));
       if (def) box.append(h("div", { class: "defesa-txt" }, def.texto));
       else if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + "."));
       else box.append(h("div", { class: "ajuda" }, "Nenhuma defesa enviada."));
@@ -1125,8 +1301,10 @@ let lancamentoPronto = false;
 
 function assinarCadetes() {
   assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
-    cadetes = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.ativo).sort(ordenar);
+    todosCadetes = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(ordenar);
+    cadetes = todosCadetes.filter((c) => c.ativo);
     desenharSugestoes();
+    desenharCadetes();
   }, (err) => console.error(err)));
 }
 
@@ -1260,25 +1438,85 @@ function desenharLancadas() {
           h("tbody", {}, lista.map((a) => h("tr", {},
             h("td", {}, dataFato(a.fatoEm)),
             h("td", {}, cadeteRotulo(a)),
-            h("td", {}, tagTipo(a.tipo)),
-            h("td", { class: "desc" }, a.descricao)
+            h("td", {}, a.anulada ? h("span", { class: "tag anulada", title: "Anulada: " + (a.anuladaMotivo || "") }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo)),
+            h("td", { class: "desc" }, a.descricao + (a.anulada ? " (anulada pela coordenação)" : ""))
           ))))
       : h("p", { class: "vazio" }, "Você ainda não lançou anotações.")
   );
 }
 
-// ================== Anotações da semana (nível 3) ==================
+// ================== Dosimetria (nível 3) ==================
 const ORDEM_TURMA = { "3º CFO": 0, "2º CFO": 1, "CHOE": 2, "1º CFO": 3 };
+
+// Blocos da tabela de MCE (minutos contados a partir da 00h00 do dia; > 1440 = dia seguinte)
+const BLOCOS = [
+  { id: "EEsp1", rot: "EEsp 1", dia: 0, ini: 14 * 60, fim: 18 * 60 },
+  { id: "EEsp2", rot: "EEsp 2", dia: 0, ini: 18 * 60, fim: 22 * 60 },
+  { id: "LC1", rot: "LC 1", dia: 0, ini: 19 * 60, fim: 31 * 60 },
+  { id: "EEsp3", rot: "EEsp 3", dia: 1, ini: 7 * 60 + 15, fim: 11 * 60 + 15 },
+  { id: "EEsp4", rot: "EEsp 4", dia: 1, ini: 14 * 60, fim: 18 * 60 },
+  { id: "EEsp5", rot: "EEsp 5", dia: 1, ini: 18 * 60, fim: 22 * 60 },
+  { id: "LC2", rot: "LC 2", dia: 1, ini: 7 * 60, fim: 19 * 60 },
+  { id: "LC3", rot: "LC 3", dia: 1, ini: 19 * 60, fim: 31 * 60 },
+  { id: "EEsp6", rot: "EEsp 6", dia: 2, ini: 7 * 60 + 15, fim: 11 * 60 + 15 },
+  { id: "EEsp7", rot: "EEsp 7", dia: 2, ini: 14 * 60, fim: 18 * 60 },
+  { id: "EEsp8", rot: "EEsp 8", dia: 2, ini: 18 * 60, fim: 22 * 60 },
+  { id: "LC4", rot: "LC 4", dia: 2, ini: 7 * 60, fim: 19 * 60 },
+  { id: "LC5", rot: "LC 5", dia: 2, ini: 19 * 60, fim: 31 * 60 }
+];
+const DIAS = ["Sexta", "Sábado", "Domingo"];
+const DECISOES = { justif: "Justif.", transf: "Transf.", td: "TD", cumprida: "Já cumprida" };
+
+let semanaW = 0;            // prazo (ms) da semana aberta na dosimetria
+let dosi = {};              // id da anotação -> decisão (coleção dosimetria)
+const anotExtra = {};       // anotações transferidas de semanas anteriores
+let escalasFds = [];        // escalas que tocam o fim de semana da semana aberta
+let namces = {};            // id (prazo ms) -> NAMCE
+const obsRasc = {};         // observações sendo digitadas
 let ciclosProntos = false;
+let cabW = null;
+
+function hhmm(min) {
+  min %= 1440;
+  const h = String(Math.floor(min / 60)).padStart(2, "0"), m = min % 60;
+  return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
+}
+// Sexta-feira 00h00 de Brasília da semana cujo prazo de defesa é W (W = quinta 02:59:59 UTC)
+function sextaDe(W) { return W + DIA + 1000; }
+function fimFdsDe(W) { return sextaDe(W) + 3 * DIA + 7 * 3600000; }   // segunda 07h00
+function intervaloBloco(b, W) { const s = sextaDe(W) + b.dia * DIA; return [s + b.ini * 60000, s + b.fim * 60000]; }
+function sobrepoe(a, b) { return a[0] < b[1] && b[0] < a[1]; }
+function textoBlocos(ids) { return BLOCOS.filter((b) => ids.includes(b.id)).map((b) => b.rot).join(" + "); }
+function textoMce(d) {
+  if (!d || !d.decisao) return "";
+  let t = d.decisao === "blocos" ? textoBlocos(d.blocos || []) : DECISOES[d.decisao];
+  if (d.obs) t += ` (${d.obs})`;
+  return t;
+}
+function decidida(d) { return !!(d && d.decisao && (d.decisao !== "blocos" || (d.blocos && d.blocos.length))); }
+function dataCurta(ms) { return new Date(ms).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }); }
+function dataHoraMs(ms) { return new Date(ms).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+function fdsTexto(W) { return `sexta ${dataCurta(sextaDe(W))} a domingo ${dataCurta(sextaDe(W) + 2 * DIA)}`; }
+function grupoDe(a) { return `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""}`; }
+function pelNamce(a) {
+  if (a.cadeteAno === "CHOE") return `CHOE ${a.cadetePelotao}`;
+  return `${a.cadeteAno.replace(" CFO", "")} PM${a.cadeteTurma ? "/" + a.cadeteTurma : ""} ${a.cadetePelotao}`;
+}
+function ordemGrupo(x, y) {
+  return (ORDEM_TURMA[x.split("/")[0]] ?? 9) - (ORDEM_TURMA[y.split("/")[0]] ?? 9) || x.localeCompare(y);
+}
+function ordenarAnot(a, b) {
+  return a.cadeteGuerra.localeCompare(b.cadeteGuerra, "pt-BR") || (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0);
+}
 
 function prepararCiclos() {
   if (ciclosProntos) return;
   ciclosProntos = true;
-  const recebendo = proximoPrazo();                       // semana que está recebendo anotações
-  const anterior = new Date(recebendo.getTime() - 7 * DIA); // semana que fechou na terça
+  const recebendo = proximoPrazo();
+  const anterior = new Date(recebendo.getTime() - 7 * DIA);
   const agora = Date.now();
   const sel = $("#selCiclo");
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     const d = new Date(recebendo.getTime() - i * 7 * DIA);
     let rotulo = "";
     if (i === 0) rotulo = " (recebendo anotações)";
@@ -1286,83 +1524,254 @@ function prepararCiclos() {
     else if (i === 1) rotulo = " (prazo encerrado · dosimetria)";
     sel.append(h("option", { value: String(d.getTime()) }, prazoTexto(d) + rotulo));
   }
-  // de quarta a sexta, abre na semana que acabou de fechar (a da dosimetria)
   sel.value = String(agora <= anterior.getTime() + 2 * DIA ? anterior.getTime() : recebendo.getTime());
   sel.addEventListener("change", assinarSemana);
+  $("#buscaDosi").addEventListener("input", desenharLista);
+  $("#soPendentes").addEventListener("change", desenharLista);
 }
 
 function assinarSemana() {
-  const ms = +$("#selCiclo").value;
-  assinar("semana", ms, () => onSnapshot(
-    query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(ms))),
+  const W = +$("#selCiclo").value;
+  semanaW = W;
+  assinar("semana", W, () => onSnapshot(
+    query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(W))),
+    (snap) => { semana = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharSemana(); },
+    (err) => { console.error(err); $("#listaSemana").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações.")); }
+  ));
+  assinar("dosi", W, () => onSnapshot(
+    query(collection(db, "dosimetria"), where("semana", "==", W)),
+    (snap) => { dosi = {}; snap.docs.forEach((d) => { dosi[d.id] = d.data(); }); carregarExtras(); desenharSemana(); },
+    (err) => console.error(err)
+  ));
+  assinar("escalasDosi", W, () => onSnapshot(
+    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W)))),
     (snap) => {
-      semana = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const limite = fimFdsDe(W);
+      escalasFds = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => e.inicio.toMillis() < limite);
       desenharSemana();
     },
-    (err) => {
-      console.error(err);
-      $("#listaSemana").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações."));
-    }
+    (err) => console.error(err)
   ));
+  assinar("namces", "todas", () => onSnapshot(collection(db, "namces"), (snap) => {
+    namces = {};
+    snap.docs.forEach((d) => { namces[d.id] = { id: d.id, ...d.data() }; });
+    desenharSemana();
+  }, (err) => console.error(err)));
 }
 
-function grupoDe(a) { return `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""}`; }
+async function carregarExtras() {
+  const ids = new Set(semana.map((a) => a.id));
+  let mudou = false;
+  for (const id of Object.keys(dosi)) {
+    if (ids.has(id) || anotExtra[id]) continue;
+    try {
+      const s = await getDoc(doc(db, "anotacoes", id));
+      if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; }
+    } catch (err) { console.error(err); }
+  }
+  if (mudou) desenharSemana();
+}
+
+/** AAD da semana + transferidas de semanas anteriores (sem as anuladas). */
+function linhasDosi() {
+  const proprias = semana.filter((a) => a.tipo === "aad" && !a.anulada);
+  const ids = new Set(proprias.map((a) => a.id));
+  const extras = Object.keys(dosi).filter((id) => !ids.has(id) && anotExtra[id] && !anotExtra[id].anulada).map((id) => anotExtra[id]);
+  return [...proprias, ...extras];
+}
+
+function sugestaoNumero(ano) {
+  const nums = Object.values(namces).filter((n) => n.status === "publicada" && n.ano === ano).map((n) => n.numero);
+  return nums.length ? Math.max(...nums) + 1 : "";
+}
 
 function desenharSemana() {
-  const aad = semana.filter((a) => a.tipo === "aad");
-  const fo = semana.filter((a) => a.tipo === "fo");
-  const comDefesa = aad.filter((a) => a.defesaEm).length;
-  const ms = +$("#selCiclo").value;
-  const aberto = Date.now() <= ms;
+  if (!semanaW) return;
+  const n = namces[String(semanaW)];
+  if (n && n.status === "publicada") { desenharPublicada(n); return; }
+  desenharCabecalho(n);
+  desenharLista();
+}
+
+function desenharCabecalho(n) {
+  const ano = new Date(sextaDe(semanaW)).getFullYear();
+  const chave = String(semanaW);
+  if (cabW !== chave) {
+    cabW = chave;
+    const num = h("input", { id: "nNumero", type: "number", min: "1", inputmode: "numeric" });
+    const anoI = h("input", { id: "nAno", type: "number", min: "2020" });
+    const plan = h("input", { id: "nPlanilhas", placeholder: "Ex.: 27, 28, 29 e 30/2026" });
+    num.value = n?.numero ?? sugestaoNumero(ano);
+    anoI.value = n?.ano ?? ano;
+    plan.value = n?.planilhas ?? "";
+    const salvar = () => setDoc(doc(db, "namces", String(semanaW)), {
+      numero: +num.value || null, ano: +anoI.value || ano, planilhas: plan.value.trim(),
+      prazo: Timestamp.fromMillis(semanaW), sexta: sextaDe(semanaW), status: "rascunho",
+      atualizadoEm: serverTimestamp()
+    }, { merge: true }).catch((err) => { console.error(err); avisar("Não foi possível salvar os dados da NAMCE.", true); });
+    [num, anoI, plan].forEach((i) => i.addEventListener("change", salvar));
+    const pub = h("button", { class: "btn", type: "button", onclick: publicarNamce }, "Publicar NAMCE");
+    $("#namceCab").replaceChildren(
+      h("div", {}, h("label", { for: "nNumero" }, "NAMCE nº"), num),
+      h("div", {}, h("label", { for: "nAno" }, "Ano"), anoI),
+      h("div", { style: "grid-column: span 2" }, h("label", { for: "nPlanilhas" }, "Planilhas de Anotados nº"), plan),
+      h("div", { style: "grid-column: 1 / -1" }, h("span", { class: "selo-pub rascunho" }, "Rascunho"),
+        h("span", { class: "ajuda", style: "margin-left:10px" }, "Cumprimento: " + fdsTexto(semanaW))),
+      h("div", { class: "acao", style: "grid-column: 1 / -1" }, pub)
+    );
+  } else if (n) {
+    // atualiza campos que outra pessoa mudou (sem atrapalhar quem está digitando)
+    [["#nNumero", n.numero], ["#nAno", n.ano], ["#nPlanilhas", n.planilhas]].forEach(([s, v]) => {
+      const i = $(s); if (i && document.activeElement !== i && v !== undefined && v !== null) i.value = v;
+    });
+  }
+}
+
+function desenharLista() {
+  if (!semanaW) return;
+  const n = namces[String(semanaW)];
+  if (n && n.status === "publicada") return;
+
+  const linhas = linhasDosi();
+  const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada);
+  const decididas = linhas.filter((a) => decidida(dosi[a.id])).length;
+  const conflitos = linhas.filter((a) => conflitosDe(a).length).length;
+  const comDefesa = linhas.filter((a) => a.defesaEm).length;
+  const aberto = Date.now() <= semanaW;
 
   $("#resumoSemana").replaceChildren(
-    h("span", {}, h("strong", {}, aad.length), " AAD"),
-    h("span", {}, h("strong", {}, fo.length), " FO+"),
+    h("span", {}, h("strong", {}, linhas.length), " AAD"),
+    h("span", {}, h("strong", {}, decididas), " decididas"),
+    h("span", {}, h("strong", {}, linhas.length - decididas), " pendentes"),
     h("span", {}, h("strong", {}, comDefesa), " com defesa"),
-    h("span", {}, Date.now() <= ms - DIA ? "Recebendo anotações até terça 23h59"
-      : aberto ? "Defesas abertas até quarta 23h59" : "Prazo de defesa encerrado")
+    h("span", {}, h("strong", {}, fo.length), " FO+"),
+    conflitos ? h("span", { style: "color:var(--erro)" }, h("strong", {}, conflitos), " com conflito de escala") : null,
+    h("span", {}, Date.now() <= semanaW - DIA ? "Recebendo anotações até terça 23h59" : aberto ? "Defesas abertas até quarta 23h59" : "Prazo de defesa encerrado")
   );
 
-  if (!semana.length) {
-    $("#listaSemana").replaceChildren(h("p", { class: "vazio" }, "Nenhuma anotação nesta semana."));
-    return;
-  }
+  const termo = $("#buscaDosi").value.trim().toLowerCase();
+  const soPend = $("#soPendentes").checked;
+  const filtra = (a) => (!termo || (a.cadeteGuerra + " " + a.cadeteNome + " " + a.descricao).toLowerCase().includes(termo))
+    && (!soPend || !decidida(dosi[a.id]));
 
   const partes = [];
-  if (fo.length) {
+  const foF = fo.filter((a) => !soPend && filtra(a)).sort(ordenarAnot);
+  if (foF.length) {
     partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
-    partes.push(tabelaSemana(fo.sort((a, b) => ordenarAnot(a, b)), false));
+    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, "Anotador"),
+        h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"), h("th", {}))),
+      h("tbody", {}, foF.map((a, i) => h("tr", {},
+        h("td", { class: "num" }, i + 1), h("td", {}, dataFato(a.fatoEm)), h("td", {}, a.anotadorNome),
+        h("td", {}, pelNamce(a)), h("td", {}, h("strong", {}, a.cadeteGuerra)), h("td", { class: "desc" }, a.descricao),
+        h("td", {}, h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "Anular"))
+      ))))));
   }
+
   const grupos = {};
-  aad.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
-  Object.keys(grupos)
-    .sort((x, y) => (ORDEM_TURMA[x.split("/")[0]] ?? 9) - (ORDEM_TURMA[y.split("/")[0]] ?? 9) || x.localeCompare(y))
-    .forEach((g) => {
-      partes.push(h("h3", { class: "grupo-titulo" }, g));
-      partes.push(tabelaSemana(grupos[g].sort(ordenarAnot), true));
-    });
+  linhas.filter(filtra).forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
+    partes.push(h("h3", { class: "grupo-titulo" }, g === "CHOE" ? "CHOE" : g));
+    grupos[g].sort(ordenarAnot).forEach((a, i) => partes.push(cartaoDosi(a, i + 1, linhas)));
+  });
+  if (!partes.length) partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, linhas.length || fo.length ? "Nada encontrado com esse filtro." : "Nenhuma anotação nesta semana.")));
   $("#listaSemana").replaceChildren(...partes);
 }
 
-function ordenarAnot(a, b) {
-  return a.cadeteGuerra.localeCompare(b.cadeteGuerra, "pt-BR") || (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0);
+/** Escalas do cadete que coincidem com blocos aplicados a ele nesta anotação. */
+function conflitosDe(a) {
+  const d = dosi[a.id];
+  if (!d || d.decisao !== "blocos") return [];
+  const esc = escalasFds.filter((e) => e.cadeteId === a.cadeteId);
+  const out = [];
+  for (const id of d.blocos || []) {
+    const b = BLOCOS.find((x) => x.id === id);
+    const iv = intervaloBloco(b, semanaW);
+    esc.forEach((e) => { if (sobrepoe(iv, [e.inicio.toMillis(), e.fim.toMillis()])) out.push({ bloco: b, escala: e }); });
+  }
+  return out;
 }
 
-function tabelaSemana(lista, comDefesa) {
-  return h("table", { class: "tabela" },
-    h("thead", {}, h("tr", {},
-      h("th", { class: "num" }, "Nº"), h("th", {}, "Fato"), h("th", {}, "Cadete"),
-      h("th", {}, comDefesa ? "AAD" : "Descrição"), h("th", {}, "Anotador"),
-      comDefesa ? h("th", {}, "Defesa") : null)),
-    h("tbody", {}, lista.map((a, i) => h("tr", {},
-      h("td", { class: "num" }, i + 1),
-      h("td", {}, dataFato(a.fatoEm)),
-      h("td", {}, h("strong", {}, a.cadeteGuerra),
-        h("div", { class: "ajuda" }, comDefesa ? `Pel. ${a.cadetePelotao}` : `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
-      h("td", { class: "desc" }, a.descricao),
-      h("td", {}, a.anotadorNome),
-      comDefesa ? h("td", {}, celulaDefesa(a)) : null
-    )))
+function cartaoDosi(a, num, linhas) {
+  const d = dosi[a.id] || {};
+  const meus = d.decisao === "blocos" ? (d.blocos || []) : [];
+  const irmas = linhas.filter((x) => x.cadeteId === a.cadeteId && x.id !== a.id);
+  const blocosIrmas = new Map();   // bloco -> rótulo da outra anotação
+  irmas.forEach((x) => {
+    const dx = dosi[x.id];
+    if (dx && dx.decisao === "blocos") (dx.blocos || []).forEach((id) => blocosIrmas.set(id, x));
+  });
+  const ocupadosCadete = [...meus, ...blocosIrmas.keys()];
+  const esc = escalasFds.filter((e) => e.cadeteId === a.cadeteId);
+  const conflitos = conflitosDe(a);
+
+  const salvar = (patch) => {
+    dosi[a.id] = { ...d, semana: semanaW, ...patch };
+    desenharLista();
+    setDoc(doc(db, "dosimetria", a.id), {
+      semana: semanaW, ...patch, atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
+    }, { merge: true }).catch((err) => { console.error(err); avisar("Não foi possível salvar a decisão.", true); });
+  };
+
+  const dias = DIAS.map((nome, di) => h("div", { class: "dia" },
+    h("div", { class: "dia-nome" }, nome),
+    h("div", { class: "dia-blocos" }, BLOCOS.filter((b) => b.dia === di).map((b) => {
+      const iv = intervaloBloco(b, semanaW);
+      const escB = esc.find((e) => sobrepoe(iv, [e.inicio.toMillis(), e.fim.toMillis()]));
+      const sel = meus.includes(b.id);
+      let estado = "livre", titulo = `${b.rot}: ${hhmm(b.ini)} às ${hhmm(b.fim)}`;
+      if (sel) {
+        estado = escB ? "sel conflito" : "sel";
+        if (escB) titulo += ` · CONFLITO: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
+      } else if (escB) {
+        estado = "escala"; titulo += ` · Escala: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
+      } else if (blocosIrmas.has(b.id)) {
+        estado = "outra"; titulo += " · já aplicado em outra AAD deste cadete";
+      } else if (ocupadosCadete.some((id) => id !== b.id && sobrepoe(iv, intervaloBloco(BLOCOS.find((x) => x.id === id), semanaW)))) {
+        estado = "sobrepoe"; titulo += " · sobrepõe outro bloco já aplicado a este cadete";
+      }
+      const livre = estado === "livre" || estado.startsWith("sel");
+      return h("button", {
+        type: "button", class: "bloco " + estado, title: titulo, "aria-pressed": sel ? "true" : "false",
+        disabled: !livre,
+        onclick: () => {
+          const novos = sel ? meus.filter((x) => x !== b.id) : [...meus, b.id];
+          salvar({ decisao: novos.length ? "blocos" : "", blocos: novos });
+        }
+      }, b.rot, h("small", {}, `${hhmm(b.ini)}–${hhmm(b.fim)}`));
+    }))
+  ));
+
+  const decs = Object.entries(DECISOES).map(([k, rot]) => h("button", {
+    type: "button", class: "dec" + (d.decisao === k ? " ativo" : ""), "aria-pressed": d.decisao === k ? "true" : "false",
+    onclick: () => salvar(d.decisao === k ? { decisao: "", blocos: [] } : { decisao: k, blocos: [] })
+  }, rot));
+
+  const obs = h("input", { placeholder: "Observação (opcional)", maxlength: "120", "aria-label": "Observação" });
+  obs.value = obsRasc[a.id] ?? d.obs ?? "";
+  obs.addEventListener("input", () => { obsRasc[a.id] = obs.value; });
+  obs.addEventListener("change", () => { delete obsRasc[a.id]; salvar({ obs: obs.value.trim() }); });
+
+  const ok = decidida(d);
+  const transf = d.transferidaDe || "";
+  return h("div", { class: "dosi " + (conflitos.length ? "com-conflito" : ok ? "decidida" : "pendente") },
+    h("div", { class: "dosi-cab" },
+      h("span", { class: "num" }, num),
+      h("strong", {}, a.cadeteGuerra),
+      h("span", { class: "dosi-meta" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao} · fato em ${dataFato(a.fatoEm)} · anotado por ${a.anotadorNome}`),
+      ok ? h("span", { class: "mce-texto" }, "→ " + textoMce(d)) : h("span", { class: "tag aad" }, "PENDENTE")
+    ),
+    h("div", { class: "dosi-desc" }, a.descricao + (transf ? ` (Transferida NAMCE ${transf.split("/")[0]}).` : "")),
+    h("div", { class: "dosi-corpo" },
+      h("div", { class: "blocos" }, dias),
+      h("div", { class: "decisoes" }, h("div", { class: "linha-dec" }, decs), obs)
+    ),
+    conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ Conflito com escala lançada depois: " +
+      conflitos.map((c) => `${c.bloco.rot} × ${c.escala.servico}`).join("; ")) : null,
+    h("div", { style: "display:flex; gap:16px; align-items:center; margin-top:8px; flex-wrap:wrap" },
+      h("div", { style: "flex:1; min-width:200px" }, celulaDefesa(a)),
+      h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "Anular anotação")
+    )
   );
 }
 
@@ -1371,7 +1780,7 @@ function celulaDefesa(a) {
   const box = h("div", {});
   const def = defesas[a.id];
   if (def && def.versao === a.defesaEm.seconds) {
-    box.append(h("div", { class: "defesa-txt" }, def.texto));
+    box.append(h("div", { class: "defesa-txt" }, h("strong", {}, "Defesa: "), def.texto));
     return box;
   }
   const btn = h("button", { class: "btn sec peq", type: "button" }, "Ver defesa");
@@ -1380,15 +1789,357 @@ function celulaDefesa(a) {
     try {
       const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
       defesas[a.id] = { ...(s.exists() ? s.data() : { texto: "(defesa não encontrada)" }), versao: a.defesaEm.seconds };
-      box.replaceChildren(h("div", { class: "defesa-txt" }, defesas[a.id].texto));
+      box.replaceChildren(h("div", { class: "defesa-txt" }, h("strong", {}, "Defesa: "), defesas[a.id].texto));
     } catch (err) {
       console.error(err);
       btn.disabled = false;
       avisar("Não foi possível abrir a defesa.", true);
     }
   });
-  box.append(btn, h("div", { class: "ajuda" }, "Enviada em " + dataHora(a.defesaEm)));
+  box.append(btn, h("span", { class: "ajuda", style: "margin-left:8px" }, "enviada em " + dataHora(a.defesaEm)));
   return box;
+}
+
+async function anular(a) {
+  const motivo = prompt(`Anular a anotação de ${a.cadeteGuerra}?\n\n"${a.descricao}"\n\nInforme o motivo (o cadete verá a anotação como anulada):`);
+  if (motivo === null) return;
+  if (motivo.trim().length < 3) { avisar("Informe o motivo da anulação.", true); return; }
+  try {
+    await updateDoc(doc(db, "anotacoes", a.id), {
+      anulada: true, anuladaPor: nomeCurto(perfil).toUpperCase(), anuladaEm: serverTimestamp(), anuladaMotivo: motivo.trim()
+    });
+    if (anotExtra[a.id]) anotExtra[a.id].anulada = true;
+    avisar("Anotação anulada.");
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível anular.", true);
+  }
+}
+
+async function publicarNamce() {
+  const W = semanaW;
+  const numero = +$("#nNumero").value, ano = +$("#nAno").value;
+  const planilhas = $("#nPlanilhas").value.trim();
+  if (!numero || numero < 1) { avisar("Informe o número da NAMCE.", true); return; }
+  if (!ano) { avisar("Informe o ano.", true); return; }
+  if (Date.now() <= W) { if (!confirm("O prazo de defesa desta semana ainda não terminou (quarta 23h59). Publicar mesmo assim?")) return; }
+  const linhas = linhasDosi();
+  const pend = linhas.filter((a) => !decidida(dosi[a.id]));
+  if (pend.length) { alert(`Ainda há ${pend.length} AAD sem decisão:\n\n${pend.slice(0, 15).map((a) => "• " + a.cadeteGuerra).join("\n")}`); return; }
+  const conf = linhas.filter((a) => conflitosDe(a).length);
+  if (conf.length && !confirm(`${conf.length} AAD têm blocos em conflito com escala de serviço:\n\n${conf.map((a) => "• " + a.cadeteGuerra).join("\n")}\n\nPublicar mesmo assim?`)) return;
+  const dup = Object.values(namces).find((n) => n.status === "publicada" && n.numero === numero && n.ano === ano);
+  if (dup && !confirm(`Já existe uma NAMCE nº ${numero}/${ano} publicada. Publicar com o mesmo número?`)) return;
+  if (!confirm(`Publicar a NAMCE nº ${numero}/${ano}?\n\n${linhas.length} AAD · cumprimento ${fdsTexto(W)}\n\nOs cadetes passam a ver as MCEs. Depois de publicada, a NAMCE não pode ser alterada pelo sistema.`)) return;
+
+  const ref = `${numero}/${ano}`;
+  const grupos = {};
+  linhas.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  const itens = [];
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => grupos[g].sort(ordenarAnot).forEach((a) => {
+    const d = dosi[a.id];
+    itens.push({
+      anotacaoId: a.id, grupo: g, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
+      cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma, cadetePelotao: a.cadetePelotao,
+      fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
+      decisao: d.decisao, blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || ""
+    });
+  }));
+  const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada).sort(ordenarAnot).map((a) => ({
+    anotacaoId: a.id, fato: a.fatoEm.toMillis(), anotadorNome: a.anotadorNome, pel: pelNamce(a),
+    cadeteGuerra: a.cadeteGuerra, descricao: a.descricao
+  }));
+
+  const ops = [];
+  ops.push((b) => b.set(doc(db, "namces", String(W)), {
+    numero, ano, planilhas, prazo: Timestamp.fromMillis(W), sexta: sextaDe(W), status: "publicada",
+    publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), itens, fo
+  }));
+  for (const it of itens) {
+    ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.decisao, namce: ref } }));
+    if (it.decisao === "transf") {
+      ops.push((b) => b.set(doc(db, "dosimetria", it.anotacaoId), {
+        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", transferidaDe: it.transferidaDe || ref,
+        atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
+      }));
+    }
+  }
+  try {
+    for (let i = 0; i < ops.length; i += 400) {
+      const lote = writeBatch(db);
+      ops.slice(i, i + 400).forEach((f) => f(lote));
+      await lote.commit();
+    }
+    avisar(`NAMCE nº ${ref} publicada.`);
+  } catch (err) {
+    console.error(err);
+    alert("Não foi possível publicar a NAMCE. Nada foi alterado ou a publicação ficou incompleta; tente de novo.");
+  }
+}
+
+function desenharPublicada(n) {
+  cabW = null;
+  $("#namceCab").replaceChildren(
+    h("div", { style: "grid-column: 1 / -1" },
+      h("span", { class: "selo-pub publicada" }, `NAMCE nº ${n.numero}/${n.ano} publicada`),
+      h("span", { class: "ajuda", style: "margin-left:10px" },
+        `em ${dataHora(n.publicadaEm)} por ${n.publicadaPor || "—"} · cumprimento ${fdsTexto(semanaW)}` +
+        (n.planilhas ? ` · Planilhas nº ${n.planilhas}` : ""))),
+    h("div", { class: "ajuda", style: "grid-column: 1 / -1" }, "O PDF da NAMCE será gerado a partir desta publicação (próxima etapa).")
+  );
+  $("#resumoSemana").replaceChildren(
+    h("span", {}, h("strong", {}, n.itens.length), " AAD"),
+    h("span", {}, h("strong", {}, n.fo.length), " FO+")
+  );
+  const partes = [];
+  if (n.fo.length) {
+    partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
+    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, "Anotador"), h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"))),
+      h("tbody", {}, n.fo.map((f, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(f.fato)),
+        h("td", {}, f.anotadorNome), h("td", {}, f.pel), h("td", {}, h("strong", {}, f.cadeteGuerra)), h("td", { class: "desc" }, f.descricao)))))));
+  }
+  const grupos = {};
+  n.itens.forEach((it) => { (grupos[it.grupo] ||= []).push(it); });
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
+    partes.push(h("h3", { class: "grupo-titulo" }, g));
+    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"))),
+      h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
+        h("td", {}, h("strong", {}, it.cadeteGuerra)),
+        h("td", { class: "desc" }, it.descricao + (it.transferidaDe ? ` (Transferida NAMCE ${it.transferidaDe.split("/")[0]}).` : "")),
+        h("td", {}, h("strong", {}, it.mce))))))));
+  });
+  $("#listaSemana").replaceChildren(...partes);
+}
+
+// ================== Seletor de cadetes (reutilizável) ==================
+function criarSeletor({ busca, filtro, sugestoes, chips, max = 15 }) {
+  const escolhidos = new Map();
+  filtro.replaceChildren(h("option", { value: "" }, "Todas as turmas"),
+    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+  function desenharChips() {
+    chips.replaceChildren(...[...escolhidos.values()].map((c) => h("span", { class: "chip" }, c.guerra,
+      h("button", { type: "button", "aria-label": `Remover ${c.guerra}`, onclick: () => { escolhidos.delete(c.id); desenhar(); } }, "×"))));
+  }
+  function desenhar() {
+    const termo = busca.value.trim().toLowerCase(), turma = filtro.value;
+    if (!termo && !turma) { sugestoes.replaceChildren(); desenharChips(); return; }
+    const lista = cadetes.filter((c) => !escolhidos.has(c.id) && (!turma || c.ano === turma) &&
+      (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo))).slice(0, 12);
+    sugestoes.replaceChildren(...(lista.length ? lista.map((c) => h("button", {
+      type: "button",
+      onclick: () => {
+        if (escolhidos.size >= max) { avisar(`Máximo de ${max} cadetes por vez.`, true); return; }
+        escolhidos.set(c.id, c); busca.value = ""; desenhar(); busca.focus();
+      }
+    }, c.guerra, h("span", { class: "turma" }, `${c.ano}${c.turma ? "/" + c.turma : ""} ${c.pelotao}`)))
+      : [h("span", { class: "ajuda" }, "Nenhum cadete encontrado.")]));
+    desenharChips();
+  }
+  busca.addEventListener("input", desenhar);
+  filtro.addEventListener("change", desenhar);
+  return { escolhidos, desenhar, limpar() { escolhidos.clear(); busca.value = ""; desenhar(); } };
+}
+
+// ================== Escalas de serviço (nível 3) ==================
+let escalasProntas = false;
+let seletorEscala = null;
+let escalasLista = [];
+
+function prepararEscalas() {
+  if (escalasProntas) return;
+  escalasProntas = true;
+  seletorEscala = criarSeletor({ busca: $("#eBusca"), filtro: $("#eFiltroTurma"), sugestoes: $("#eSugestoes"), chips: $("#eEscolhidos"), max: 40 });
+  const recebendo = proximoPrazo().getTime();
+  const sel = $("#selFds");
+  for (let i = -1; i < 5; i++) {
+    const W = recebendo + i * 7 * DIA;
+    sel.append(h("option", { value: String(W) }, fdsTexto(W)));
+  }
+  sel.value = String(Date.now() <= recebendo - 7 * DIA + 2 * DIA ? recebendo - 7 * DIA : recebendo);
+  sel.addEventListener("change", assinarEscalasLista);
+  $("#formEscala").addEventListener("submit", lancarEscala);
+}
+
+function assinarEscalasLista() {
+  const W = +$("#selFds").value;
+  assinar("escalasLista", W, () => onSnapshot(
+    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W)))),
+    (snap) => {
+      const limite = fimFdsDe(W);
+      escalasLista = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => e.inicio.toMillis() < limite)
+        .sort((a, b) => (a.cadeteGuerra || "").localeCompare(b.cadeteGuerra || "", "pt-BR") || a.inicio.toMillis() - b.inicio.toMillis());
+      desenharEscalas();
+    },
+    (err) => { console.error(err); $("#listaEscalas").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as escalas.")); }
+  ));
+}
+
+function desenharEscalas() {
+  $("#listaEscalas").replaceChildren(escalasLista.length
+    ? h("table", { class: "tabela" },
+        h("thead", {}, h("tr", {}, h("th", {}, "Cadete"), h("th", {}, "Serviço"), h("th", {}, "Início"), h("th", {}, "Fim"), h("th", {}, "Origem"), h("th", {}))),
+        h("tbody", {}, escalasLista.map((e) => h("tr", {},
+          h("td", {}, h("strong", {}, e.cadeteGuerra || "?")),
+          h("td", {}, e.servico),
+          h("td", {}, dataHoraMs(e.inicio.toMillis())),
+          h("td", {}, dataHoraMs(e.fim.toMillis())),
+          h("td", { class: "ajuda" }, e.origem || ""),
+          h("td", { class: "acoes" }, h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirEscala(e) }, "Excluir"))
+        ))))
+    : h("p", { class: "vazio" }, "Nenhuma escala lançada para este fim de semana."));
+}
+
+async function lancarEscala(ev) {
+  ev.preventDefault();
+  mensagem("#msgEscala", "");
+  const ini = new Date($("#eInicio").value), fim = new Date($("#eFim").value);
+  const servico = $("#eServico").value.trim();
+  if (!seletorEscala.escolhidos.size) { mensagem("#msgEscala", "Escolha pelo menos um cadete."); return; }
+  if (isNaN(ini) || isNaN(fim)) { mensagem("#msgEscala", "Informe início e fim."); return; }
+  if (fim <= ini) { mensagem("#msgEscala", "O fim precisa ser depois do início."); return; }
+  if (fim - ini > 4 * DIA) { mensagem("#msgEscala", "Serviço com mais de 4 dias: confira as datas."); return; }
+  if (servico.length < 2) { mensagem("#msgEscala", "Informe o serviço."); return; }
+  const btn = $("#btnEscala"); btn.disabled = true;
+  try {
+    const lote = writeBatch(db);
+    for (const c of seletorEscala.escolhidos.values()) {
+      lote.set(doc(collection(db, "escalas")), {
+        cadeteId: c.id, cadeteGuerra: c.guerra, inicio: Timestamp.fromDate(ini), fim: Timestamp.fromDate(fim),
+        servico, tipo: "manual", origem: "Lançamento manual", criadoPor: nomeCurto(perfil).toUpperCase(), criadoEm: serverTimestamp()
+      });
+    }
+    await lote.commit();
+    avisar(`Escala lançada para ${seletorEscala.escolhidos.size} cadete(s).`);
+    seletorEscala.limpar();
+    $("#eServico").value = "";
+  } catch (err) {
+    console.error(err);
+    mensagem("#msgEscala", "Não foi possível lançar a escala.");
+  } finally { btn.disabled = false; }
+}
+
+async function excluirEscala(e) {
+  if (!confirm(`Excluir a escala de ${e.cadeteGuerra}?\n${e.servico}\n${dataHoraMs(e.inicio.toMillis())} a ${dataHoraMs(e.fim.toMillis())}`)) return;
+  try {
+    const lote = writeBatch(db);
+    lote.delete(doc(db, "escalas", e.id));
+    await lote.commit();
+    avisar("Escala excluída.");
+  } catch (err) { console.error(err); avisar("Não foi possível excluir.", true); }
+}
+
+// ================== Cadetes (nível 3) ==================
+let cadetesProntos = false;
+let todosCadetes = [];
+let editandoCadete = null;
+
+function opcoesTurma(sel, comVazio) {
+  sel.replaceChildren(...(comVazio ? [h("option", { value: "" }, "Selecione")] : []),
+    ...["1º CFO", "2º CFO", "3º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+}
+function opcoesSubturma(sel) {
+  sel.replaceChildren(h("option", { value: "" }, "Única"), ...["1", "2", "3"].map((t) => h("option", { value: t }, "/" + t)));
+}
+function opcoesPelotao(sel, comVazio) {
+  sel.replaceChildren(...(comVazio ? [h("option", { value: "" }, "Selecione")] : []),
+    ...["A", "B", "C", "D", "E"].map((p) => h("option", { value: p }, p)));
+}
+
+function prepararCadetes() {
+  if (cadetesProntos) return;
+  cadetesProntos = true;
+  opcoesTurma($("#cAno"), true); opcoesSubturma($("#cTurma")); opcoesPelotao($("#cPelotao"), true);
+  $("#cFiltroTurma").replaceChildren(h("option", { value: "" }, "Todas as turmas"),
+    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+  $("#cCpf").addEventListener("input", (e) => { e.target.value = formatarCpf(e.target.value); });
+  $("#cBusca").addEventListener("input", desenharCadetes);
+  $("#cFiltroTurma").addEventListener("change", desenharCadetes);
+  $("#formCadete").addEventListener("submit", cadastrarCadete);
+}
+
+function desenharCadetes() {
+  if (!perfil || perfil.nivel < 3) return;
+  const termo = $("#cBusca").value.trim().toLowerCase(), turma = $("#cFiltroTurma").value;
+  const lista = todosCadetes.filter((c) => (!turma || c.ano === turma) &&
+    (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo)));
+  $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
+  if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
+  $("#listaCadetes").replaceChildren(h("table", { class: "tabela" },
+    h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
+    h("tbody", {}, lista.map((c) => editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
+      h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome)),
+      h("td", {}, `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`),
+      h("td", {}, c.uid ? h("span", { class: "selo" }, "Com acesso") : h("span", { class: "selo cinza" }, "Sem conta")),
+      h("td", {}, c.ativo ? "Ativo" : h("span", { class: "selo cinza" }, "Inativo")),
+      h("td", { class: "acoes" },
+        h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = c.id; desenharCadetes(); } }, "Editar"), " ",
+        h("button", { class: "btn perigo peq", type: "button", onclick: () => alternarAtivo(c) }, c.ativo ? "Desativar" : "Reativar"))
+    )))
+  ));
+}
+
+function linhaEdicao(c) {
+  const nome = h("input", { value: c.nome, maxlength: "120", "aria-label": "Nome completo" });
+  const guerra = h("input", { value: c.guerra, maxlength: "40", "aria-label": "Nome de guerra", style: "text-transform:uppercase" });
+  const ano = h("select", { "aria-label": "Curso / ano" }); opcoesTurma(ano, false); ano.value = c.ano;
+  const turma = h("select", { "aria-label": "Turma" }); opcoesSubturma(turma); turma.value = c.turma || "";
+  const pel = h("select", { "aria-label": "Pelotão" }); opcoesPelotao(pel, false); pel.value = c.pelotao;
+  const salvar = async () => {
+    const v = { nome: nome.value.trim().replace(/\s+/g, " "), guerra: guerra.value.trim().replace(/\s+/g, " ").toUpperCase(), ano: ano.value, turma: turma.value, pelotao: pel.value };
+    if (v.nome.length < 3 || v.guerra.length < 2) { avisar("Confira nome e nome de guerra.", true); return; }
+    try {
+      const lote = writeBatch(db);
+      lote.update(doc(db, "cadetes", c.id), { ...v, atualizadoEm: serverTimestamp() });
+      if (c.uid) lote.update(doc(db, "usuarios", c.uid), v);
+      await lote.commit();
+      editandoCadete = null; avisar("Cadastro atualizado.");
+    } catch (err) { console.error(err); avisar("Não foi possível salvar.", true); }
+  };
+  return h("tr", {}, h("td", { colspan: "5" }, h("div", { class: "edicao" }, nome, guerra, ano, turma, pel,
+    h("div", { style: "display:flex; gap:6px" },
+      h("button", { class: "btn peq", type: "button", onclick: salvar }, "Salvar"),
+      h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = null; desenharCadetes(); } }, "Cancelar")))));
+}
+
+async function alternarAtivo(c) {
+  if (c.ativo && !confirm(`Desativar ${c.guerra}? Ele deixa de aparecer para lançamento de anotações e escalas.`)) return;
+  try { await updateDoc(doc(db, "cadetes", c.id), { ativo: !c.ativo, atualizadoEm: serverTimestamp() }); }
+  catch (err) { console.error(err); avisar("Não foi possível alterar.", true); }
+}
+
+async function cadastrarCadete(ev) {
+  ev.preventDefault();
+  mensagem("#msgCadete", "");
+  const v = {
+    nome: $("#cNome").value.trim().replace(/\s+/g, " "),
+    guerra: $("#cGuerra").value.trim().replace(/\s+/g, " ").toUpperCase(),
+    ano: $("#cAno").value, turma: $("#cTurma").value, pelotao: $("#cPelotao").value
+  };
+  const cpf = soDigitos($("#cCpf").value);
+  if (v.nome.length < 3) { mensagem("#msgCadete", "Informe o nome completo."); return; }
+  if (v.guerra.length < 2) { mensagem("#msgCadete", "Informe o nome de guerra."); return; }
+  if (!v.ano || !v.pelotao) { mensagem("#msgCadete", "Informe curso/ano e pelotão."); return; }
+  if (!cpfValido(cpf)) { mensagem("#msgCadete", "CPF inválido."); return; }
+  const comConta = usuarios.find((u) => u.cpf === cpf);
+  if (comConta) { mensagem("#msgCadete", `Este CPF já tem conta no sistema (${comConta.guerra}). Use a aba Acessos.`); return; }
+  const btn = $("#btnCadete"); btn.disabled = true;
+  try {
+    const m = await getDoc(doc(db, "cpfCadete", cpf));
+    if (m.exists()) { mensagem("#msgCadete", "Já existe um cadete cadastrado com este CPF."); return; }
+    const ref = doc(collection(db, "cadetes"));
+    const lote = writeBatch(db);
+    lote.set(ref, { ...v, ativo: true, criadoEm: serverTimestamp() });
+    lote.set(doc(db, "cadetes", ref.id, "privado", "dados"), { cpf });
+    lote.set(doc(db, "cpfCadete", cpf), { cadeteId: ref.id });
+    await lote.commit();
+    avisar(`${v.guerra} cadastrado.`);
+    ["#cNome", "#cGuerra", "#cCpf"].forEach((s) => { $(s).value = ""; });
+  } catch (err) {
+    console.error(err);
+    mensagem("#msgCadete", "Não foi possível cadastrar.");
+  } finally { btn.disabled = false; }
 }
 
 // ---------- Acessos (nível 3) ----------
@@ -1543,13 +2294,22 @@ async function aprovar(u, nivel) {
     analisadoEm: serverTimestamp()
   };
   if (u.tipo === "cadete" && !u.cadeteId) {
-    const ref = doc(collection(db, "cadetes"));
-    lote.set(ref, {
-      nome: u.nome, guerra: u.guerra, ano: u.ano, turma: u.turma || "", pelotao: u.pelotao,
-      uid: u.id, ativo: true, criadoEm: serverTimestamp()
-    });
-    lote.set(doc(db, "cadetes", ref.id, "privado", "dados"), { cpf: u.cpf });
-    alteracao.cadeteId = ref.id;
+    // Se a coordenação já cadastrou este cadete (mesmo CPF), liga a conta ao cadastro existente
+    const mapa = await getDoc(doc(db, "cpfCadete", u.cpf));
+    const existente = mapa.exists() ? await getDoc(doc(db, "cadetes", mapa.data().cadeteId)) : null;
+    if (existente && existente.exists() && !existente.data().uid) {
+      lote.update(existente.ref, { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
+      alteracao.cadeteId = existente.id;
+    } else {
+      const ref = doc(collection(db, "cadetes"));
+      lote.set(ref, {
+        nome: u.nome, guerra: u.guerra, ano: u.ano, turma: u.turma || "", pelotao: u.pelotao,
+        uid: u.id, ativo: true, criadoEm: serverTimestamp()
+      });
+      lote.set(doc(db, "cadetes", ref.id, "privado", "dados"), { cpf: u.cpf });
+      lote.set(doc(db, "cpfCadete", u.cpf), { cadeteId: ref.id });
+      alteracao.cadeteId = ref.id;
+    }
   }
   lote.update(doc(db, "usuarios", u.id), alteracao);
   await lote.commit();
