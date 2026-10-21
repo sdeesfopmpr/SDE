@@ -2,7 +2,7 @@
 
 Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 
-- Site: https://sdeesfopmpr-dotcom.github.io/SDE/
+- Site: https://sdeesfopmpr.github.io/SDE/
 - Firebase: projeto `sde-esfo` (login por e-mail e senha, banco Firestore em São Paulo)
 
 ## Arquivos
