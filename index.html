@@ -3,19 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#173d2a">
+<meta name="theme-color" content="#1c1f5c">
+<link rel="icon" type="image/png" href="img/favicon.png">
 <title>SDE · EsFO</title>
 <style>
   :root {
-    --verde: #1d4a33;
-    --verde-esc: #173d2a;
-    --verde-claro: #e7efe9;
-    --ouro: #c9a227;
-    --fundo: #f3f4f1;
+    /* Cores dos brasões: azul-marinho e dourado da EsFO, azul da APMG */
+    --verde: #2b2f7a;        /* cor principal (azul-marinho EsFO) */
+    --verde-esc: #1c1f5c;
+    --verde-claro: #e9eaf6;
+    --azul: #0a7cc1;         /* azul APMG */
+    --ouro: #f2c230;
+    --ouro-esc: #b98a00;
+    --fundo: #f2f3f7;
     --cartao: #ffffff;
-    --texto: #1c211e;
-    --suave: #5b645e;
-    --borda: #d8ddd6;
+    --texto: #1b1d2b;
+    --suave: #5a5e70;
+    --borda: #d9dbe5;
     --erro: #b42318;
     --erro-fundo: #fdecea;
     --alerta: #8a5a00;
@@ -35,16 +39,41 @@
 
   /* ---------- Topo ---------- */
   .topo {
-    background: var(--verde-esc);
+    background: linear-gradient(90deg, var(--verde-esc), var(--verde) 70%, #34389a);
     color: #fff;
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 3px solid var(--ouro);
+    padding: 8px 16px;
+    border-bottom: 4px solid var(--ouro);
     position: sticky; top: 0; z-index: 10;
+    box-shadow: 0 2px 10px rgba(16, 18, 60, .25);
   }
-  .marca { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-  .sigla { font-weight: 800; font-size: 20px; letter-spacing: .06em; }
-  .sub { font-size: 13px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .marca img { height: 46px; width: auto; flex-shrink: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+  .marca-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+  .sigla { font-weight: 800; font-size: 20px; letter-spacing: .08em; color: var(--ouro); }
+  .sub { font-size: 12.5px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- Cabeçalho institucional (telas de entrada) ---------- */
+  .institucional {
+    max-width: 640px; margin: 8px auto 18px; display: grid;
+    grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; text-align: center;
+  }
+  .institucional img { height: 104px; width: auto; }
+  .institucional .linhas { font-weight: 700; color: var(--verde-esc); line-height: 1.35; font-size: 13px; letter-spacing: .02em; }
+  .institucional .linhas .maior { font-size: 15px; }
+  .institucional .linhas .esfo { color: var(--verde); font-size: 16px; }
+  .institucional .titulo-sis {
+    margin-top: 8px; display: inline-block; padding: 3px 12px; border-radius: 20px;
+    background: var(--verde); color: var(--ouro); font-size: 12px; letter-spacing: .12em; font-weight: 800;
+    white-space: nowrap;
+  }
+  @media (max-width: 480px) {
+    .institucional { gap: 8px; }
+    .institucional img { height: 70px; }
+    .institucional .linhas { font-size: 10.5px; }
+    .institucional .titulo-sis { font-size: 10px; letter-spacing: .05em; padding: 3px 8px; }
+    .institucional .linhas .maior, .institucional .linhas .esfo { font-size: 11.5px; }
+  }
   .usuario-topo { display: flex; align-items: center; gap: 12px; font-size: 14px; flex-shrink: 0; }
   .usuario-topo .nome { font-weight: 600; }
   .btn-sair {
@@ -59,8 +88,9 @@
   /* ---------- Cartões e formulários ---------- */
   .cartao {
     background: var(--cartao); border: 1px solid var(--borda); border-radius: var(--raio);
-    padding: 20px; margin-bottom: 16px;
+    padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(20, 22, 70, .05);
   }
+  .cartao > h2:first-child, .cartao > h1:first-child { color: var(--verde-esc); }
   .estreito { max-width: 460px; margin-left: auto; margin-right: auto; }
   .medio { max-width: 640px; margin-left: auto; margin-right: auto; }
   h1 { font-size: 22px; margin: 0 0 4px; }
@@ -125,7 +155,8 @@
     background: none; border: 0; border-bottom: 3px solid transparent; font: inherit; font-weight: 600;
     color: var(--suave); padding: 10px 14px; cursor: pointer; white-space: nowrap;
   }
-  .abas button[aria-selected="true"] { color: var(--verde); border-bottom-color: var(--verde); }
+  .abas button[aria-selected="true"] { color: var(--verde); border-bottom-color: var(--ouro); }
+  .abas button:hover { color: var(--verde); }
   .contador { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: var(--ouro); color: #1c1c1c; font-size: 12px; line-height: 20px; text-align: center; }
 
   /* ---------- Início ---------- */
@@ -133,7 +164,7 @@
   .dados dt { color: var(--suave); }
   .dados dd { margin: 0; font-weight: 600; }
   .selo { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 700; background: var(--verde-claro); color: var(--verde); }
-  .selo.n2 { background: #e8eefb; color: #2b4c8c; }
+  .selo.n2 { background: #e1f0fa; color: #075e93; }
   .selo.n3 { background: #fbf1d6; color: #7a5a00; }
   .selo.cinza { background: #eceeeb; color: var(--suave); }
   .lista-simples { margin: 0; padding-left: 18px; color: var(--suave); }
@@ -183,7 +214,7 @@
   .anot-cab { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
   .tag { border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 800; letter-spacing: .03em; }
   .tag.aad { background: var(--erro-fundo); color: var(--erro); }
-  .tag.fo { background: var(--verde-claro); color: var(--ok); }
+  .tag.fo { background: #e4f4ea; color: var(--ok); }
   .anot-desc { margin: 4px 0 10px; white-space: pre-wrap; }
   .anot-meta { font-size: 13px; color: var(--suave); }
   .defesa-box { border-top: 1px dashed var(--borda); margin-top: 10px; padding-top: 10px; }
@@ -212,8 +243,11 @@
 
 <header class="topo">
   <div class="marca">
-    <span class="sigla">SDE</span>
-    <span class="sub">Sistema Disciplinar Especial · EsFO</span>
+    <img src="img/brasao-esfo.png" alt="Brasão da Escola de Formação de Oficiais">
+    <div class="marca-txt">
+      <span class="sigla">SDE</span>
+      <span class="sub">Sistema Disciplinar Especial · Escola de Formação de Oficiais</span>
+    </div>
   </div>
   <div class="usuario-topo" id="usuarioTopo" hidden>
     <span class="nome" id="topoNome"></span>
@@ -222,6 +256,18 @@
 </header>
 
 <main>
+
+  <!-- Cabeçalho institucional (aparece nas telas de entrada) -->
+  <div class="institucional" id="cabInstitucional">
+    <img src="img/brasao-apmg.png" alt="Brasão da Academia Policial Militar do Guatupê">
+    <div class="linhas">
+      <div>POLÍCIA MILITAR DO PARANÁ</div>
+      <div class="maior">ACADEMIA POLICIAL MILITAR DO GUATUPÊ</div>
+      <div class="esfo">ESCOLA DE FORMAÇÃO DE OFICIAIS</div>
+      <div class="titulo-sis">SISTEMA DISCIPLINAR ESPECIAL</div>
+    </div>
+    <img src="img/brasao-esfo.png" alt="Brasão da Escola de Formação de Oficiais">
+  </div>
 
   <!-- Carregando -->
   <section class="vista" id="v-carregando">
@@ -492,6 +538,7 @@ function h(tag, attrs = {}, ...filhos) {
 
 function mostrar(id) {
   document.querySelectorAll(".vista").forEach((v) => { v.hidden = v.id !== id; });
+  $("#cabInstitucional").hidden = id === "v-app";
 }
 
 let tempoAviso;
