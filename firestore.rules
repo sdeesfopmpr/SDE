@@ -131,7 +131,7 @@ service cloud.firestore {
         && p >= request.time + duration.value(1, 'd')
         && p < request.time + duration.value(8, 'd')
         && p.dayOfWeek() == 4
-        && p.hours() == 2 && p.minutes() == 59 && p.seconds() == 59;
+        && p.hours() == 2 && p.minutes() == 59;
     }
 
     function anotacaoValida(d) {
