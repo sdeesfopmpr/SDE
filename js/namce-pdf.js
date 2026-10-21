@@ -52,7 +52,7 @@ export async function gerarNamcePdf(n, { previa = false, salvar = true, base = "
   await carregarScript(JSPDF);
   await carregarScript(AUTOTABLE);
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
   const ME = 50, MD = 50, larg = W - ME - MD;
   const preto = [0, 0, 0], cinza = [200, 200, 200];
@@ -60,8 +60,8 @@ export async function gerarNamcePdf(n, { previa = false, salvar = true, base = "
 
   // ---------- Cabeçalho institucional (1ª página)
   const [esq, dir] = await Promise.all([imagemDataUrl(base + "img/brasao-parana.png"), imagemDataUrl(base + "img/brasao-pmpr.png")]);
-  doc.addImage(esq, "PNG", 62, 40, 62, 78);
-  doc.addImage(dir, "PNG", W - 62 - 64, 42, 64, 77);
+  doc.addImage(esq, "PNG", 62, 40, 62, 78, "parana", "FAST");
+  doc.addImage(dir, "PNG", W - 62 - 64, 42, 64, 77, "pmpr", "FAST");
   let y = 52;
   const linhaCab = (txt, tam, estilo = "bold") => { doc.setFont("helvetica", estilo); doc.setFontSize(tam); doc.text(txt, W / 2, y, { align: "center" }); y += tam * 1.12; };
   linhaCab("ESTADO DO PARANÁ", 12.5); linhaCab("POLÍCIA MILITAR", 12.5); linhaCab("DIRETORIA DE EDUCAÇÃO CORPORATIVA", 12.5);
