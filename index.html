@@ -1652,37 +1652,90 @@ function desenharSemana() {
   desenharLista();
 }
 
+const PADRAO_NAMCE = { assinante: "Maj. QOEM PM Rafael de Souza", cargo: "Comandante da Escola de Formação de Oficiais", local: "São José dos Pinhais" };
+function ultimaPublicada() {
+  return Object.values(namces).filter((n) => n.status === "publicada").sort((a, b) => (b.prazo?.toMillis?.() || 0) - (a.prazo?.toMillis?.() || 0))[0];
+}
+
 function desenharCabecalho(n) {
   const ano = new Date(sextaDe(semanaW)).getFullYear();
   const chave = String(semanaW);
   if (cabW !== chave) {
     cabW = chave;
-    const num = h("input", { id: "nNumero", type: "number", min: "1", inputmode: "numeric" });
-    const anoI = h("input", { id: "nAno", type: "number", min: "2020" });
-    const plan = h("input", { id: "nPlanilhas", placeholder: "Ex.: 27, 28, 29 e 30/2026" });
-    num.value = n?.numero ?? sugestaoNumero(ano);
-    anoI.value = n?.ano ?? ano;
-    plan.value = n?.planilhas ?? "";
+    const ult = ultimaPublicada() || {};
+    const campo = (id, rot, valor, attrs = {}) => {
+      const i = h("input", { id, ...attrs }); i.value = valor ?? "";
+      return { i, el: h("div", { style: attrs.span ? `grid-column: span ${attrs.span}` : null }, h("label", { for: id }, rot), i) };
+    };
+    const num = campo("nNumero", "NAMCE nº", n?.numero ?? sugestaoNumero(ano), { type: "number", min: "1", inputmode: "numeric" });
+    const anoI = campo("nAno", "Ano", n?.ano ?? ano, { type: "number", min: "2020" });
+    const plan = campo("nPlanilhas", "Planilhas de Anotados nº", n?.planilhas ?? "", { placeholder: "Ex.: 27, 28, 29 e 30/2026", span: 2 });
+    const assin = campo("nAssinante", "Assinante", n?.assinante ?? ult.assinante ?? PADRAO_NAMCE.assinante, { span: 2 });
+    const cargo = campo("nCargo", "Cargo", n?.cargo ?? ult.cargo ?? PADRAO_NAMCE.cargo);
+    const local = campo("nLocal", "Local", n?.local ?? ult.local ?? PADRAO_NAMCE.local);
     const salvar = () => setDoc(doc(db, "namces", String(semanaW)), {
-      numero: +num.value || null, ano: +anoI.value || ano, planilhas: plan.value.trim(),
+      numero: +num.i.value || null, ano: +anoI.i.value || ano, planilhas: plan.i.value.trim(),
+      assinante: assin.i.value.trim(), cargo: cargo.i.value.trim(), local: local.i.value.trim(),
       prazo: Timestamp.fromMillis(semanaW), sexta: sextaDe(semanaW), status: "rascunho",
       atualizadoEm: serverTimestamp()
     }, { merge: true }).catch((err) => { console.error(err); avisar("Não foi possível salvar os dados da NAMCE.", true); });
-    [num, anoI, plan].forEach((i) => i.addEventListener("change", salvar));
-    const pub = h("button", { class: "btn", type: "button", onclick: publicarNamce }, "Publicar NAMCE");
+    [num, anoI, plan, assin, cargo, local].forEach((c) => c.i.addEventListener("change", salvar));
+    const previa = h("button", { class: "btn sec", type: "button", onclick: () => pdfNamce(true) }, "Prévia do PDF");
+    const pub = h("button", { class: "btn", type: "button", onclick: publicarNamce }, "Publicar NAMCE e gerar PDF");
     $("#namceCab").replaceChildren(
-      h("div", {}, h("label", { for: "nNumero" }, "NAMCE nº"), num),
-      h("div", {}, h("label", { for: "nAno" }, "Ano"), anoI),
-      h("div", { style: "grid-column: span 2" }, h("label", { for: "nPlanilhas" }, "Planilhas de Anotados nº"), plan),
+      num.el, anoI.el, plan.el, assin.el, cargo.el, local.el,
       h("div", { style: "grid-column: 1 / -1" }, h("span", { class: "selo-pub rascunho" }, "Rascunho"),
         h("span", { class: "ajuda", style: "margin-left:10px" }, "Cumprimento: " + fdsTexto(semanaW))),
-      h("div", { class: "acao", style: "grid-column: 1 / -1" }, pub)
+      h("div", { class: "acao", style: "grid-column: 1 / -1" }, previa, pub)
     );
   } else if (n) {
     // atualiza campos que outra pessoa mudou (sem atrapalhar quem está digitando)
-    [["#nNumero", n.numero], ["#nAno", n.ano], ["#nPlanilhas", n.planilhas]].forEach(([s, v]) => {
+    [["#nNumero", n.numero], ["#nAno", n.ano], ["#nPlanilhas", n.planilhas], ["#nAssinante", n.assinante], ["#nCargo", n.cargo], ["#nLocal", n.local]].forEach(([s, v]) => {
       const i = $(s); if (i && document.activeElement !== i && v !== undefined && v !== null) i.value = v;
     });
+  }
+}
+
+/** Monta o retrato da NAMCE (itens por turma e FO+) a partir das decisões atuais. */
+function montarNamce() {
+  const linhas = linhasDosi();
+  const grupos = {};
+  linhas.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  const itens = [];
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => grupos[g].sort(ordenarAnot).forEach((a) => {
+    const d = dosi[a.id] || {};
+    itens.push({
+      anotacaoId: a.id, grupo: g, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
+      cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma, cadetePelotao: a.cadetePelotao,
+      fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
+      decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || ""
+    });
+  }));
+  const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada).sort(ordenarAnot).map((a) => ({
+    anotacaoId: a.id, fato: a.fatoEm.toMillis(), anotadorNome: a.anotadorNome, pel: pelNamce(a),
+    cadeteGuerra: a.cadeteGuerra, descricao: a.descricao
+  }));
+  return { itens, fo };
+}
+
+function dadosCabecalho() {
+  const v = (s) => ($(s) ? $(s).value.trim() : "");
+  return {
+    numero: +v("#nNumero") || "", ano: +v("#nAno") || new Date(sextaDe(semanaW)).getFullYear(), planilhas: v("#nPlanilhas"),
+    assinante: v("#nAssinante") || PADRAO_NAMCE.assinante, cargo: v("#nCargo") || PADRAO_NAMCE.cargo, local: v("#nLocal") || PADRAO_NAMCE.local
+  };
+}
+
+let geradorPdf = null;
+async function pdfNamce(previa, publicada = null) {
+  try {
+    avisar(previa ? "Gerando a prévia do PDF…" : "Gerando o PDF da NAMCE…");
+    geradorPdf ||= await import("./js/namce-pdf.js");
+    const n = publicada || { ...dadosCabecalho(), ...montarNamce() };
+    await geradorPdf.gerarNamcePdf(n, { previa });
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível gerar o PDF. Verifique a internet e tente de novo.", true);
   }
 }
 
@@ -1903,26 +1956,13 @@ async function publicarNamce() {
   if (!confirm(`Publicar a NAMCE nº ${numero}/${ano}?\n\n${linhas.length} AAD · cumprimento ${fdsTexto(W)}\n\nOs cadetes passam a ver as MCEs. Depois de publicada, a NAMCE não pode ser alterada pelo sistema.`)) return;
 
   const ref = `${numero}/${ano}`;
-  const grupos = {};
-  linhas.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
-  const itens = [];
-  Object.keys(grupos).sort(ordemGrupo).forEach((g) => grupos[g].sort(ordenarAnot).forEach((a) => {
-    const d = dosi[a.id];
-    itens.push({
-      anotacaoId: a.id, grupo: g, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
-      cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma, cadetePelotao: a.cadetePelotao,
-      fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
-      decisao: d.decisao, blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || ""
-    });
-  }));
-  const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada).sort(ordenarAnot).map((a) => ({
-    anotacaoId: a.id, fato: a.fatoEm.toMillis(), anotadorNome: a.anotadorNome, pel: pelNamce(a),
-    cadeteGuerra: a.cadeteGuerra, descricao: a.descricao
-  }));
+  const { itens, fo } = montarNamce();
+  const cab = dadosCabecalho();
 
   const ops = [];
   ops.push((b) => b.set(doc(db, "namces", String(W)), {
     numero, ano, planilhas, prazo: Timestamp.fromMillis(W), sexta: sextaDe(W), status: "publicada",
+    assinante: cab.assinante, cargo: cab.cargo, local: cab.local,
     publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), itens, fo
   }));
   for (const it of itens) {
@@ -1941,6 +1981,7 @@ async function publicarNamce() {
       await lote.commit();
     }
     avisar(`NAMCE nº ${ref} publicada.`);
+    await pdfNamce(false, { numero, ano, planilhas, assinante: cab.assinante, cargo: cab.cargo, local: cab.local, itens, fo });
   } catch (err) {
     console.error(err);
     alert("Não foi possível publicar a NAMCE. Nada foi alterado ou a publicação ficou incompleta; tente de novo.");
@@ -1955,7 +1996,8 @@ function desenharPublicada(n) {
       h("span", { class: "ajuda", style: "margin-left:10px" },
         `em ${dataHora(n.publicadaEm)} por ${n.publicadaPor || "—"} · cumprimento ${fdsTexto(semanaW)}` +
         (n.planilhas ? ` · Planilhas nº ${n.planilhas}` : ""))),
-    h("div", { class: "ajuda", style: "grid-column: 1 / -1" }, "O PDF da NAMCE será gerado a partir desta publicação (próxima etapa).")
+    h("div", { class: "acao", style: "grid-column: 1 / -1" },
+      h("button", { class: "btn", type: "button", onclick: () => pdfNamce(false, n) }, "Baixar PDF da NAMCE"))
   );
   $("#resumoSemana").replaceChildren(
     h("span", {}, h("strong", {}, n.itens.length), " AAD"),
