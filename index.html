@@ -299,6 +299,16 @@
   .edicao input, .edicao select { padding: 5px 7px; font-size: 13px; }
   @media (max-width: 760px) { .edicao { grid-template-columns: 1fr 1fr; } }
 
+  .import-resumo { display: flex; gap: 14px; flex-wrap: wrap; margin: 12px 0 8px; font-size: 14px; color: var(--suave); }
+  .import-resumo strong { color: var(--texto); }
+  .lista-avisos { margin: 8px 0; padding-left: 18px; font-size: 13.5px; color: var(--alerta); }
+  .feriados { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; }
+  .tabela-import { max-height: 460px; overflow: auto; border: 1px solid var(--borda); border-radius: 8px; }
+  .tabela-import .tabela th { position: sticky; top: 0; background: #fff; z-index: 1; }
+  .tabela-import input[type=checkbox] { width: auto; }
+  details.soltos { margin-top: 8px; font-size: 13.5px; }
+  details.soltos summary { cursor: pointer; color: var(--suave); font-weight: 600; }
+
   /* ---------- Aviso flutuante ---------- */
   .aviso {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
@@ -541,8 +551,14 @@
     <!-- Escalas (nível 3) -->
     <div class="aba" id="aba-escalas" role="tabpanel" hidden>
       <div class="cartao">
-        <h2>Escalas de serviço</h2>
-        <p class="legenda">Os horários de serviço bloqueiam os blocos de MCE que coincidem com eles. A importação de PDF está sendo preparada; por enquanto, lance manualmente.</p>
+        <h2>Importar escala em PDF</h2>
+        <p class="legenda">Previsão de Escala de Serviço Interno, Boletim Interno ou escala especial com CPF e turno (ex.: eleições). O arquivo é lido aqui mesmo, no seu aparelho, e não fica guardado: só os horários dos cadetes cadastrados são salvos. Só entram serviços que tocam o período de cumprimento (sexta 14h a segunda 07h).</p>
+        <input type="file" id="arqEscala" accept="application/pdf,.pdf">
+        <div id="resultadoImport"></div>
+      </div>
+      <div class="cartao">
+        <h2>Lançar escala manualmente</h2>
+        <p class="legenda">Para escalas que não vieram em PDF ou que o sistema não conseguiu ler.</p>
         <form id="formEscala" novalidate>
           <label for="eBusca">Cadete</label>
           <div class="busca-cadete">
@@ -801,7 +817,7 @@ function pararTudo() {
 function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
-  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; cabW = null; editandoCadete = null;
+  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
@@ -809,7 +825,7 @@ function limparMemoria() {
   escolhidos.clear();
   abaAtual = "inicio";
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos", "#sugestoes",
-   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#listaEscalas", "#listaCadetes"].forEach((s) => $(s).replaceChildren());
+   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
 }
 
@@ -1119,7 +1135,7 @@ function desenharInicio() {
   );
 
   const proximas = [];
-  if (p.nivel >= 3) proximas.push("Importação das escalas de serviço em PDF", "Geração da NAMCE em PDF");
+  if (p.nivel >= 3) proximas.push("Geração da NAMCE em PDF");
 
   $("#aba-inicio").replaceChildren(
     h("div", { class: "cartao" },
@@ -1960,6 +1976,7 @@ function prepararEscalas() {
   sel.value = String(Date.now() <= recebendo - 7 * DIA + 2 * DIA ? recebendo - 7 * DIA : recebendo);
   sel.addEventListener("change", assinarEscalasLista);
   $("#formEscala").addEventListener("submit", lancarEscala);
+  $("#arqEscala").addEventListener("change", importarPdf);
 }
 
 function assinarEscalasLista() {
@@ -2028,6 +2045,141 @@ async function excluirEscala(e) {
     await lote.commit();
     avisar("Escala excluída.");
   } catch (err) { console.error(err); avisar("Não foi possível excluir.", true); }
+}
+
+// ---------- Importação de escala em PDF ----------
+let leitorPdf = null;      // módulo js/importar-escalas.js (carregado só quando necessário)
+let importacao = null;     // { leitura, ligados, soltos, feriados, desmarcados }
+
+async function importarPdf(ev) {
+  const arq = ev.target.files && ev.target.files[0];
+  const alvo = $("#resultadoImport");
+  if (!arq) return;
+  alvo.replaceChildren(h("div", { class: "centro", style: "padding:20px" }, h("div", { class: "giro" }), "Lendo o PDF…"));
+  try {
+    leitorPdf ||= await import("./js/importar-escalas.js");
+    const linhas = await leitorPdf.linhasDoPdf(arq);
+    const leitura = leitorPdf.lerEscala(linhas);
+    if (!leitura.tipo) {
+      alvo.replaceChildren(h("div", { class: "msg erro" }, leitura.avisos[0]));
+      return;
+    }
+    // CPF dos cadetes (para a escala especial, que traz CPF parcial)
+    const lista = todosCadetes.map((c) => ({ ...c }));
+    if (leitura.registros.some((r) => r.cpf1)) {
+      const cpfPorUid = new Map(usuarios.map((u) => [u.id, u.cpf]));
+      for (const c of lista) {
+        if (c.uid && cpfPorUid.get(c.uid)) { c.cpf = cpfPorUid.get(c.uid); continue; }
+        try { const s = await getDoc(doc(db, "cadetes", c.id, "privado", "dados")); if (s.exists()) c.cpf = s.data().cpf; } catch (e) { /* sem CPF */ }
+      }
+    }
+    const { ligados, soltos } = leitorPdf.ligarCadetes(leitura.registros, lista);
+    const anos = new Set(leitura.registros.map((r) => new Date(r.dia ?? r.inicio).getUTCFullYear()));
+    importacao = { leitura, ligados, soltos, feriados: leitorPdf.feriadosPadrao([...anos]), desmarcados: new Set(), arquivo: arq.name };
+    desenharImportacao();
+  } catch (err) {
+    console.error(err);
+    alvo.replaceChildren(h("div", { class: "msg erro" }, "Não foi possível ler este PDF. Se for uma digitalização (imagem), o sistema não consegue ler o texto."));
+  }
+}
+
+function linhasImportacao() {
+  const { ligados, feriados } = importacao;
+  const out = [];
+  ligados.forEach((r, i) => {
+    const [ini, fim] = r.inicio !== undefined ? [r.inicio, r.fim] : leitorPdf.intervaloInterno(r, feriados);
+    if (!leitorPdf.tocaFimDeSemana(ini, fim)) return;
+    out.push({ ...r, chave: i, ini, fim });
+  });
+  return out.sort((a, b) => a.ini - b.ini || a.cadete.guerra.localeCompare(b.cadete.guerra, "pt-BR"));
+}
+
+function desenharImportacao() {
+  const imp = importacao, L = leitorPdf;
+  const linhas = linhasImportacao();
+  const marcadas = linhas.filter((r) => !imp.desmarcados.has(r.chave));
+  const nomeTipo = { interno: "Previsão de Escala de Serviço Interno", boletim: "Boletim Interno", especial: "Escala especial" }[imp.leitura.tipo];
+
+  const partes = [
+    h("div", { class: "import-resumo" },
+      h("span", {}, h("strong", {}, imp.leitura.titulo || nomeTipo)),
+      h("span", {}, h("strong", {}, imp.leitura.registros.length), " escalações no PDF"),
+      h("span", {}, h("strong", {}, imp.ligados.length), " de cadetes cadastrados no SDE"),
+      h("span", {}, h("strong", {}, linhas.length), " serviços no período de cumprimento"))
+  ];
+  if (imp.leitura.avisos.length) partes.push(h("ul", { class: "lista-avisos" }, imp.leitura.avisos.map((a) => h("li", {}, a))));
+
+  // Sextas-feiras: feriado muda o horário das sentinelas (passa a 24h)
+  if (imp.leitura.tipo === "interno") {
+    const sextas = [...new Set(imp.leitura.registros.map((r) => r.dia))].filter((d) => L.semanaDe(d) === 5).sort((a, b) => a - b);
+    if (sextas.length) {
+      partes.push(h("div", { class: "ajuda" }, "Sextas-feiras que são feriado (sentinelas passam a 24h, das 07h15):"));
+      partes.push(h("div", { class: "feriados" }, sextas.map((d) => {
+        const cb = h("input", { type: "checkbox" }); cb.checked = imp.feriados.has(d);
+        cb.addEventListener("change", () => { if (cb.checked) imp.feriados.add(d); else imp.feriados.delete(d); desenharImportacao(); });
+        return h("label", { class: "check" }, cb, L.rotuloDia(d));
+      })));
+    }
+  }
+
+  if (linhas.length) {
+    const todos = h("input", { type: "checkbox", "aria-label": "Marcar todos" });
+    todos.checked = marcadas.length === linhas.length;
+    todos.addEventListener("change", () => { if (todos.checked) imp.desmarcados.clear(); else linhas.forEach((r) => imp.desmarcados.add(r.chave)); desenharImportacao(); });
+    partes.push(h("div", { class: "tabela-import" }, h("table", { class: "tabela" },
+      h("thead", {}, h("tr", {}, h("th", {}, todos), h("th", {}, "Cadete"), h("th", {}, "Nome no PDF"), h("th", {}, "Serviço"), h("th", {}, "Início"), h("th", {}, "Fim"))),
+      h("tbody", {}, linhas.map((r) => {
+        const cb = h("input", { type: "checkbox", "aria-label": "Importar" }); cb.checked = !imp.desmarcados.has(r.chave);
+        cb.addEventListener("change", () => { if (cb.checked) imp.desmarcados.delete(r.chave); else imp.desmarcados.add(r.chave); desenharImportacao(); });
+        return h("tr", {},
+          h("td", {}, cb),
+          h("td", {}, h("strong", {}, r.cadete.guerra)),
+          h("td", {}, r.nome, r.aproximado ? h("span", { class: "tag aad", style: "margin-left:6px", title: "Nome não idêntico ao cadastro: confira" }, "CONFERIR") : null),
+          h("td", {}, r.servico),
+          h("td", {}, dataHoraMs(r.ini)),
+          h("td", {}, dataHoraMs(r.fim)));
+      })))));
+  } else {
+    partes.push(h("p", { class: "vazio" }, imp.ligados.length ? "Nenhum serviço de cadete cadastrado cai entre sexta 14h e segunda 07h." : "Nenhum escalado deste PDF está cadastrado no SDE."));
+  }
+
+  if (imp.soltos.length) {
+    partes.push(h("details", { class: "soltos" },
+      h("summary", {}, `${imp.soltos.length} escalado(s) não encontrado(s) no cadastro (não serão importados)`),
+      h("p", { class: "ajuda" }, imp.soltos.sort((a, b) => a.localeCompare(b, "pt-BR")).join(" · "))));
+  }
+
+  const btn = h("button", { class: "btn cheio", type: "button", disabled: !marcadas.length }, `Salvar ${marcadas.length} escala(s)`);
+  btn.addEventListener("click", () => salvarImportacao(marcadas, btn));
+  partes.push(btn);
+  $("#resultadoImport").replaceChildren(...partes);
+}
+
+async function salvarImportacao(linhas, btn) {
+  if (!confirm(`Salvar ${linhas.length} escala(s) de serviço?\n\nSe este PDF já foi importado antes, os mesmos serviços são atualizados (não duplicam).`)) return;
+  btn.disabled = true;
+  const tipo = importacao.leitura.tipo, quem = nomeCurto(perfil).toUpperCase();
+  try {
+    for (let i = 0; i < linhas.length; i += 400) {
+      const lote = writeBatch(db);
+      linhas.slice(i, i + 400).forEach((r) => {
+        lote.set(doc(db, "escalas", `pdf_${r.cadete.id}_${r.ini}_${r.fim}`), {
+          cadeteId: r.cadete.id, cadeteGuerra: r.cadete.guerra, inicio: Timestamp.fromMillis(r.ini), fim: Timestamp.fromMillis(r.fim),
+          servico: r.servico.slice(0, 200), tipo, origem: `${r.origem} (${importacao.arquivo})`.slice(0, 200),
+          criadoPor: quem, criadoEm: serverTimestamp()
+        });
+      });
+      await lote.commit();
+    }
+    avisar(`${linhas.length} escala(s) salvas.`);
+    importacao = null;
+    $("#arqEscala").value = "";
+    $("#resultadoImport").replaceChildren(h("div", { class: "msg ok" }, `${linhas.length} escala(s) salvas. Os blocos em conflito já aparecem bloqueados na Dosimetria.`));
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    avisar("Não foi possível salvar as escalas.", true);
+  }
 }
 
 // ================== Cadetes (nível 3) ==================
