@@ -32,5 +32,5 @@ O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedi
 - [x] 2. Minhas anotações e defesa
 - [x] 3. Lançamento de anotações e FO+ (e lista provisória "Anotações da semana" para o nível 3)
 - [x] 4. Dosimetria (13 blocos, Justif., Transf., TD, Já cumprida), publicação da NAMCE, anulação, escalas (lançamento manual) e cadastro de cadetes. Importação de escalas em PDF (Previsão de Serviço Interno, Boletim Interno e escalas especiais com CPF e turno).
-- [ ] 5. NAMCE em PDF
+- [x] 5. NAMCE em PDF no layout oficial (prévia com marca d’água e geração automática ao publicar; "Baixar PDF" nas NAMCEs publicadas)
 - [ ] 6. Teste com cadetes e liberação
