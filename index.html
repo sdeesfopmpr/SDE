@@ -84,6 +84,7 @@
   @media (max-width: 560px) { .sub { display: none; } }
 
   main { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+  main.largo { max-width: 1720px; }
 
   /* ---------- Cartões e formulários ---------- */
   .cartao {
@@ -308,6 +309,45 @@
   .tabela-import input[type=checkbox] { width: auto; }
   details.soltos { margin-top: 8px; font-size: 13.5px; }
   details.soltos summary { cursor: pointer; color: var(--suave); font-weight: 600; }
+
+  /* Lista da dosimetria (tabela) */
+  .dosi-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: #fff; }
+  .dosi-tabela { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 1360px; width: 100%; }
+  .dosi-tabela th { position: sticky; top: 0; z-index: 2; background: var(--verde-esc); color: #fff; font-weight: 700;
+    padding: 6px 6px; text-align: left; vertical-align: bottom; border-right: 1px solid rgba(255,255,255,.12); }
+  .dosi-tabela th.col-bl, .dosi-tabela th.col-dec { text-align: center; font-size: 12px; padding: 6px 2px; line-height: 1.15; }
+  .dosi-tabela th.col-bl small { display: block; font-weight: 500; font-size: 10px; opacity: .8; white-space: nowrap; }
+  .dosi-tabela th.col-dec { background: #3a3e8f; }
+  .dosi-tabela td { border-bottom: 1px solid var(--borda); padding: 7px 6px; vertical-align: top; background: #fff; }
+  .dosi-tabela td.col-bl, .dosi-tabela td.col-dec { text-align: center; vertical-align: middle; padding: 4px 2px; border-left: 1px solid #eef0f5; }
+  .dosi-tabela td.col-dec { background: #fafaf3; }
+  .dosi-tabela .col-num { width: 30px; color: var(--suave); text-align: center; }
+  .dosi-tabela .col-cad { width: 150px; }
+  .dosi-tabela td.col-cad strong { white-space: nowrap; }
+  .dosi-tabela .aviso-conf { white-space: nowrap; margin-top: 2px; }
+  .dosi-tabela .col-data { width: 110px; white-space: nowrap; }
+  .dosi-tabela .col-desc { min-width: 200px; white-space: pre-wrap; }
+  .dosi-tabela .col-just { min-width: 180px; max-width: 260px; }
+  .dosi-tabela .col-bl, .dosi-tabela .col-dec { width: 44px; }
+  .dosi-tabela tr.grupo td { background: var(--verde-claro); color: var(--verde-esc); font-weight: 800; padding: 6px 10px; position: sticky; left: 0; }
+  .dosi-tabela tr.pendente td:first-child { box-shadow: inset 4px 0 0 var(--ouro); }
+  .dosi-tabela tr.decidida td:first-child { box-shadow: inset 4px 0 0 var(--verde); }
+  .dosi-tabela tr.com-conflito td:first-child { box-shadow: inset 4px 0 0 var(--erro); }
+  .dosi-tabela tr.linha-dosi:hover td { background: #f7f8fc; }
+  .dosi-tabela tr.linha-dosi:hover td.col-dec { background: #f4f4e8; }
+  .just-txt { white-space: pre-wrap; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+  .cel {
+    width: 30px; height: 30px; border-radius: 6px; border: 1.5px solid #b9bdd0; background: #fff; cursor: pointer;
+    font: inherit; font-weight: 800; font-size: 15px; line-height: 1; color: #fff; padding: 0;
+  }
+  .cel:hover:not(:disabled) { border-color: var(--verde); background: var(--verde-claro); }
+  .cel.sel { background: var(--verde); border-color: var(--verde); }
+  .cel.dec.sel { background: var(--ouro); border-color: var(--ouro-esc); color: #1b1d2b; }
+  .cel.sel.conflito { box-shadow: 0 0 0 2px var(--erro); }
+  .cel.escala { background: repeating-linear-gradient(45deg, #f6d4d0, #f6d4d0 4px, #fff 4px, #fff 8px); border-color: #e3a49c; color: #b42318; cursor: not-allowed; font-size: 13px; }
+  .cel.outra { background: #dfe1ec; border-color: #c4c8db; cursor: not-allowed; }
+  .cel.sobrepoe { background: #f6f7fa; border-style: dashed; cursor: not-allowed; }
+  .cel:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
 
   /* ---------- Aviso flutuante ---------- */
   .aviso {
@@ -543,6 +583,7 @@
           <span><i class="bl outra"></i>Outra MCE do cadete</span>
           <span><i class="bl sobrepoe"></i>Sobreposição</span>
           <span><i class="bl sel conflito"></i>Conflito com escala lançada depois</span>
+          <span>Passe o mouse sobre um campo bloqueado para ver o serviço.</span>
         </div>
       </div>
       <div id="listaSemana"></div>
@@ -1083,6 +1124,7 @@ function abrirApp() {
   }, a.nome, a.contador ? h("span", { class: "contador", id: a.contador, hidden: true }) : null)));
 
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + abaAtual; });
+  document.querySelector("main").classList.toggle("largo", abaAtual === "semana");
   desenharInicio();
 
   // Minhas anotações
@@ -1111,6 +1153,7 @@ function abrirApp() {
 
 function trocarAba(id) {
   abaAtual = id;
+  document.querySelector("main").classList.toggle("largo", id === "semana");
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
 }
@@ -1684,12 +1727,12 @@ function desenharLista() {
       ))))));
   }
 
-  const grupos = {};
-  linhas.filter(filtra).forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
-  Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
-    partes.push(h("h3", { class: "grupo-titulo" }, g === "CHOE" ? "CHOE" : g));
-    grupos[g].sort(ordenarAnot).forEach((a, i) => partes.push(cartaoDosi(a, i + 1, linhas)));
-  });
+  const visiveis = linhas.filter(filtra);
+  if (visiveis.length) {
+    if (foF.length) partes.push(h("h3", { class: "grupo-titulo" }, "Alterações Administrativas Disciplinares (AAD)"));
+    partes.push(tabelaDosi(visiveis, linhas));
+    carregarDefesasSemana(linhas);
+  }
   if (!partes.length) partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, linhas.length || fo.length ? "Nada encontrado com esse filtro." : "Nenhuma anotação nesta semana.")));
   $("#listaSemana").replaceChildren(...partes);
 }
@@ -1708,16 +1751,58 @@ function conflitosDe(a) {
   return out;
 }
 
-function cartaoDosi(a, num, linhas) {
+// Colunas de seleção na ordem pedida: EEsp 1–8, LC 1–5
+const COLUNAS = ["EEsp1", "EEsp2", "EEsp3", "EEsp4", "EEsp5", "EEsp6", "EEsp7", "EEsp8", "LC1", "LC2", "LC3", "LC4", "LC5"]
+  .map((id) => BLOCOS.find((b) => b.id === id));
+const COL_DECISOES = [["td", "TD"], ["transf", "Transf."], ["justif", "Justif."]];
+const carregandoDefesa = new Set();
+
+/** Busca (uma vez) as defesas da semana para mostrar direto na lista. */
+async function carregarDefesasSemana(linhas) {
+  const faltam = linhas.filter((a) => a.defesaEm && !(defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) && !carregandoDefesa.has(a.id));
+  if (!faltam.length) return;
+  faltam.forEach((a) => carregandoDefesa.add(a.id));
+  await Promise.all(faltam.map(async (a) => {
+    try {
+      const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
+      defesas[a.id] = { ...(s.exists() ? s.data() : { texto: "(defesa não encontrada)" }), versao: a.defesaEm.seconds };
+    } catch (err) { console.error(err); }
+    carregandoDefesa.delete(a.id);
+  }));
+  desenharLista();
+}
+
+function tabelaDosi(lista, todas) {
+  const cabBlocos = COLUNAS.map((b) => h("th", { class: "col-bl", title: `${DIAS[b.dia]} · ${hhmm(b.ini)} às ${hhmm(b.fim)}` },
+    b.rot.replace(" ", " "), h("small", {}, `${DIAS[b.dia].slice(0, 3)} ${hhmm(b.ini)}`)));
+  const cabDec = COL_DECISOES.map(([, rot]) => h("th", { class: "col-dec" }, rot));
+  const ncol = 5 + COLUNAS.length + COL_DECISOES.length;
+
+  const corpo = [];
+  const grupos = {};
+  lista.forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
+    corpo.push(h("tr", { class: "grupo" }, h("td", { colspan: String(ncol) }, g)));
+    grupos[g].sort(ordenarAnot).forEach((a, i) => corpo.push(linhaDosi(a, i + 1, todas)));
+  });
+
+  return h("div", { class: "dosi-wrap" }, h("table", { class: "dosi-tabela" },
+    h("thead", {}, h("tr", {},
+      h("th", { class: "col-num" }, "Nº"), h("th", { class: "col-cad" }, "Cadete"), h("th", { class: "col-data" }, "Data e hora"),
+      h("th", { class: "col-desc" }, "Descrição"), h("th", { class: "col-just" }, "Justificativa"),
+      ...cabBlocos, ...cabDec)),
+    h("tbody", {}, corpo)));
+}
+
+function linhaDosi(a, num, linhas) {
   const d = dosi[a.id] || {};
   const meus = d.decisao === "blocos" ? (d.blocos || []) : [];
-  const irmas = linhas.filter((x) => x.cadeteId === a.cadeteId && x.id !== a.id);
-  const blocosIrmas = new Map();   // bloco -> rótulo da outra anotação
-  irmas.forEach((x) => {
+  const blocosIrmas = new Set();
+  linhas.filter((x) => x.cadeteId === a.cadeteId && x.id !== a.id).forEach((x) => {
     const dx = dosi[x.id];
-    if (dx && dx.decisao === "blocos") (dx.blocos || []).forEach((id) => blocosIrmas.set(id, x));
+    if (dx && dx.decisao === "blocos") (dx.blocos || []).forEach((id) => blocosIrmas.add(id));
   });
-  const ocupadosCadete = [...meus, ...blocosIrmas.keys()];
+  const ocupadosCadete = [...meus, ...blocosIrmas];
   const esc = escalasFds.filter((e) => e.cadeteId === a.cadeteId);
   const conflitos = conflitosDe(a);
 
@@ -1729,91 +1814,60 @@ function cartaoDosi(a, num, linhas) {
     }, { merge: true }).catch((err) => { console.error(err); avisar("Não foi possível salvar a decisão.", true); });
   };
 
-  const dias = DIAS.map((nome, di) => h("div", { class: "dia" },
-    h("div", { class: "dia-nome" }, nome),
-    h("div", { class: "dia-blocos" }, BLOCOS.filter((b) => b.dia === di).map((b) => {
-      const iv = intervaloBloco(b, semanaW);
-      const escB = esc.find((e) => sobrepoe(iv, [e.inicio.toMillis(), e.fim.toMillis()]));
-      const sel = meus.includes(b.id);
-      let estado = "livre", titulo = `${b.rot}: ${hhmm(b.ini)} às ${hhmm(b.fim)}`;
-      if (sel) {
-        estado = escB ? "sel conflito" : "sel";
-        if (escB) titulo += ` · CONFLITO: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
-      } else if (escB) {
-        estado = "escala"; titulo += ` · Escala: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
-      } else if (blocosIrmas.has(b.id)) {
-        estado = "outra"; titulo += " · já aplicado em outra AAD deste cadete";
-      } else if (ocupadosCadete.some((id) => id !== b.id && sobrepoe(iv, intervaloBloco(BLOCOS.find((x) => x.id === id), semanaW)))) {
-        estado = "sobrepoe"; titulo += " · sobrepõe outro bloco já aplicado a este cadete";
+  const celBlocos = COLUNAS.map((b) => {
+    const iv = intervaloBloco(b, semanaW);
+    const escB = esc.find((e) => sobrepoe(iv, [e.inicio.toMillis(), e.fim.toMillis()]));
+    const sel = meus.includes(b.id);
+    let estado = "livre", titulo = `${b.rot} · ${DIAS[b.dia]} ${hhmm(b.ini)} às ${hhmm(b.fim)}`;
+    if (sel) {
+      estado = escB ? "sel conflito" : "sel";
+      if (escB) titulo += ` · CONFLITO com escala: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
+    } else if (escB) {
+      estado = "escala"; titulo += ` · Bloqueado pela escala: ${escB.servico} (${dataHoraMs(escB.inicio.toMillis())} a ${dataHoraMs(escB.fim.toMillis())})`;
+    } else if (blocosIrmas.has(b.id)) {
+      estado = "outra"; titulo += " · já aplicado em outra AAD deste cadete";
+    } else if (ocupadosCadete.some((id) => id !== b.id && sobrepoe(iv, intervaloBloco(BLOCOS.find((x) => x.id === id), semanaW)))) {
+      estado = "sobrepoe"; titulo += " · coincide com outro bloco já aplicado a este cadete";
+    }
+    const pode = estado === "livre" || estado.startsWith("sel");
+    return h("td", { class: "col-bl" }, h("button", {
+      type: "button", class: "cel " + estado, title: titulo, "aria-label": titulo, "aria-pressed": sel ? "true" : "false", disabled: !pode,
+      onclick: () => {
+        const novos = sel ? meus.filter((x) => x !== b.id) : [...meus, b.id];
+        salvar({ decisao: novos.length ? "blocos" : "", blocos: novos });
       }
-      const livre = estado === "livre" || estado.startsWith("sel");
-      return h("button", {
-        type: "button", class: "bloco " + estado, title: titulo, "aria-pressed": sel ? "true" : "false",
-        disabled: !livre,
-        onclick: () => {
-          const novos = sel ? meus.filter((x) => x !== b.id) : [...meus, b.id];
-          salvar({ decisao: novos.length ? "blocos" : "", blocos: novos });
-        }
-      }, b.rot, h("small", {}, `${hhmm(b.ini)}–${hhmm(b.fim)}`));
-    }))
-  ));
+    }, sel ? "✓" : estado === "escala" ? "×" : ""));
+  });
 
-  const decs = Object.entries(DECISOES).map(([k, rot]) => h("button", {
-    type: "button", class: "dec" + (d.decisao === k ? " ativo" : ""), "aria-pressed": d.decisao === k ? "true" : "false",
-    onclick: () => salvar(d.decisao === k ? { decisao: "", blocos: [] } : { decisao: k, blocos: [] })
-  }, rot));
+  const celDec = COL_DECISOES.map(([k, rot]) => {
+    const ativo = d.decisao === k;
+    return h("td", { class: "col-dec" }, h("button", {
+      type: "button", class: "cel dec" + (ativo ? " sel" : ""), "aria-pressed": ativo ? "true" : "false", title: rot, "aria-label": rot,
+      onclick: () => salvar(ativo ? { decisao: "", blocos: [] } : { decisao: k, blocos: [] })
+    }, ativo ? "✓" : ""));
+  });
 
-  const obs = h("input", { placeholder: "Observação (opcional)", maxlength: "120", "aria-label": "Observação" });
-  obs.value = obsRasc[a.id] ?? d.obs ?? "";
-  obs.addEventListener("input", () => { obsRasc[a.id] = obs.value; });
-  obs.addEventListener("change", () => { delete obsRasc[a.id]; salvar({ obs: obs.value.trim() }); });
+  // Justificativa (defesa do cadete)
+  let just;
+  if (!a.defesaEm) just = h("span", { class: "ajuda" }, "—");
+  else if (defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) just = h("div", { class: "just-txt", title: defesas[a.id].texto }, defesas[a.id].texto);
+  else just = h("span", { class: "ajuda" }, "carregando…");
 
   const ok = decidida(d);
   const transf = d.transferidaDe || "";
-  return h("div", { class: "dosi " + (conflitos.length ? "com-conflito" : ok ? "decidida" : "pendente") },
-    h("div", { class: "dosi-cab" },
-      h("span", { class: "num" }, num),
+  return h("tr", { class: "linha-dosi " + (conflitos.length ? "com-conflito" : ok ? "decidida" : "pendente"),
+    title: conflitos.length ? "Conflito com escala lançada depois: " + conflitos.map((c) => `${c.bloco.rot} × ${c.escala.servico}`).join("; ") : null },
+    h("td", { class: "col-num" }, num),
+    h("td", { class: "col-cad" },
       h("strong", {}, a.cadeteGuerra),
-      h("span", { class: "dosi-meta" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao} · fato em ${dataFato(a.fatoEm)} · anotado por ${a.anotadorNome}`),
-      ok ? h("span", { class: "mce-texto" }, "→ " + textoMce(d)) : h("span", { class: "tag aad" }, "PENDENTE")
-    ),
-    h("div", { class: "dosi-desc" }, a.descricao + (transf ? ` (Transferida NAMCE ${transf.split("/")[0]}).` : "")),
-    h("div", { class: "dosi-corpo" },
-      h("div", { class: "blocos" }, dias),
-      h("div", { class: "decisoes" }, h("div", { class: "linha-dec" }, decs), obs)
-    ),
-    conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ Conflito com escala lançada depois: " +
-      conflitos.map((c) => `${c.bloco.rot} × ${c.escala.servico}`).join("; ")) : null,
-    h("div", { style: "display:flex; gap:16px; align-items:center; margin-top:8px; flex-wrap:wrap" },
-      h("div", { style: "flex:1; min-width:200px" }, celulaDefesa(a)),
-      h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "Anular anotação")
-    )
+      h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
+      conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null,
+      h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "anular")),
+    h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),
+    h("td", { class: "col-desc" }, a.descricao + (transf ? ` (Transferida NAMCE ${transf.split("/")[0]}).` : "")),
+    h("td", { class: "col-just" }, just),
+    ...celBlocos, ...celDec
   );
-}
-
-function celulaDefesa(a) {
-  if (!a.defesaEm) return h("span", { class: "ajuda" }, "Sem defesa");
-  const box = h("div", {});
-  const def = defesas[a.id];
-  if (def && def.versao === a.defesaEm.seconds) {
-    box.append(h("div", { class: "defesa-txt" }, h("strong", {}, "Defesa: "), def.texto));
-    return box;
-  }
-  const btn = h("button", { class: "btn sec peq", type: "button" }, "Ver defesa");
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    try {
-      const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
-      defesas[a.id] = { ...(s.exists() ? s.data() : { texto: "(defesa não encontrada)" }), versao: a.defesaEm.seconds };
-      box.replaceChildren(h("div", { class: "defesa-txt" }, h("strong", {}, "Defesa: "), defesas[a.id].texto));
-    } catch (err) {
-      console.error(err);
-      btn.disabled = false;
-      avisar("Não foi possível abrir a defesa.", true);
-    }
-  });
-  box.append(btn, h("span", { class: "ajuda", style: "margin-left:8px" }, "enviada em " + dataHora(a.defesaEm)));
-  return box;
 }
 
 async function anular(a) {
