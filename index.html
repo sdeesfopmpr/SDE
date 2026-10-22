@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.8">
+<meta name="sde-versao" content="2026-10-22.9">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -781,7 +781,7 @@
         <h2>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span></h2>
         <details class="promover" id="promover">
           <summary>Promover turmas (virada de ano)</summary>
-          <p class="legenda">Muda o curso/ano de todos os cadetes ativos de uma vez. A turma (/1, /2) e o pelotão continuam os mesmos e as anotações antigas não mudam. Quem estiver em "Desativar" deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).</p>
+          <p class="legenda">Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em "Desativar" deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).</p>
           <div id="promoverLinhas"></div>
           <button class="btn" type="button" id="btnPromover">Aplicar promoção</button>
         </details>
@@ -2978,38 +2978,58 @@ let filtroCadetes = null, filtroUsuarios = null;
 
 // ---------- Promover turmas (virada de ano)
 const DESTINO_PADRAO = { "1º CFO": "2º CFO", "2º CFO": "3º CFO", "3º CFO": "desativar", "CHOE": "manter" };
+const CURSOS = ["1º CFO", "2º CFO", "3º CFO", "CHOE"];
+/** Uma linha por turma (ex.: 1º CFO/1 e 1º CFO/2 separadas, porque cada uma tem o seu período). */
 function desenharPromover() {
   const ativos = todosCadetes.filter((c) => c.ativo);
-  const cursos = ["1º CFO", "2º CFO", "3º CFO", "CHOE"].filter((a) => ativos.some((c) => c.ano === a));
+  const chaves = [...new Set(ativos.map(chaveTurma))].sort((x, y) =>
+    CURSOS.indexOf(x.split("|")[0]) - CURSOS.indexOf(y.split("|")[0]) || x.localeCompare(y));
   const antes = {};
-  document.querySelectorAll("#promoverLinhas select").forEach((s) => { antes[s.dataset.ano] = s.value; });
-  $("#promoverLinhas").replaceChildren(...(cursos.length ? cursos.map((a) => {
-    const sel = h("select", { "data-ano": a, "aria-label": `Destino de ${a}` },
+  document.querySelectorAll("#promoverLinhas .promover-linha").forEach((l) => {
+    antes[l.dataset.chave] = [l.querySelector(".p-curso").value, l.querySelector(".p-turma").value];
+  });
+  $("#promoverLinhas").replaceChildren(...(chaves.length ? chaves.map((k) => {
+    const [ano, turma] = k.split("|");
+    const rot = rotuloTurma(k);
+    const selCurso = h("select", { class: "p-curso", "aria-label": `Destino de ${rot}` },
       h("option", { value: "manter" }, "Manter como está"),
-      ...["1º CFO", "2º CFO", "3º CFO", "CHOE"].filter((x) => x !== a).map((x) => h("option", { value: x }, "Passar para " + x)),
+      ...CURSOS.filter((x) => x !== ano).map((x) => h("option", { value: x }, "Passar para " + x)),
       h("option", { value: "desativar" }, "Desativar (formados)"));
-    sel.value = antes[a] || DESTINO_PADRAO[a] || "manter";
-    const n = ativos.filter((c) => c.ano === a).length;
-    return h("div", { class: "promover-linha" }, h("strong", {}, `${a} (${n} cadete${n === 1 ? "" : "s"})`), "→", sel);
+    const selTurma = h("select", { class: "p-turma", "aria-label": `Turma de destino de ${rot}` },
+      h("option", { value: "=" }, turma ? `mesma turma (/${turma})` : "mesma turma (única)"),
+      ...[["", "turma única"], ["1", "turma /1"], ["2", "turma /2"], ["3", "turma /3"]].filter(([v]) => v !== turma)
+        .map(([v, t]) => h("option", { value: v }, t)));
+    const [c0, t0] = antes[k] || [DESTINO_PADRAO[ano] || "manter", "="];
+    selCurso.value = c0; selTurma.value = t0;
+    const ajustar = () => { selTurma.hidden = selCurso.value === "manter" || selCurso.value === "desativar"; };
+    selCurso.addEventListener("change", ajustar); ajustar();
+    const n = ativos.filter((c) => chaveTurma(c) === k).length;
+    return h("div", { class: "promover-linha", "data-chave": k },
+      h("strong", {}, `${rot} (${n} cadete${n === 1 ? "" : "s"})`), "→", selCurso, selTurma);
   }) : [h("p", { class: "vazio" }, "Nenhum cadete ativo.")]));
 }
 async function aplicarPromocao() {
-  const destino = {};
-  document.querySelectorAll("#promoverLinhas select").forEach((s) => { destino[s.dataset.ano] = s.value; });
-  const alvo = todosCadetes.filter((c) => c.ativo && destino[c.ano] && destino[c.ano] !== "manter");
-  if (!alvo.length) { avisar("Nada a mudar: todos estão em \"Manter como está\".", true); return; }
-  const resumo = Object.entries(destino).filter(([, d]) => d !== "manter")
-    .map(([a, d]) => `• ${a} → ${d === "desativar" ? "desativados" : d} (${alvo.filter((c) => c.ano === a).length})`).join("\n");
+  const destino = {};    // chave da turma -> { curso | "desativar", turma }
+  document.querySelectorAll("#promoverLinhas .promover-linha").forEach((l) => {
+    const curso = l.querySelector(".p-curso").value, t = l.querySelector(".p-turma").value;
+    if (curso === "manter") return;
+    const turmaAtual = l.dataset.chave.split("|")[1];
+    destino[l.dataset.chave] = { curso, turma: t === "=" ? turmaAtual : t };
+  });
+  const alvo = todosCadetes.filter((c) => c.ativo && destino[chaveTurma(c)]);
+  if (!alvo.length) { avisar("Nada a mudar: todas as turmas estão em \"Manter como está\".", true); return; }
+  const resumo = Object.entries(destino).map(([k, d]) => `• ${rotuloTurma(k)} → ${d.curso === "desativar" ? "desativados" : rotuloTurma(d.curso + "|" + d.turma)}`
+    + ` (${alvo.filter((c) => chaveTurma(c) === k).length})`).join("\n");
   if (!confirm(`Aplicar a promoção de turmas?\n\n${resumo}\n\nTodos de uma vez. Para desfazer, seria preciso editar cadete por cadete.`)) return;
   const btn = $("#btnPromover"); btn.disabled = true;
   try {
     const ops = [];
     for (const c of alvo) {
-      const d = destino[c.ano];
-      if (d === "desativar") ops.push((b) => b.update(doc(db, "cadetes", c.id), { ativo: false, atualizadoEm: serverTimestamp() }));
+      const d = destino[chaveTurma(c)];
+      if (d.curso === "desativar") ops.push((b) => b.update(doc(db, "cadetes", c.id), { ativo: false, atualizadoEm: serverTimestamp() }));
       else {
-        ops.push((b) => b.update(doc(db, "cadetes", c.id), { ano: d, atualizadoEm: serverTimestamp() }));
-        if (c.uid) ops.push((b) => b.update(doc(db, "usuarios", c.uid), { ano: d }));
+        ops.push((b) => b.update(doc(db, "cadetes", c.id), { ano: d.curso, turma: d.turma, atualizadoEm: serverTimestamp() }));
+        if (c.uid) ops.push((b) => b.update(doc(db, "usuarios", c.uid), { ano: d.curso, turma: d.turma }));
       }
     }
     for (let i = 0; i < ops.length; i += 400) {
