@@ -10,16 +10,17 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 - `firestore.rules`: regras de segurança. Sempre que mudar, copie o conteúdo para Firebase → Firestore Database → Regras → Publicar.
 
 ## Níveis de acesso
-1. Cadete: vê as próprias anotações, faz a defesa até quarta 23h59, vê a MCE após a dosimetria.
+1. Cadete: vê as próprias anotações, faz a defesa até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a dosimetria.
 2. Anotador: nível 1 + lança anotações e FO+.
 3. Coordenação / admin: tudo + dosimetria, cadastro de cadetes, escalas, acessos e NAMCE.
 
 O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedidos ficam pendentes até um nível 3 aprovar na aba Acessos.
 
 ## Semana disciplinar
-- Anotações lançadas até **terça-feira 23h59** entram na semana; a partir de quarta 00h00 vão para a semana seguinte.
-- A defesa escrita fica aberta até **quarta-feira 23h59** (travado nas regras do servidor).
-- Quinta-feira: dosimetria.
+- A semana de anotações **fecha na sexta-feira às 18h** (pela hora do lançamento no sistema). O que for lançado depois entra na semana seguinte.
+- A defesa escrita pode ser enviada desde o lançamento até a **segunda-feira seguinte, 23h59** (travado nas regras do servidor).
+- **Quinta-feira:** dosimetria. **Sexta a domingo:** cumprimento (o segundo fim de semana depois da anotação).
+- Ex.: anotação de 20/10 → fecha 23/10 18h → defesa até 26/10 23h59 → dosimetria 29/10 → cumprimento 30/10 a 01/11.
 
 ## Escalas de serviço (horários usados)
 - Respondente, Dia-à-EsFO, Cmt. da Guarda, Cmt. do Bloco III, Plantões do Bloco III, Postos Externos e seus sobreavisos: 07h15 às 07h15.

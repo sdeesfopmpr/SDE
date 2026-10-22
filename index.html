@@ -517,7 +517,7 @@
     <div class="aba" id="aba-minhas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Minhas anotações</h2>
-        <p class="legenda" style="margin-bottom:12px">As anotações aparecem aqui assim que são lançadas. A defesa escrita pode ser enviada ou alterada até <strong>quarta-feira, 23h59</strong> da semana da anotação.</p>
+        <p class="legenda" style="margin-bottom:12px">As anotações aparecem aqui assim que são lançadas. A semana de anotações fecha na sexta-feira às 18h. A defesa escrita pode ser enviada ou alterada desde o lançamento até a <strong>segunda-feira seguinte ao fechamento, às 23h59</strong>.</p>
         <div id="listaMinhas"></div>
       </div>
     </div>
@@ -567,7 +567,7 @@
       <div class="cartao">
         <h2>Dosimetria</h2>
         <div class="ciclo-escolha">
-          <label for="selCiclo" style="margin:0">Semana com prazo de defesa em</label>
+          <label for="selCiclo" style="margin:0">Semana</label>
           <select id="selCiclo"></select>
         </div>
         <div id="namceCab" class="namce-cab"></div>
@@ -715,7 +715,7 @@ const NIVEIS = {
   3: "Nível 3 · Coordenação / Admin"
 };
 const DESC_NIVEL = {
-  1: "Consulta as próprias anotações, apresenta defesa até quarta-feira 23h59 e vê a MCE recebida após a dosimetria.",
+  1: "Consulta as próprias anotações, apresenta defesa até a segunda-feira 23h59 seguinte ao fechamento da semana e vê a MCE recebida após a dosimetria.",
   2: "Tudo do nível 1, e também lança anotações e FO+.",
   3: "Tudo dos níveis 1 e 2, e também faz a dosimetria, cadastra cadetes e escalas, libera acessos e gera a NAMCE."
 };
@@ -1195,16 +1195,19 @@ function desenharInicio() {
 }
 
 // ================== Ciclo semanal ==================
-// Anotações lançadas até terça-feira 23h59 entram na semana; a partir de quarta 00h00 vão
-// para a semana seguinte. A defesa fica aberta até quarta-feira 23h59min59s (Brasília = UTC−3),
-// ou seja, quinta-feira 02h59min59s UTC. As regras do servidor conferem o mesmo cálculo:
-// o prazo é a primeira "quinta 02:59:59 UTC" que esteja pelo menos 24 h à frente do lançamento.
+// Semana de anotações: fecha na sexta-feira às 18h (pela hora do lançamento no sistema).
+// Defesa: do lançamento até a segunda-feira seguinte ao fechamento, 23h59min59s.
+// Dosimetria na quinta; cumprimento de sexta a domingo dessa mesma semana (o 2º fim de semana).
+// Em UTC (Brasília = UTC−3): fechamento = sexta 21:00 UTC; prazo = terça 02:59:59 UTC.
+// O prazo identifica a semana. As regras do servidor conferem o mesmo cálculo.
 const DIA = 86400000;
+const FECHAMENTO_ATE_PRAZO = 3 * DIA + (5 * 3600 + 59 * 60 + 59) * 1000;   // sexta 18h → segunda 23h59min59s
+function fechamentoDe(W) { return W - FECHAMENTO_ATE_PRAZO; }
 function proximoPrazo(base = new Date()) {
   const t = base.getTime();
-  for (let i = 0; i < 10; i++) {
-    const c = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + i, 2, 59, 59, 0);
-    if (new Date(c).getUTCDay() === 4 && c - DIA >= t) return new Date(c);
+  for (let i = 0; i < 9; i++) {
+    const c = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + i, 21, 0, 0, 0);
+    if (new Date(c).getUTCDay() === 5 && c > t) return new Date(c + FECHAMENTO_ATE_PRAZO);
   }
   return null;
 }
@@ -1403,8 +1406,9 @@ function prepararLancamento() {
 }
 
 function atualizarPrazoInfo() {
-  $("#aPrazo").textContent = "Anotações lançadas até terça-feira 23h59 entram na semana atual; a partir de quarta, na seguinte. "
-    + "Prazo de defesa das anotações lançadas agora: " + prazoTexto(proximoPrazo()) + ".";
+  const W = proximoPrazo().getTime();
+  $("#aPrazo").textContent = "A semana fecha na sexta-feira às 18h; o que for lançado depois entra na semana seguinte. "
+    + `Anotações lançadas agora: defesa até ${prazoTexto(new Date(W))}, dosimetria na quinta ${dataCurta(W + 2 * DIA + 1000)} e cumprimento de ${fdsTexto(W)}.`;
 }
 
 function desenharSugestoes() {
@@ -1457,9 +1461,8 @@ async function lancarAnotacao(e) {
 
   const btn = $("#btnLancar");
   btn.disabled = true;
-  const prazo = Timestamp.fromDate(proximoPrazo());
   const anotadorNome = nomeCurto(perfil).toUpperCase();
-  try {
+  const gravar = async (prazoMs) => {
     const lote = writeBatch(db);
     for (const c of escolhidos.values()) {
       lote.set(doc(collection(db, "anotacoes")), {
@@ -1470,10 +1473,21 @@ async function lancarAnotacao(e) {
         descricao,
         fatoEm: Timestamp.fromDate(fato),
         criadoEm: serverTimestamp(),
-        prazo
+        prazo: Timestamp.fromMillis(prazoMs)
       });
     }
     await lote.commit();
+  };
+  try {
+    const prazoMs = proximoPrazo().getTime();
+    try {
+      await gravar(prazoMs);
+    } catch (err) {
+      // Lançada no minuto do fechamento (sexta 18h) com o relógio do aparelho atrasado:
+      // o servidor já virou a semana, então vai para a semana seguinte.
+      if (err.code === "permission-denied" && Math.abs(fechamentoDe(prazoMs) - Date.now()) < 15 * 60000) await gravar(prazoMs + 7 * DIA);
+      else throw err;
+    }
     avisar(`Anotação lançada para ${escolhidos.size} cadete(s).`);
     escolhidos.clear();
     $("#aDesc").value = "";
@@ -1541,7 +1555,7 @@ function hhmm(min) {
   return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
 // Sexta-feira 00h00 de Brasília da semana cujo prazo de defesa é W (W = quinta 02:59:59 UTC)
-function sextaDe(W) { return W + DIA + 1000; }
+function sextaDe(W) { return W + 1000 + 3 * DIA; }   // segunda 23h59min59s → sexta 00h00 da mesma semana
 function fimFdsDe(W) { return sextaDe(W) + 3 * DIA + 7 * 3600000; }   // segunda 07h00
 function intervaloBloco(b, W) { const s = sextaDe(W) + b.dia * DIA; return [s + b.ini * 60000, s + b.fim * 60000]; }
 function sobrepoe(a, b) { return a[0] < b[1] && b[0] < a[1]; }
@@ -1571,19 +1585,20 @@ function ordenarAnot(a, b) {
 function prepararCiclos() {
   if (ciclosProntos) return;
   ciclosProntos = true;
-  const recebendo = proximoPrazo();
-  const anterior = new Date(recebendo.getTime() - 7 * DIA);
+  const recebendo = proximoPrazo().getTime();
   const agora = Date.now();
   const sel = $("#selCiclo");
   for (let i = 0; i < 10; i++) {
-    const d = new Date(recebendo.getTime() - i * 7 * DIA);
+    const W = recebendo - i * 7 * DIA;
     let rotulo = "";
-    if (i === 0) rotulo = " (recebendo anotações)";
-    else if (d.getTime() >= agora) rotulo = " (lançamentos encerrados · defesas abertas)";
-    else if (i === 1) rotulo = " (prazo encerrado · dosimetria)";
-    sel.append(h("option", { value: String(d.getTime()) }, prazoTexto(d) + rotulo));
+    if (i === 0) rotulo = " · recebendo anotações";
+    else if (W >= agora) rotulo = " · defesas abertas";
+    else if (i === 1) rotulo = " · dosimetria";
+    sel.append(h("option", { value: String(W) },
+      `Anotações até sex ${dataCurta(fechamentoDe(W))} 18h — cumprimento ${dataCurta(sextaDe(W))} a ${dataCurta(sextaDe(W) + 2 * DIA)}${rotulo}`));
   }
-  sel.value = String(agora <= anterior.getTime() + 2 * DIA ? anterior.getTime() : recebendo.getTime());
+  // abre na semana que fechou por último (defesa na segunda, dosimetria na quinta)
+  sel.value = String(recebendo - 7 * DIA);
   sel.addEventListener("change", () => { selecaoManual = true; assinarSemana(); });
   $("#buscaDosi").addEventListener("input", desenharLista);
   $("#soPendentes").addEventListener("change", desenharLista);
@@ -1777,7 +1792,8 @@ function desenharLista() {
     h("span", {}, h("strong", {}, comDefesa), " com defesa"),
     h("span", {}, h("strong", {}, fo.length), " FO+"),
     conflitos ? h("span", { style: "color:var(--erro)" }, h("strong", {}, conflitos), " com conflito de escala") : null,
-    h("span", {}, Date.now() <= semanaW - DIA ? "Recebendo anotações até terça 23h59" : aberto ? "Defesas abertas até quarta 23h59" : "Prazo de defesa encerrado"),
+    h("span", {}, Date.now() < fechamentoDe(semanaW) ? `Recebendo anotações até sexta ${dataCurta(fechamentoDe(semanaW))} 18h`
+      : aberto ? `Defesas abertas até segunda ${dataCurta(semanaW)} 23h59` : "Prazo de defesa encerrado"),
     (() => {
       const rec = proximoPrazo().getTime();
       if (semanaW === rec || !qtdRecebendo) return null;
@@ -1970,7 +1986,7 @@ async function publicarNamce() {
   const planilhas = $("#nPlanilhas").value.trim();
   if (!numero || numero < 1) { avisar("Informe o número da NAMCE.", true); return; }
   if (!ano) { avisar("Informe o ano.", true); return; }
-  if (Date.now() <= W) { if (!confirm("O prazo de defesa desta semana ainda não terminou (quarta 23h59). Publicar mesmo assim?")) return; }
+  if (Date.now() <= W) { if (!confirm(`O prazo de defesa desta semana ainda não terminou (segunda ${dataCurta(W)}, 23h59). Publicar mesmo assim?`)) return; }
   const linhas = linhasDosi();
   const pend = linhas.filter((a) => !decidida(dosi[a.id]));
   if (pend.length) { alert(`Ainda há ${pend.length} AAD sem decisão:\n\n${pend.slice(0, 15).map((a) => "• " + a.cadeteGuerra).join("\n")}`); return; }
@@ -2090,11 +2106,13 @@ function prepararEscalas() {
   seletorEscala = criarSeletor({ busca: $("#eBusca"), filtro: $("#eFiltroTurma"), sugestoes: $("#eSugestoes"), chips: $("#eEscolhidos"), max: 40 });
   const recebendo = proximoPrazo().getTime();
   const sel = $("#selFds");
-  for (let i = -1; i < 5; i++) {
+  let padrao = null;
+  for (let i = -2; i < 5; i++) {
     const W = recebendo + i * 7 * DIA;
     sel.append(h("option", { value: String(W) }, fdsTexto(W)));
+    if (padrao === null && fimFdsDe(W) > Date.now()) padrao = W;
   }
-  sel.value = String(Date.now() <= recebendo - 7 * DIA + 2 * DIA ? recebendo - 7 * DIA : recebendo);
+  sel.value = String(padrao);
   sel.addEventListener("change", assinarEscalasLista);
   $("#formEscala").addEventListener("submit", lancarEscala);
   $("#arqEscala").addEventListener("change", importarPdf);

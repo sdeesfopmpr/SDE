@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 4)
+// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -133,14 +133,14 @@ service cloud.firestore {
     // ---------- Anotações (AAD e FO+) ----------
     function meuCadete() { return eu().get('cadeteId', ''); }
 
-    // Anotação lançada até terça 23h59 → defesa até a quarta seguinte 23h59min59s de Brasília
-    // (= quinta 02h59min59s UTC). A partir de quarta 00h00 → prazo da semana seguinte.
-    // Ou seja: a primeira "quinta 02:59:59 UTC" que esteja pelo menos 24 h à frente.
+    // Semana de anotações: fecha na sexta-feira às 18h de Brasília (sexta 21:00 UTC), pela hora do lançamento.
+    // Prazo da defesa = segunda-feira seguinte ao fechamento, 23h59min59s (terça 02:59:59 UTC).
+    // Logo, o fechamento (prazo − 3d 5h59min59s) tem de estar no futuro e a no máximo 7 dias.
     function prazoValido(p) {
       return p is timestamp
-        && p >= request.time + duration.value(1, 'd')
-        && p < request.time + duration.value(8, 'd')
-        && p.dayOfWeek() == 4
+        && p > request.time + duration.value(280799, 's')
+        && p <= request.time + duration.value(885599, 's')
+        && p.dayOfWeek() == 2
         && p.hours() == 2 && p.minutes() == 59;
     }
 
