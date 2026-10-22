@@ -3,7 +3,8 @@
 // encontrados, com cadete, início e fim. Tipos reconhecidos:
 //   • Previsão de Escala de Serviço Interno (mensal, um dia por página)
 //   • Boletim Interno (escalas diárias com "HORÁRIO: Das ... às ...")
-//   • Escalas especiais (tabela com CPF e turno, ex.: eleições)
+//   • Escalas especiais (tabela com graduação, nome e turno, ex.: eleições)
+// Nenhum dado de CPF é lido, usado ou guardado: só nome, data e horário.
 
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.worker.min.mjs";
@@ -90,13 +91,14 @@ export function feriadosPadrao(anos) {
 // ---------------------------------------------------------------- reconhecimento
 // Graduações de cadetes e alunos-oficiais (só estes podem estar cadastrados no SDE)
 const RE_GRAD = /(Cad\.?\s*\d\s*[ºo°]\s*PM|Al\.?\s*Of\.?\s*PM)/i;
-const RE_CPF_PARCIAL = /(\d{3})\s*\.\s*[X\d]{3}\s*\.\s*[X\d]{3}\s*[.\-]\s*(\d{2})/i;
+const RE_TURNO = /(\d{1,2})h(\d{2})?\s*[-–]\s*(\d{1,2})h(\d{2})?/;
 
 export function identificarTipo(linhas) {
   const tudo = semAcento(linhas.slice(0, 60).map((l) => l.texto).join("\n")).toUpperCase();
   if (/PREVISAO DE ESCALA DE SERVICO INTERNO/.test(tudo)) return "interno";
   if (/BOLETIM INTERNO/.test(tudo)) return "boletim";
-  if (linhas.some((l) => RE_CPF_PARCIAL.test(l.texto) && RE_GRAD.test(l.texto))) return "especial";
+  const comGrad = linhas.filter((l) => RE_GRAD.test(l.texto));
+  if (comGrad.filter((l) => RE_TURNO.test(l.texto)).length >= 2 || (/EVENTO:/.test(tudo) && comGrad.length)) return "especial";
   return null;
 }
 
@@ -105,7 +107,7 @@ export function lerEscala(linhas, opcoes = {}) {
   if (tipo === "interno") return lerInterno(linhas);
   if (tipo === "boletim") return lerBoletim(linhas);
   if (tipo === "especial") return lerEspecial(linhas);
-  return { tipo: null, titulo: "", registros: [], avisos: ["Não reconheci este PDF como escala de serviço. Confira se é uma Previsão de Escala de Serviço Interno, um Boletim Interno ou uma escala com CPF e turno. PDFs escaneados (imagem) não podem ser lidos."] };
+  return { tipo: null, titulo: "", registros: [], avisos: ["Não reconheci este PDF como escala de serviço. Confira se é uma Previsão de Escala de Serviço Interno, um Boletim Interno ou uma escala especial com graduação, nome e turno. PDFs escaneados (imagem) não podem ser lidos."] };
 }
 
 // ---------------------------------------------------------------- Previsão de Escala de Serviço Interno
@@ -208,7 +210,7 @@ function lerBoletim(linhas) {
   return { tipo: "boletim", titulo: `Boletim Interno${numero ? " nº " + numero : ""}`, registros, avisos };
 }
 
-// ---------------------------------------------------------------- Escala especial (com CPF e turno)
+// ---------------------------------------------------------------- Escala especial (graduação, nome e turno)
 function lerEspecial(linhas) {
   const avisos = [], registros = [];
   let evento = "", dia = null, turnos = [];
@@ -218,7 +220,7 @@ function lerEspecial(linhas) {
     const md = t.match(/Data:\s*(\d{1,2})\s+([A-Za-zÀ-ú]{3})[A-Za-zÀ-ú]*\.?\s+(\d{2,4})/i);
     if (md && dia === null) dia = diaBrt(anoDe(md[3]), mesDe(md[2]), +md[1]);
     if (/Hor[áa]rio:/i.test(t) && !turnos.length) {
-      for (const m of t.matchAll(/(\d{1,2})h(\d{2})?\s*[-–]\s*(\d{1,2})h(\d{2})?/g)) turnos.push(intervalo(m));
+      for (const m of t.matchAll(new RegExp(RE_TURNO, "g"))) turnos.push(intervalo(m));
     }
   }
   if (dia === null) { avisos.push("Não encontrei a data do evento (linha \"Data:\")."); return { tipo: "especial", titulo: evento, registros, avisos }; }
@@ -230,27 +232,31 @@ function lerEspecial(linhas) {
   for (const l of linhas) {
     const t = l.texto;
     if (/^\s*SOBREAVISO\s*$/i.test(t)) { sobreaviso = true; atual = null; continue; }
-    const mc = t.match(RE_CPF_PARCIAL), mg = t.match(RE_GRAD);
-    if (mc && mg && mc.index > mg.index) {
-      const nome = t.slice(mg.index + mg[0].length, mc.index).trim();
-      const mt = [...t.matchAll(/(\d{1,2})h(\d{2})?\s*[-–]\s*(\d{1,2})h(\d{2})?/g)].pop();
+    const mg = t.match(RE_GRAD);
+    if (mg) {
+      // nome = a coluna logo depois da graduação (as demais colunas são ignoradas)
+      const nome = t.slice(mg.index + mg[0].length).trim().split(/\s{3,}/)[0].trim();
+      if (!nome || /\d/.test(nome)) { atual = null; continue; }
+      const mt = [...t.matchAll(new RegExp(RE_TURNO, "g"))].pop();
       const [a, b] = mt && !sobreaviso ? intervalo(mt) : geral;
-      // posição das colunas (para juntar nomes que quebram linha)
-      const itGrad = l.itens.find((i) => RE_GRAD.test(i.str)) || l.itens[0];
-      const itCpf = l.itens.find((i) => RE_CPF_PARCIAL.test(i.str) || /^\d{3}\./.test(i.str));
+      // limites da coluna do nome (para juntar nomes que quebram em duas linhas)
+      const iG = l.itens.findIndex((i) => RE_GRAD.test(i.str));
+      let k = iG + 1;
+      while (k + 1 < l.itens.length && l.itens[k + 1].x - l.itens[k].x2 <= 6) k++;
+      const x1 = iG >= 0 ? l.itens[iG].x2 + 1 : 0, x2 = l.itens[k + 1] ? l.itens[k + 1].x - 1 : Infinity;
       atual = {
-        nome, cpf1: mc[1], cpf2: mc[2], inicio: dia + a * 60000, fim: dia + (b <= a ? b + 1440 : b) * 60000,
+        nome, inicio: dia + a * 60000, fim: dia + (b <= a ? b + 1440 : b) * 60000,
         servico: `${evento}${sobreaviso ? " (sobreaviso)" : ""}`, origem: evento,
-        _x1: itGrad ? itGrad.x2 + 1 : 0, _x2: itCpf ? itCpf.x - 1 : Infinity, _pag: l.pagina, _y: l.y
+        _x1: x1, _x2: x2, _pag: l.pagina, _y: l.y
       };
       registros.push(atual);
       continue;
     }
     if (atual && (l.pagina !== atual._pag || l.y - atual._y > 16)) atual = null;
-    if (atual && !mg) {
+    if (atual) {
       atual._y = l.y;
       const frag = l.itens.filter((i) => i.x >= atual._x1 - 8 && i.x2 <= atual._x2 + 2).map((i) => i.str.trim()).join(" ").trim();
-      if (frag && !/^\d/.test(frag)) atual.nome = /-$/.test(atual.nome) ? atual.nome.slice(0, -1) + frag : atual.nome + " " + frag;
+      if (frag && !/\d/.test(frag)) atual.nome = /-$/.test(atual.nome) ? atual.nome.slice(0, -1) + frag : atual.nome + " " + frag;
     }
   }
   registros.forEach((r) => { delete r._x1; delete r._x2; delete r._pag; delete r._y; });
@@ -264,7 +270,8 @@ function tokens(s) { return normNome(s).split(" ").filter((t) => t && !LIGA.has(
 
 /**
  * Liga cada registro a um cadete do cadastro.
- * cadetes: [{ id, nome, guerra, cpf? }]. Devolve { ligados: [{...registro, cadete, aproximado}], soltos: [nomes] }.
+ * Liga só pelo nome (nome completo igual; senão, nome bem parecido, marcado para conferir).
+ * cadetes: [{ id, nome, guerra }]. Devolve { ligados: [{...registro, cadete, aproximado}], soltos: [nomes] }.
  */
 export function ligarCadetes(registros, cadetes) {
   const porNome = new Map();
@@ -275,11 +282,7 @@ export function ligarCadetes(registros, cadetes) {
     let cad = null, aprox = false;
     const exatos = porNome.get(normNome(r.nome)) || [];
     if (exatos.length === 1) cad = exatos[0];
-    let cands = exatos.length > 1 ? exatos : null;
-    if (!cad && r.cpf1) {
-      const pool = (cands || cadetes).filter((c) => c.cpf && c.cpf.startsWith(r.cpf1) && c.cpf.endsWith(r.cpf2));
-      if (pool.length === 1) { cad = pool[0]; aprox = !exatos.length; }
-    }
+    const cands = exatos.length > 1 ? exatos : null;      // homônimos: não liga sozinho
     if (!cad && !cands) {
       const a = new Set(tokens(r.nome));
       let melhor = null, nota = 0, empate = false;

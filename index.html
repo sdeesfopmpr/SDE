@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.1">
+<meta name="sde-versao" content="2026-10-22.2">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -509,10 +509,6 @@
           <div class="ajuda">Exemplo: 1º CFO, turma /2, pelotão B.</div>
         </div>
 
-        <label for="pCpf">CPF</label>
-        <input id="pCpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required>
-        <div class="ajuda">Fica visível só para você e para a coordenação.</div>
-
         <div id="camposConta">
           <label for="pEmail">E-mail</label>
           <input id="pEmail" type="email" autocomplete="email">
@@ -633,7 +629,7 @@
     <div class="aba" id="aba-escalas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Importar escala em PDF</h2>
-        <p class="legenda">Previsão de Escala de Serviço Interno, Boletim Interno ou escala especial com CPF e turno (ex.: eleições). O arquivo é lido aqui mesmo, no seu aparelho, e não fica guardado: só os horários dos cadetes cadastrados são salvos. Só entram serviços que tocam o período de cumprimento (sexta 14h a segunda 07h).</p>
+        <p class="legenda">Previsão de Escala de Serviço Interno, Boletim Interno ou escala especial com graduação, nome e turno (ex.: eleições). O arquivo é lido aqui mesmo, no seu aparelho, e não fica guardado: só os horários dos cadetes cadastrados são salvos. Só entram serviços que tocam o período de cumprimento (sexta 14h a segunda 07h).</p>
         <input type="file" id="arqEscala" accept="application/pdf,.pdf">
         <div id="resultadoImport"></div>
       </div>
@@ -671,7 +667,7 @@
     <div class="aba" id="aba-cadetes" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Cadastrar cadete</h2>
-        <p class="legenda">Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo CPF, a conta é ligada a este cadastro na aprovação.</p>
+        <p class="legenda">Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo nome completo, a conta é ligada a este cadastro na aprovação.</p>
         <form id="formCadete" novalidate>
           <label for="cNome">Nome completo</label>
           <input id="cNome" maxlength="120">
@@ -682,8 +678,6 @@
             <div><label for="cTurma">Turma</label><select id="cTurma"></select></div>
             <div><label for="cPelotao">Pelotão</label><select id="cPelotao"></select></div>
           </div>
-          <label for="cCpf">CPF</label>
-          <input id="cCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
           <div id="msgCadete" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnCadete">Cadastrar</button>
         </form>
@@ -731,7 +725,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
-  query, where, Timestamp, setDoc
+  query, where, Timestamp, setDoc, getDocs, deleteField
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -806,27 +800,6 @@ function mensagem(elId, texto, tipo = "erro") {
 }
 
 function soDigitos(s) { return (s || "").replace(/\D/g, ""); }
-
-function cpfValido(c) {
-  c = soDigitos(c);
-  if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
-  let s = 0;
-  for (let i = 0; i < 9; i++) s += +c[i] * (10 - i);
-  let d = (s * 10) % 11 % 10;
-  if (d !== +c[9]) return false;
-  s = 0;
-  for (let i = 0; i < 10; i++) s += +c[i] * (11 - i);
-  d = (s * 10) % 11 % 10;
-  return d === +c[10];
-}
-
-function formatarCpf(c) {
-  c = soDigitos(c).slice(0, 11);
-  return c
-    .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
-}
 
 function turmaTexto(u) {
   if (!u) return "";
@@ -916,6 +889,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) conf
 function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
+  limpezaCpfFeita = false;
   dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; qtdRecebendo = 0; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
@@ -1032,7 +1006,6 @@ function atualizarTipo() {
   $("#camposCoord").hidden = cadete;
 }
 document.querySelectorAll('input[name="tipo"]').forEach((r) => r.addEventListener("change", atualizarTipo));
-$("#pCpf").addEventListener("input", (e) => { e.target.value = formatarCpf(e.target.value); });
 
 /** logado = já tem conta, mas falta o pedido (ex.: o envio anterior falhou). */
 function abrirPedido(logado) {
@@ -1056,8 +1029,7 @@ function lerPedido() {
   const d = {
     tipo,
     nome: $("#pNome").value.trim().replace(/\s+/g, " "),
-    guerra: $("#pGuerra").value.trim().replace(/\s+/g, " ").toUpperCase(),
-    cpf: soDigitos($("#pCpf").value)
+    guerra: $("#pGuerra").value.trim().replace(/\s+/g, " ").toUpperCase()
   };
   if (tipo === "cadete") {
     d.ano = $("#pAno").value;
@@ -1077,7 +1049,6 @@ function validarPedido(d, comConta) {
     if (!d.ano) return "Selecione o curso / ano.";
     if (!d.pelotao) return "Selecione o pelotão.";
   }
-  if (!cpfValido(d.cpf)) return "CPF inválido. Confira os números.";
   if (comConta) {
     const email = $("#pEmail").value.trim();
     const s1 = $("#pSenha").value, s2 = $("#pSenha2").value;
@@ -1131,14 +1102,13 @@ $("#formPedido").addEventListener("submit", async (e) => {
     };
     const lote = writeBatch(db);
     lote.set(doc(db, "usuarios", user.uid), dados);
-    lote.set(doc(db, "cpfs", d.cpf), { uid: user.uid });
     if (primeiro) lote.set(doc(db, "config", "sistema"), { adminInicial: user.uid, criadoEm: serverTimestamp() });
     try {
       await lote.commit();
     } catch (err) {
       console.error(err);
       falha = err.code === "permission-denied"
-        ? "Não foi possível enviar. Este CPF já pode estar cadastrado em outra conta. Se for o seu caso, procure a Missão SDE."
+        ? "Não foi possível enviar o pedido. Confira os dados; se continuar, procure a Missão SDE."
         : "Não foi possível enviar o pedido. Verifique a internet e tente de novo.";
       return;
     }
@@ -1232,7 +1202,6 @@ function desenharInicio() {
     h("dt", {}, "Nome"), h("dd", {}, p.nome),
     h("dt", {}, "Nome de guerra"), h("dd", {}, p.guerra),
     h("dt", {}, p.tipo === "coordenacao" ? "Posto" : "Turma"), h("dd", {}, turmaTexto(p)),
-    h("dt", {}, "CPF"), h("dd", {}, formatarCpf(p.cpf)),
     h("dt", {}, "E-mail"), h("dd", {}, p.email),
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
@@ -2427,16 +2396,7 @@ async function importarPdf(ev) {
       alvo.replaceChildren(h("div", { class: "msg erro" }, leitura.avisos[0]));
       return;
     }
-    // CPF dos cadetes (para a escala especial, que traz CPF parcial)
-    const lista = todosCadetes.map((c) => ({ ...c }));
-    if (leitura.registros.some((r) => r.cpf1)) {
-      const cpfPorUid = new Map(usuarios.map((u) => [u.id, u.cpf]));
-      for (const c of lista) {
-        if (c.uid && cpfPorUid.get(c.uid)) { c.cpf = cpfPorUid.get(c.uid); continue; }
-        try { const s = await getDoc(doc(db, "cadetes", c.id, "privado", "dados")); if (s.exists()) c.cpf = s.data().cpf; } catch (e) { /* sem CPF */ }
-      }
-    }
-    const { ligados, soltos } = leitorPdf.ligarCadetes(leitura.registros, lista);
+    const { ligados, soltos } = leitorPdf.ligarCadetes(leitura.registros, todosCadetes);
     const anos = new Set(leitura.registros.map((r) => new Date(r.dia ?? r.inicio).getUTCFullYear()));
     importacao = { leitura, ligados, soltos, feriados: leitorPdf.feriadosPadrao([...anos]), desmarcados: new Set(), arquivo: arq.name };
     desenharImportacao();
@@ -2567,7 +2527,6 @@ function prepararCadetes() {
   cadetesProntos = true;
   opcoesTurma($("#cAno"), true); opcoesSubturma($("#cTurma")); opcoesPelotao($("#cPelotao"), true);
   preencherTurmas($("#cFiltroTurma"), todosCadetes);
-  $("#cCpf").addEventListener("input", (e) => { e.target.value = formatarCpf(e.target.value); });
   $("#cBusca").addEventListener("input", desenharCadetes);
   $("#cFiltroTurma").addEventListener("change", desenharCadetes);
   $("#formCadete").addEventListener("submit", cadastrarCadete);
@@ -2632,25 +2591,17 @@ async function cadastrarCadete(ev) {
     guerra: $("#cGuerra").value.trim().replace(/\s+/g, " ").toUpperCase(),
     ano: $("#cAno").value, turma: $("#cTurma").value, pelotao: $("#cPelotao").value
   };
-  const cpf = soDigitos($("#cCpf").value);
   if (v.nome.length < 3) { mensagem("#msgCadete", "Informe o nome completo."); return; }
   if (v.guerra.length < 2) { mensagem("#msgCadete", "Informe o nome de guerra."); return; }
   if (!v.ano || !v.pelotao) { mensagem("#msgCadete", "Informe curso/ano e pelotão."); return; }
-  if (!cpfValido(cpf)) { mensagem("#msgCadete", "CPF inválido."); return; }
-  const comConta = usuarios.find((u) => u.cpf === cpf);
-  if (comConta) { mensagem("#msgCadete", `Este CPF já tem conta no sistema (${comConta.guerra}). Use a aba Acessos.`); return; }
+  const igual = todosCadetes.find((c) => mesmoNome(c.nome, v.nome));
+  if (igual) { mensagem("#msgCadete", `Já existe um cadete cadastrado com este nome completo (${igual.guerra}, ${turmaCurta(igual)}).`); return; }
   const btn = $("#btnCadete"); btn.disabled = true;
   try {
-    const m = await getDoc(doc(db, "cpfCadete", cpf));
-    if (m.exists()) { mensagem("#msgCadete", "Já existe um cadete cadastrado com este CPF."); return; }
     const ref = doc(collection(db, "cadetes"));
-    const lote = writeBatch(db);
-    lote.set(ref, { ...v, ativo: true, criadoEm: serverTimestamp() });
-    lote.set(doc(db, "cadetes", ref.id, "privado", "dados"), { cpf });
-    lote.set(doc(db, "cpfCadete", cpf), { cadeteId: ref.id });
-    await lote.commit();
+    await setDoc(ref, { ...v, ativo: true, criadoEm: serverTimestamp() });
     avisar(`${v.guerra} cadastrado.`);
-    ["#cNome", "#cGuerra", "#cCpf"].forEach((s) => { $(s).value = ""; });
+    ["#cNome", "#cGuerra"].forEach((s) => { $(s).value = ""; });
   } catch (err) {
     console.error(err);
     mensagem("#msgCadete", "Não foi possível cadastrar.");
@@ -2662,6 +2613,7 @@ function assinarUsuarios() {
   assinar("usuarios", "todos", () => onSnapshot(collection(db, "usuarios"), (snap) => {
     usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     desenharAcessos();
+    limparCpfsAntigos();
   }, (err) => {
     console.error(err);
     $("#listaPendentes").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar os usuários. Confira se as regras de segurança foram publicadas."));
@@ -2741,7 +2693,9 @@ function cartaoPedido(u) {
     ),
     h("div", { class: "pedido-info" },
       u.nome, " · ", u.tipo === "coordenacao" ? "Coordenação · " + (u.posto || "") : turmaTexto(u),
-      h("br"), "CPF ", formatarCpf(u.cpf), " · ", u.email
+      h("br"), u.email,
+      (() => { const c = u.tipo === "cadete" && !u.cadeteId ? cadastroParaLigar(u) : null;
+        return c ? h("div", { class: "ajuda" }, `Ao aprovar, a conta será ligada ao cadastro já existente de ${c.guerra} (${turmaCurta(c)}).`) : null; })()
     ),
     h("div", { class: "pedido-acoes" }, sel, btnOk, btnNao)
   );
@@ -2799,7 +2753,46 @@ function desenharAtivos(ativos) {
 }
 $("#buscaUsuarios").addEventListener("input", () => desenharAtivos(usuarios.filter((u) => u.status === "ativo").sort(ordenar)));
 
-/** Aprova um pedido. Para cadetes, cria também o registro do cadete (com o CPF guardado à parte). */
+/** Mesmo nome completo (ignora acentos, maiúsculas e espaços a mais). */
+function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === normBusca(b).replace(/\s+/g, " ").trim(); }
+/** Cadastro feito antes pela coordenação (sem conta) com o mesmo nome completo do pedido. */
+function cadastroParaLigar(u) {
+  const c = todosCadetes.filter((x) => !x.uid && mesmoNome(x.nome, u.nome));
+  return c.length === 1 ? c[0] : null;
+}
+
+/**
+ * O sistema não guarda mais CPF. Na primeira vez que um nível 3 abre o sistema depois da mudança,
+ * apaga os CPFs gravados antes (perfis, registro de CPFs e cadastros) e marca a limpeza como feita.
+ */
+let limpezaCpfFeita = false;
+async function limparCpfsAntigos() {
+  if (limpezaCpfFeita || !perfil || perfil.nivel < 3) return;
+  limpezaCpfFeita = true;
+  try {
+    const marca = doc(db, "config", "semCpf");
+    if ((await getDoc(marca)).exists()) return;
+    const ops = [];
+    usuarios.filter((u) => "cpf" in u).forEach((u) => ops.push((b) => b.update(doc(db, "usuarios", u.id), { cpf: deleteField() })));
+    for (const col of ["cpfs", "cpfCadete"]) {
+      (await getDocs(collection(db, col))).docs.forEach((d) => ops.push((b) => b.delete(d.ref)));
+    }
+    (await getDocs(collection(db, "cadetes"))).docs.forEach((d) =>
+      ops.push((b) => b.delete(doc(db, "cadetes", d.id, "privado", "dados"))));
+    ops.push((b) => b.set(marca, { feitaEm: serverTimestamp(), por: auth.currentUser.uid }));
+    for (let i = 0; i < ops.length; i += 400) {
+      const lote = writeBatch(db);
+      ops.slice(i, i + 400).forEach((f) => f(lote));
+      await lote.commit();
+    }
+    console.info(`Limpeza de CPF concluída (${ops.length - 1} registros).`);
+  } catch (err) {
+    console.error("Limpeza de CPF", err);
+    limpezaCpfFeita = false;
+  }
+}
+
+/** Aprova um pedido. Para cadetes, cria (ou liga a conta a) o registro do cadete. */
 async function aprovar(u, nivel) {
   const lote = writeBatch(db);
   const alteracao = {
@@ -2809,11 +2802,10 @@ async function aprovar(u, nivel) {
     analisadoEm: serverTimestamp()
   };
   if (u.tipo === "cadete" && !u.cadeteId) {
-    // Se a coordenação já cadastrou este cadete (mesmo CPF), liga a conta ao cadastro existente
-    const mapa = await getDoc(doc(db, "cpfCadete", u.cpf));
-    const existente = mapa.exists() ? await getDoc(doc(db, "cadetes", mapa.data().cadeteId)) : null;
-    if (existente && existente.exists() && !existente.data().uid) {
-      lote.update(existente.ref, { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
+    // Se a coordenação já cadastrou este cadete (mesmo nome completo), liga a conta ao cadastro existente
+    const existente = cadastroParaLigar(u);
+    if (existente) {
+      lote.update(doc(db, "cadetes", existente.id), { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
       alteracao.cadeteId = existente.id;
     } else {
       const ref = doc(collection(db, "cadetes"));
@@ -2821,8 +2813,6 @@ async function aprovar(u, nivel) {
         nome: u.nome, guerra: u.guerra, ano: u.ano, turma: u.turma || "", pelotao: u.pelotao,
         uid: u.id, ativo: true, criadoEm: serverTimestamp()
       });
-      lote.set(doc(db, "cadetes", ref.id, "privado", "dados"), { cpf: u.cpf });
-      lote.set(doc(db, "cpfCadete", u.cpf), { cadeteId: ref.id });
       alteracao.cadeteId = ref.id;
     }
   }
