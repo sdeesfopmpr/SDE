@@ -2079,6 +2079,24 @@ function desenharPublicada(n) {
 const ORDEM_LISTA = { "3º CFO": 0, "2º CFO": 1, "CHOE": 2, "1º CFO": 3 };
 let comboSeq = 0;
 
+/** Turma de um cadete como chave ("1º CFO|2") e como rótulo ("1º CFO/2"). */
+function chaveTurma(c) { return `${c.ano}|${c.turma || ""}`; }
+function rotuloTurma(k) { const [a, t] = k.split("|"); return t ? `${a}/${t}` : a; }
+/** Todas as turmas que existem entre os cadetes informados, na ordem 3º, 2º, CHOE, 1º. */
+function turmasDe(lista) {
+  return [...new Set(lista.map(chaveTurma))].sort((x, y) => {
+    const [ax, tx] = x.split("|"), [ay, ty] = y.split("|");
+    return (ORDEM_LISTA[ax] ?? 9) - (ORDEM_LISTA[ay] ?? 9) || ax.localeCompare(ay) || tx.localeCompare(ty, "pt-BR", { numeric: true });
+  });
+}
+/** Preenche um <select> com "Todas as turmas" + as turmas cadastradas, mantendo a escolha atual. */
+function preencherTurmas(sel, lista) {
+  const atual = sel.value, chaves = turmasDe(lista);
+  sel.replaceChildren(h("option", { value: "" }, "Todas as turmas"), ...chaves.map((k) => h("option", { value: k }, rotuloTurma(k))));
+  sel.value = chaves.includes(atual) ? atual : "";
+  return sel.value !== atual;
+}
+
 function normBusca(s) { return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
 function turmaCurta(c) { return `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`; }
 
@@ -2149,10 +2167,9 @@ function comboSelect(sel, info = () => "") {
 
 function criarSeletor({ busca, filtro, chips, max = 15, escolhidos = new Map(), excluir = () => false, rotuloMax = "por vez" }) {
   const id = "combo" + (++comboSeq);
-  filtro.replaceChildren(h("option", { value: "" }, "Todas as turmas"),
-    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
-  comboSelect(filtro, (v) => {
-    const n = cadetes.filter((c) => !excluir(c) && (!v || c.ano === v)).length;
+  preencherTurmas(filtro, cadetes.filter((c) => !excluir(c)));
+  const comboTurma = comboSelect(filtro, (v) => {
+    const n = cadetes.filter((c) => !excluir(c) && (!v || chaveTurma(c) === v)).length;
     return n === 1 ? "1 cadete" : `${n} cadetes`;
   });
 
@@ -2173,7 +2190,7 @@ function criarSeletor({ busca, filtro, chips, max = 15, escolhidos = new Map(), 
 
   function filtrar() {
     const termo = normBusca(busca.value.trim()), turma = filtro.value;
-    const base = cadetes.filter((c) => !escolhidos.has(c.id) && !excluir(c) && (!turma || c.ano === turma));
+    const base = cadetes.filter((c) => !escolhidos.has(c.id) && !excluir(c) && (!turma || chaveTurma(c) === turma));
     if (!termo) {
       return base.sort((a, b) => (ORDEM_LISTA[a.ano] ?? 9) - (ORDEM_LISTA[b.ano] ?? 9) ||
         (a.turma || "").localeCompare(b.turma || "") || a.guerra.localeCompare(b.guerra, "pt-BR"));
@@ -2245,6 +2262,8 @@ function criarSeletor({ busca, filtro, chips, max = 15, escolhidos = new Map(), 
   }
 
   function desenhar() {
+    if (preencherTurmas(filtro, cadetes.filter((c) => !excluir(c)))) desenharLista();
+    comboTurma.atualizar();
     desenharChips();
     if (aberta) desenharLista();
   }
@@ -2521,8 +2540,7 @@ function prepararCadetes() {
   if (cadetesProntos) return;
   cadetesProntos = true;
   opcoesTurma($("#cAno"), true); opcoesSubturma($("#cTurma")); opcoesPelotao($("#cPelotao"), true);
-  $("#cFiltroTurma").replaceChildren(h("option", { value: "" }, "Todas as turmas"),
-    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+  preencherTurmas($("#cFiltroTurma"), todosCadetes);
   $("#cCpf").addEventListener("input", (e) => { e.target.value = formatarCpf(e.target.value); });
   $("#cBusca").addEventListener("input", desenharCadetes);
   $("#cFiltroTurma").addEventListener("change", desenharCadetes);
@@ -2531,8 +2549,9 @@ function prepararCadetes() {
 
 function desenharCadetes() {
   if (!perfil || perfil.nivel < 3) return;
+  preencherTurmas($("#cFiltroTurma"), todosCadetes);
   const termo = $("#cBusca").value.trim().toLowerCase(), turma = $("#cFiltroTurma").value;
-  const lista = todosCadetes.filter((c) => (!turma || c.ano === turma) &&
+  const lista = todosCadetes.filter((c) => (!turma || chaveTurma(c) === turma) &&
     (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo)));
   $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
   if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
