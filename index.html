@@ -195,7 +195,7 @@
 
   /* ---------- Anotações ---------- */
   textarea { resize: vertical; min-height: 90px; }
-  .busca-cadete { display: grid; grid-template-columns: 170px 1fr; gap: 8px; }
+  .busca-cadete { display: grid; grid-template-columns: 196px 1fr; gap: 8px; }
   @media (max-width: 480px) { .busca-cadete { grid-template-columns: 1fr; } }
   .sugestoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .sugestoes button {
@@ -370,6 +370,18 @@
   .combo-nome small { color: var(--suave); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .combo-turma { font-size: 12px; color: var(--suave); white-space: nowrap; }
   .combo-vazio { padding: 10px 12px; color: var(--suave); font-style: italic; }
+  .combo-select .combo-seta { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .combo-valor {
+    width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: #fff;
+    border: 1px solid var(--borda); border-radius: 8px; padding: 9px 44px 9px 11px; line-height: 1.5;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .combo-valor:focus { outline: 2px solid var(--verde); outline-offset: 0; border-color: var(--verde); }
+  .combo.aberta .combo-valor { border-color: var(--verde); }
+  .combo-op.escolhida strong { color: var(--verde); }
+  .combo-op.escolhida strong::after { content: " ✓"; }
+  .busca-cadete .combo-select .combo-lista { min-width: 260px; }
+  .combo-select .combo-op strong { white-space: nowrap; }
 
   /* ---------- Aviso flutuante ---------- */
   .aviso {
@@ -2070,10 +2082,79 @@ let comboSeq = 0;
 function normBusca(s) { return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
 function turmaCurta(c) { return `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`; }
 
+/**
+ * Troca a aparência de um <select> pela mesma lista suspensa do campo de cadetes.
+ * O <select> continua existindo (escondido) e recebe o valor e o evento "change".
+ * info(valor) devolve um texto opcional para a direita de cada opção (ex.: "12 cadetes").
+ */
+function comboSelect(sel, info = () => "") {
+  const id = "combo" + (++comboSeq);
+  sel.hidden = true;
+  const caixa = h("div", { class: "combo combo-select" });
+  const botao = h("button", {
+    type: "button", class: "combo-valor", role: "combobox", "aria-haspopup": "listbox", "aria-expanded": "false",
+    "aria-controls": id + "-lista", "aria-label": sel.getAttribute("aria-label") || ""
+  });
+  const seta = h("span", { class: "combo-seta", "aria-hidden": "true" }, "▾");
+  const lista = h("ul", { class: "combo-lista", id: id + "-lista", role: "listbox", hidden: true });
+  sel.after(caixa);
+  caixa.append(botao, seta, lista);
+  let aberta = false, ativo = -1;
+
+  const opcoes = () => [...sel.options];
+  function atualizar() { botao.textContent = sel.options[sel.selectedIndex]?.textContent || ""; }
+  function desenhar() {
+    lista.replaceChildren(...opcoes().map((o, i) => h("li", {
+      id: `${id}-op${i}`, role: "option", "aria-selected": o.selected ? "true" : "false",
+      class: "combo-op" + (i === ativo ? " ativo" : "") + (o.selected ? " escolhida" : ""),
+      onmousedown: (e) => { e.preventDefault(); escolher(i); },
+      onmousemove: () => { if (ativo !== i) { ativo = i; marcar(); } }
+    }, h("span", { class: "combo-nome" }, h("strong", {}, o.textContent)), h("span", { class: "combo-turma" }, info(o.value)))));
+    botao.setAttribute("aria-activedescendant", ativo >= 0 ? `${id}-op${ativo}` : "");
+  }
+  function marcar() {
+    lista.querySelectorAll(".combo-op").forEach((li) => li.classList.toggle("ativo", li.id === `${id}-op${ativo}`));
+    document.getElementById(`${id}-op${ativo}`)?.scrollIntoView({ block: "nearest" });
+    botao.setAttribute("aria-activedescendant", ativo >= 0 ? `${id}-op${ativo}` : "");
+  }
+  function abrir() {
+    aberta = true; ativo = sel.selectedIndex; lista.hidden = false; caixa.classList.add("aberta");
+    botao.setAttribute("aria-expanded", "true"); desenhar();
+  }
+  function fechar() {
+    aberta = false; lista.hidden = true; caixa.classList.remove("aberta"); botao.setAttribute("aria-expanded", "false");
+  }
+  function escolher(i) {
+    fechar();
+    if (sel.selectedIndex !== i) { sel.selectedIndex = i; atualizar(); sel.dispatchEvent(new Event("change")); }
+  }
+  botao.addEventListener("mousedown", (e) => { e.preventDefault(); botao.focus(); aberta ? fechar() : abrir(); });
+  botao.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== botao) fechar(); }, 120));
+  botao.addEventListener("keydown", (e) => {
+    const n = sel.options.length;
+    if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+      e.preventDefault();
+      if (!aberta) { abrir(); return; }
+      ativo = e.key === "ArrowDown" ? Math.min(n - 1, ativo + 1) : Math.max(0, ativo - 1); marcar();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (aberta && ativo >= 0) escolher(ativo); else abrir();
+    } else if (e.key === "Escape" && aberta) { e.preventDefault(); fechar(); }
+    else if (e.key === "Tab" && aberta) fechar();
+  });
+  sel.addEventListener("change", atualizar);
+  atualizar();
+  return { atualizar };
+}
+
 function criarSeletor({ busca, filtro, chips, max = 15, escolhidos = new Map(), excluir = () => false, rotuloMax = "por vez" }) {
   const id = "combo" + (++comboSeq);
   filtro.replaceChildren(h("option", { value: "" }, "Todas as turmas"),
     ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+  comboSelect(filtro, (v) => {
+    const n = cadetes.filter((c) => !excluir(c) && (!v || c.ano === v)).length;
+    return n === 1 ? "1 cadete" : `${n} cadetes`;
+  });
 
   // monta o campo: [ texto ............ ▾ ] + lista suspensa
   busca.type = "text";
