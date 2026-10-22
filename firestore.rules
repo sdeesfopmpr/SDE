@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h · sem CPF · sem anulação · NAMCE e Planilha travadas)
+// SDE · EsFO — Regras de segurança do Firestore (níveis 1–4 · semana fecha sexta 18h · fato até 72h · sem CPF · sem anulação · NAMCE e Planilha travadas)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -11,10 +11,12 @@ service cloud.firestore {
     function logado() { return request.auth != null; }
     function caminhoPerfil(uid) { return /databases/$(database)/documents/usuarios/$(uid); }
     function caminhoConfig() { return /databases/$(database)/documents/config/sistema; }
+    function caminhoCoord() { return /databases/$(database)/documents/config/coordenacao; }
     function eu() { return get(caminhoPerfil(request.auth.uid)).data; }
     function ativo() {
       return logado() && exists(caminhoPerfil(request.auth.uid)) && eu().status == 'ativo';
     }
+    // Níveis: 1 cadete · 2 anotador · 3 Missão SDE (administração) · 4 Coordenação (dosimetria e NAMCE; tem tudo do 3)
     function nivel(n) { return ativo() && eu().nivel >= n; }
     function txt(s, a, b) { return s is string && s.size() >= a && s.size() <= b; }
 
@@ -58,6 +60,16 @@ service cloud.firestore {
         && getAfter(caminhoPerfil(request.auth.uid)).data.nivel == 3;
       allow update, delete: if false;
     }
+    // Primeiro coordenador (nível 4): liberado uma única vez pelo nível 3; depois, só coordenador libera coordenador.
+    match /config/coordenacao {
+      allow get: if logado();
+      allow create: if nivel(3)
+        && request.resource.data.keys().hasOnly(['primeiro', 'criadoEm'])
+        && request.resource.data.criadoEm == request.time
+        && get(caminhoPerfil(request.resource.data.primeiro)).data.tipo == 'coordenacao'
+        && getAfter(caminhoPerfil(request.resource.data.primeiro)).data.nivel == 4;
+      allow update, delete: if false;
+    }
     // Marca de que os CPFs antigos já foram apagados
     match /config/semCpf {
       allow get, create: if nivel(3);
@@ -83,17 +95,23 @@ service cloud.firestore {
               && getAfter(caminhoConfig()).data.adminInicial == uid)
         );
 
-      // só o nível 3 aprova, recusa, bloqueia e muda nível; o usuário não altera o próprio perfil
+      // só o nível 3 aprova, recusa, bloqueia e muda nível; o usuário não altera o próprio perfil.
+      // Conta de coordenação (nível 4): só um coordenador mexe nela. O nível 4 só vai para conta do tipo
+      // coordenação, dado por um coordenador (ou, uma única vez, pelo nível 3: o primeiro coordenador).
       allow update: if nivel(3)
+        && (resource.data.get('nivel', 0) != 4 || nivel(4))
+        && (request.resource.data.nivel != 4 || resource.data.get('nivel', 0) == 4 || (
+              resource.data.tipo == 'coordenacao'
+              && (nivel(4) || (!exists(caminhoCoord()) && getAfter(caminhoCoord()).data.primeiro == uid))))
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['nivel', 'status', 'cadeteId', 'analisadoPor', 'analisadoEm',
                        'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto', 'cpf'])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['cpf'])
             || !request.resource.data.keys().hasAny(['cpf']))     // CPF antigo só pode ser apagado
-        && request.resource.data.nivel in [0, 1, 2, 3]
+        && request.resource.data.nivel in [0, 1, 2, 3, 4]
         && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
 
-      allow delete: if nivel(3);
+      allow delete: if nivel(3) && (resource.data.get('nivel', 0) != 4 || nivel(4));
     }
 
     // ---------- CPFs antigos: o sistema não guarda mais CPF; o nível 3 só pode apagar o que restou ----------
@@ -152,7 +170,7 @@ service cloud.firestore {
         && txt(d.descricao, 5, 1000)
         && d.fatoEm is timestamp
         && d.fatoEm <= request.time + duration.value(10, 'm')
-        && d.fatoEm >= request.time - duration.value(30, 'd')
+        && d.fatoEm >= request.time - duration.value(72, 'h')     // fato de no máximo 3 dias (72 horas) antes
         && d.criadoEm == request.time
         && prazoValido(d.prazo);
     }
@@ -175,7 +193,7 @@ service cloud.firestore {
           && request.time <= resource.data.prazo
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
           && request.resource.data.defesaEm == request.time)
-        || (nivel(3)
+        || (nivel(4)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
           && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao == 'transf'));
 
@@ -199,7 +217,7 @@ service cloud.firestore {
 
     // ---------- Dosimetria (decisões; invisíveis ao cadete até a publicação) ----------
     match /dosimetria/{aid} {
-      allow read, write: if nivel(3);
+      allow read, write: if nivel(4);
     }
 
     // ---------- NAMCEs (rascunho e publicadas) ----------
@@ -207,8 +225,11 @@ service cloud.firestore {
     // depois de publicada, a Planilha de Anotados também não muda mais. Ninguém apaga.
     match /namces/{id} {
       function mudou() { return request.resource.data.diff(resource.data).affectedKeys(); }
-      allow read, create: if nivel(3);
+      // nível 3 (Missão SDE) só grava a Planilha de Anotados; a NAMCE é só da coordenação (nível 4)
+      allow read: if nivel(3);
+      allow create: if nivel(4) || (nivel(3) && request.resource.data.keys().hasOnly(['planilha', 'prazo', 'sexta']));
       allow update: if nivel(3)
+        && (nivel(4) || mudou().hasOnly(['planilha', 'prazo', 'sexta']))
         && (resource.data.get('status', '') != 'publicada' || mudou().hasOnly(['planilha']))
         && (resource.data.get('planilha', {}).get('status', '') != 'publicada' || !mudou().hasAny(['planilha']));
       allow delete: if false;

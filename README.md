@@ -16,11 +16,13 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 - `firestore.rules`: regras de segurança. Sempre que mudar, copie o conteúdo para Firebase → Firestore Database → Regras → Publicar.
 
 ## Níveis de acesso
-1. Cadete: vê as próprias anotações, faz a defesa até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a dosimetria.
-2. Anotador: nível 1 + lança anotações e FO+.
-3. Coordenação / admin: tudo + dosimetria, cadastro de cadetes, escalas, acessos e NAMCE.
+1. Cadete: vê as próprias anotações, faz a defesa até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a NAMCE.
+2. Anotador: nível 1 + lança anotações e FO+ (fato de no máximo 72 horas antes do lançamento).
+3. Missão SDE (administração, cadetes): nível 2 + acompanhamento das anotações e defesas, Planilha de Anotados, cadastro de cadetes (com "Promover turmas"), escalas, acessos e cópia de segurança em Excel.
+4. Coordenação (só contas do tipo coordenação): tudo do nível 3 + dosimetria e NAMCE. O primeiro coordenador é liberado uma única vez pelo nível 3; depois, só coordenador libera ou altera coordenador.
 
 O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedidos ficam pendentes até um nível 3 aprovar na aba Acessos.
+Ninguém anula, edita ou apaga anotação. NAMCE e Planilha de Anotados ficam travadas depois de publicadas.
 
 ## Semana disciplinar
 - A semana de anotações **fecha na sexta-feira às 18h** (pela hora do lançamento no sistema). O que for lançado depois entra na semana seguinte.
