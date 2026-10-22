@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h · sem CPF · sem anulação)
+// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h · sem CPF · sem anulação · NAMCE e Planilha travadas)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -203,8 +203,15 @@ service cloud.firestore {
     }
 
     // ---------- NAMCEs (rascunho e publicadas) ----------
+    // Depois de publicada, a NAMCE não muda mais (só pode receber a Planilha, se ainda não tiver);
+    // depois de publicada, a Planilha de Anotados também não muda mais. Ninguém apaga.
     match /namces/{id} {
-      allow read, write: if nivel(3);
+      function mudou() { return request.resource.data.diff(resource.data).affectedKeys(); }
+      allow read, create: if nivel(3);
+      allow update: if nivel(3)
+        && (resource.data.get('status', '') != 'publicada' || mudou().hasOnly(['planilha']))
+        && (resource.data.get('planilha', {}).get('status', '') != 'publicada' || !mudou().hasAny(['planilha']));
+      allow delete: if false;
     }
 
     // ---------- Escalas de serviço (para bloquear conflitos) ----------

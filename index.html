@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.5">
+<meta name="sde-versao" content="2026-10-22.6">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -1962,17 +1962,13 @@ function desenharPlanilha() {
   if (publicada) {
     if (planCab === chave) return;
     planCab = chave;
-    const atualAgora = montarPlanilha(semana);
-    const ids = (x) => [...x.fo, ...x.itens].map((i) => i.anotacaoId).sort().join(",");
-    const mudou = ids(atualAgora) !== ids(p);
     $("#planilhaCab").replaceChildren(...[
       h("div", { style: "grid-column: 1 / -1" },
         h("span", { class: "selo-pub publicada" }, `Planilha de Anotados nº ${p.numero}/${p.ano} publicada`),
         h("span", { class: "ajuda", style: "margin-left:10px" }, `${p.publicadaEm?.toMillis ? "em " + dataHora(p.publicadaEm) + " " : ""}por ${p.publicadaPor || "—"} · ${p.itens.length} AAD · ${p.fo.length} FO+`)),
-      mudou ? h("div", { class: "msg alerta", style: "grid-column: 1 / -1; margin:0" }, "Houve anulações depois da publicação: a lista atual da semana não é igual à da Planilha publicada.") : null,
       h("div", { class: "acao", style: "grid-column: 1 / -1" },
         h("button", { class: "btn", type: "button", onclick: () => pdfPlanilha(W, false, p) }, "Baixar PDF da Planilha"),
-        h("button", { class: "btn sec", type: "button", onclick: () => { corrigindoPlanilha = true; planCab = null; desenharPlanilha(); } }, "Corrigir e publicar de novo"))
+        h("span", { class: "ajuda", style: "align-self:center" }, "Publicada: não pode mais ser alterada."))
     ].filter(Boolean));
     return;
   }
@@ -2022,7 +2018,7 @@ async function publicarPlanilha(W) {
   const dup = Object.entries(namces).find(([id, n]) => id !== String(W) && n.planilha && n.planilha.status === "publicada" && n.planilha.numero === cab.numero && n.planilha.ano === cab.ano);
   if (dup && !confirm(`Já existe uma Planilha de Anotados nº ${cab.numero}/${cab.ano} publicada. Publicar com o mesmo número?`)) return;
   const { fo, itens } = montarPlanilha(semana);
-  if (!confirm(`Publicar a Planilha de Anotados nº ${cab.numero}/${cab.ano}?\n\n${itens.length} AAD · ${fo.length} FO+\nAnotações de sex ${dataCurta(fechamentoDe(W) - 7 * DIA)} a sex ${dataCurta(fechamentoDe(W))} 18h`)) return;
+  if (!confirm(`Publicar a Planilha de Anotados nº ${cab.numero}/${cab.ano}?\n\n${itens.length} AAD · ${fo.length} FO+\nAnotações de sex ${dataCurta(fechamentoDe(W) - 7 * DIA)} a sex ${dataCurta(fechamentoDe(W))} 18h\n\nConfira número e assinante: depois de publicada, a Planilha não pode mais ser alterada.`)) return;
   const dados = { ...cab, status: "publicada", publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), fo, itens };
   try {
     await setDoc(doc(db, "namces", String(W)), { prazo: Timestamp.fromMillis(W), sexta: sextaDe(W), planilha: dados }, { merge: true });
