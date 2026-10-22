@@ -349,6 +349,28 @@
   .cel.sobrepoe { background: #f6f7fa; border-style: dashed; cursor: not-allowed; }
   .cel:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
 
+  /* Campo de cadete com lista suspensa */
+  .combo { position: relative; }
+  .combo input { padding-right: 38px; }
+  .combo-seta {
+    position: absolute; right: 1px; top: 1px; bottom: 1px; width: 36px; border: 0; border-left: 1px solid var(--borda);
+    background: #f6f7fb; border-radius: 0 8px 8px 0; cursor: pointer; font-size: 14px; color: var(--verde);
+  }
+  .combo-seta:hover { background: var(--verde-claro); }
+  .combo.aberta .combo-seta { background: var(--verde-claro); }
+  .combo-lista {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; margin: 0; padding: 4px 0; list-style: none;
+    background: #fff; border: 1px solid var(--borda); border-radius: 8px; box-shadow: 0 10px 28px rgba(20, 22, 70, .18);
+    max-height: 320px; overflow-y: auto;
+  }
+  .combo-grupo { position: sticky; top: -4px; background: var(--verde-claro); color: var(--verde-esc); font-size: 12px; font-weight: 800; padding: 4px 12px; letter-spacing: .03em; }
+  .combo-op { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; }
+  .combo-op.ativo { background: var(--verde-claro); }
+  .combo-nome { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+  .combo-nome small { color: var(--suave); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .combo-turma { font-size: 12px; color: var(--suave); white-space: nowrap; }
+  .combo-vazio { padding: 10px 12px; color: var(--suave); font-style: italic; }
+
   /* ---------- Aviso flutuante ---------- */
   .aviso {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
@@ -536,11 +558,10 @@
           <label for="buscaCadete">Cadete(s) anotado(s)</label>
           <div class="busca-cadete">
             <select id="filtroTurma" aria-label="Filtrar por turma"></select>
-            <input id="buscaCadete" type="search" autocomplete="off" placeholder="Digite o nome de guerra">
+            <input id="buscaCadete" type="text" autocomplete="off">
           </div>
-          <div id="sugestoes" class="sugestoes"></div>
           <div id="escolhidos" class="chips"></div>
-          <div class="ajuda">Pode escolher vários cadetes de uma vez (até 15): cada um recebe a sua anotação.</div>
+          <div class="ajuda">Digite o nome ou clique na seta para ver a lista da turma escolhida. Pode escolher vários cadetes (até 15): cada um recebe a sua anotação.</div>
 
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
             <div><label for="aData">Data do fato</label><input id="aData" type="date"></div>
@@ -604,9 +625,8 @@
           <label for="eBusca">Cadete</label>
           <div class="busca-cadete">
             <select id="eFiltroTurma" aria-label="Filtrar por turma"></select>
-            <input id="eBusca" type="search" autocomplete="off" placeholder="Digite o nome de guerra">
+            <input id="eBusca" type="text" autocomplete="off">
           </div>
-          <div id="eSugestoes" class="sugestoes"></div>
           <div id="eEscolhidos" class="chips"></div>
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
             <div><label for="eInicio">Início</label><input id="eInicio" type="datetime-local"></div>
@@ -865,7 +885,9 @@ function limparMemoria() {
   for (const k of Object.keys(rascunhos)) delete rascunhos[k];
   escolhidos.clear();
   abaAtual = "inicio";
-  ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos", "#sugestoes",
+  if (seletorLancar) seletorLancar.limpar();
+  if (seletorEscala) seletorEscala.limpar();
+  ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos",
    "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
 }
@@ -1360,12 +1382,14 @@ async function enviarDefesa(a, texto, btn) {
 // ================== Lançar anotação (nível 2 e 3) ==================
 const escolhidos = new Map();   // cadeteId -> cadete
 let lancamentoPronto = false;
+let seletorLancar = null;
 
 function assinarCadetes() {
   assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
     todosCadetes = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(ordenar);
     cadetes = todosCadetes.filter((c) => c.ativo);
     desenharSugestoes();
+    if (seletorEscala) seletorEscala.desenhar();
     desenharCadetes();
   }, (err) => console.error(err)));
 }
@@ -1391,15 +1415,14 @@ function hojeLocal() {
 function prepararLancamento() {
   if (lancamentoPronto) return;
   lancamentoPronto = true;
-  $("#filtroTurma").replaceChildren(
-    h("option", { value: "" }, "Todas as turmas"),
-    ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a))
-  );
+  seletorLancar = criarSeletor({
+    busca: $("#buscaCadete"), filtro: $("#filtroTurma"), chips: $("#escolhidos"),
+    max: 15, escolhidos, rotuloMax: "por lançamento",
+    excluir: (c) => !!perfil && c.id === perfil.cadeteId      // ninguém se anota
+  });
   const agora = hojeLocal();
   $("#aData").value = agora.data;
   $("#aHora").value = agora.hora;
-  $("#buscaCadete").addEventListener("input", desenharSugestoes);
-  $("#filtroTurma").addEventListener("change", desenharSugestoes);
   $("#formAnot").addEventListener("submit", lancarAnotacao);
   atualizarPrazoInfo();
   setInterval(atualizarPrazoInfo, 60000);
@@ -1411,36 +1434,7 @@ function atualizarPrazoInfo() {
     + `Anotações lançadas agora: defesa até ${prazoTexto(new Date(W))}, dosimetria na quinta ${dataCurta(W + 2 * DIA + 1000)} e cumprimento de ${fdsTexto(W)}.`;
 }
 
-function desenharSugestoes() {
-  const termo = $("#buscaCadete").value.trim().toLowerCase();
-  const turma = $("#filtroTurma").value;
-  const box = $("#sugestoes");
-  if (!termo && !turma) { box.replaceChildren(); desenharEscolhidos(); return; }
-  const lista = cadetes.filter((c) =>
-    c.id !== perfil.cadeteId && !escolhidos.has(c.id) &&
-    (!turma || c.ano === turma) &&
-    (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo))
-  ).slice(0, 12);
-  box.replaceChildren(...(lista.length ? lista.map((c) => h("button", {
-    type: "button",
-    onclick: () => {
-      if (escolhidos.size >= 15) { avisar("Máximo de 15 cadetes por lançamento.", true); return; }
-      escolhidos.set(c.id, c);
-      $("#buscaCadete").value = "";
-      desenharSugestoes();
-      $("#buscaCadete").focus();
-    }
-  }, c.guerra, h("span", { class: "turma" }, `${c.ano}${c.turma ? "/" + c.turma : ""} ${c.pelotao}`)))
-    : [h("span", { class: "ajuda" }, cadetes.length ? "Nenhum cadete encontrado." : "Nenhum cadete cadastrado ainda.")]));
-  desenharEscolhidos();
-}
-
-function desenharEscolhidos() {
-  $("#escolhidos").replaceChildren(...[...escolhidos.values()].map((c) => h("span", { class: "chip" },
-    c.guerra,
-    h("button", { type: "button", "aria-label": `Remover ${c.guerra}`, onclick: () => { escolhidos.delete(c.id); desenharSugestoes(); } }, "×")
-  )));
-}
+function desenharSugestoes() { if (seletorLancar) seletorLancar.desenhar(); }
 
 async function lancarAnotacao(e) {
   e.preventDefault();
@@ -2067,32 +2061,136 @@ function desenharPublicada(n) {
 }
 
 // ================== Seletor de cadetes (reutilizável) ==================
-function criarSeletor({ busca, filtro, sugestoes, chips, max = 15 }) {
-  const escolhidos = new Map();
+// Campo com lista suspensa: ao digitar, mostra os cadetes que combinam com o texto;
+// clicando na setinha (ou no campo vazio), abre a lista da turma escolhida ao lado.
+// Permite escolher vários cadetes; cada escolhido vira uma "etiqueta" abaixo do campo.
+const ORDEM_LISTA = { "3º CFO": 0, "2º CFO": 1, "CHOE": 2, "1º CFO": 3 };
+let comboSeq = 0;
+
+function normBusca(s) { return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+function turmaCurta(c) { return `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`; }
+
+function criarSeletor({ busca, filtro, chips, max = 15, escolhidos = new Map(), excluir = () => false, rotuloMax = "por vez" }) {
+  const id = "combo" + (++comboSeq);
   filtro.replaceChildren(h("option", { value: "" }, "Todas as turmas"),
     ...["3º CFO", "2º CFO", "1º CFO", "CHOE"].map((a) => h("option", { value: a }, a)));
+
+  // monta o campo: [ texto ............ ▾ ] + lista suspensa
+  busca.type = "text";
+  busca.setAttribute("role", "combobox");
+  busca.setAttribute("aria-autocomplete", "list");
+  busca.setAttribute("aria-expanded", "false");
+  busca.setAttribute("aria-controls", id + "-lista");
+  busca.placeholder = "Digite o nome ou clique na seta para ver a lista";
+  const caixa = h("div", { class: "combo" });
+  busca.replaceWith(caixa);
+  const seta = h("button", { type: "button", class: "combo-seta", tabindex: "-1", "aria-label": "Abrir lista de cadetes" }, "▾");
+  const lista = h("ul", { class: "combo-lista", id: id + "-lista", role: "listbox", "aria-multiselectable": "true", hidden: true });
+  caixa.append(busca, seta, lista);
+
+  let aberta = false, ativo = -1, opcoes = [];
+
+  function filtrar() {
+    const termo = normBusca(busca.value.trim()), turma = filtro.value;
+    const base = cadetes.filter((c) => !escolhidos.has(c.id) && !excluir(c) && (!turma || c.ano === turma));
+    if (!termo) {
+      return base.sort((a, b) => (ORDEM_LISTA[a.ano] ?? 9) - (ORDEM_LISTA[b.ano] ?? 9) ||
+        (a.turma || "").localeCompare(b.turma || "") || a.guerra.localeCompare(b.guerra, "pt-BR"));
+    }
+    const nota = (c) => {
+      const g = normBusca(c.guerra), n = normBusca(c.nome);
+      if (g.startsWith(termo)) return 0;
+      if (g.split(" ").some((p) => p.startsWith(termo))) return 1;
+      if (n.split(" ").some((p) => p.startsWith(termo))) return 2;
+      if (g.includes(termo) || n.includes(termo)) return 3;
+      return 9;
+    };
+    return base.map((c) => [nota(c), c]).filter(([n]) => n < 9)
+      .sort((a, b) => a[0] - b[0] || a[1].guerra.localeCompare(b[1].guerra, "pt-BR")).map(([, c]) => c);
+  }
+
+  function desenharLista() {
+    opcoes = filtrar();
+    if (ativo >= opcoes.length) ativo = opcoes.length - 1;
+    const itens = [];
+    let grupoAnt = null;
+    const comGrupos = !busca.value.trim() && !filtro.value;
+    opcoes.forEach((c, i) => {
+      const g = c.ano + (c.turma ? "/" + c.turma : "");
+      if (comGrupos && g !== grupoAnt) { itens.push(h("li", { class: "combo-grupo", role: "presentation" }, g)); grupoAnt = g; }
+      itens.push(h("li", {
+        id: `${id}-op${i}`, role: "option", "aria-selected": "false", class: "combo-op" + (i === ativo ? " ativo" : ""),
+        onmousedown: (e) => { e.preventDefault(); escolher(c); },
+        onmousemove: () => { if (ativo !== i) { ativo = i; marcarAtivo(); } }
+      }, h("span", { class: "combo-nome" }, h("strong", {}, c.guerra), h("small", {}, c.nome)), h("span", { class: "combo-turma" }, turmaCurta(c))));
+    });
+    if (!opcoes.length) {
+      itens.push(h("li", { class: "combo-vazio", role: "presentation" },
+        !cadetes.length ? "Nenhum cadete cadastrado ainda." : busca.value.trim() ? "Nenhum cadete encontrado com esse nome." : "Todos os cadetes desta turma já foram escolhidos."));
+    }
+    lista.replaceChildren(...itens);
+    busca.setAttribute("aria-activedescendant", ativo >= 0 ? `${id}-op${ativo}` : "");
+  }
+
+  function marcarAtivo() {
+    lista.querySelectorAll(".combo-op").forEach((li) => li.classList.toggle("ativo", li.id === `${id}-op${ativo}`));
+    const li = document.getElementById(`${id}-op${ativo}`);
+    if (li) li.scrollIntoView({ block: "nearest" });
+    busca.setAttribute("aria-activedescendant", ativo >= 0 ? `${id}-op${ativo}` : "");
+  }
+
+  function abrir() {
+    if (!aberta) { aberta = true; lista.hidden = false; busca.setAttribute("aria-expanded", "true"); caixa.classList.add("aberta"); }
+    ativo = busca.value.trim() ? 0 : -1;
+    desenharLista();
+  }
+  function fechar() {
+    aberta = false; lista.hidden = true; ativo = -1;
+    busca.setAttribute("aria-expanded", "false"); caixa.classList.remove("aberta");
+  }
+
+  function escolher(c) {
+    if (escolhidos.size >= max) { avisar(`Máximo de ${max} cadetes ${rotuloMax}.`, true); return; }
+    escolhidos.set(c.id, c);
+    busca.value = "";
+    desenharChips();
+    if (aberta) { ativo = -1; desenharLista(); }
+    busca.focus();
+  }
+
   function desenharChips() {
     chips.replaceChildren(...[...escolhidos.values()].map((c) => h("span", { class: "chip" }, c.guerra,
       h("button", { type: "button", "aria-label": `Remover ${c.guerra}`, onclick: () => { escolhidos.delete(c.id); desenhar(); } }, "×"))));
   }
+
   function desenhar() {
-    const termo = busca.value.trim().toLowerCase(), turma = filtro.value;
-    if (!termo && !turma) { sugestoes.replaceChildren(); desenharChips(); return; }
-    const lista = cadetes.filter((c) => !escolhidos.has(c.id) && (!turma || c.ano === turma) &&
-      (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo))).slice(0, 12);
-    sugestoes.replaceChildren(...(lista.length ? lista.map((c) => h("button", {
-      type: "button",
-      onclick: () => {
-        if (escolhidos.size >= max) { avisar(`Máximo de ${max} cadetes por vez.`, true); return; }
-        escolhidos.set(c.id, c); busca.value = ""; desenhar(); busca.focus();
-      }
-    }, c.guerra, h("span", { class: "turma" }, `${c.ano}${c.turma ? "/" + c.turma : ""} ${c.pelotao}`)))
-      : [h("span", { class: "ajuda" }, "Nenhum cadete encontrado.")]));
     desenharChips();
+    if (aberta) desenharLista();
   }
-  busca.addEventListener("input", desenhar);
-  filtro.addEventListener("change", desenhar);
-  return { escolhidos, desenhar, limpar() { escolhidos.clear(); busca.value = ""; desenhar(); } };
+
+  busca.addEventListener("input", () => { abrir(); });
+  busca.addEventListener("focus", () => { if (!busca.value.trim()) abrir(); });
+  busca.addEventListener("click", () => { if (!aberta) abrir(); });
+  busca.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== busca) fechar(); }, 120));
+  busca.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); if (!aberta) abrir(); if (opcoes.length) { ativo = Math.min(opcoes.length - 1, ativo + 1); marcarAtivo(); } }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (opcoes.length) { ativo = Math.max(0, ativo - 1); marcarAtivo(); } }
+    else if (e.key === "Enter") {
+      if (aberta && ativo >= 0 && opcoes[ativo]) { e.preventDefault(); escolher(opcoes[ativo]); }
+      else if (aberta) e.preventDefault();
+    }
+    else if (e.key === "Escape") { if (aberta) { e.preventDefault(); fechar(); } }
+    else if (e.key === "Backspace" && !busca.value && escolhidos.size) {
+      const ult = [...escolhidos.keys()].pop(); escolhidos.delete(ult); desenhar();
+    }
+  });
+  seta.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    if (aberta) fechar(); else { busca.focus(); abrir(); }
+  });
+  filtro.addEventListener("change", () => { busca.focus(); abrir(); });
+
+  return { escolhidos, desenhar, fechar, limpar() { escolhidos.clear(); busca.value = ""; fechar(); desenharChips(); } };
 }
 
 // ================== Escalas de serviço (nível 3) ==================
@@ -2103,7 +2201,7 @@ let escalasLista = [];
 function prepararEscalas() {
   if (escalasProntas) return;
   escalasProntas = true;
-  seletorEscala = criarSeletor({ busca: $("#eBusca"), filtro: $("#eFiltroTurma"), sugestoes: $("#eSugestoes"), chips: $("#eEscolhidos"), max: 40 });
+  seletorEscala = criarSeletor({ busca: $("#eBusca"), filtro: $("#eFiltroTurma"), chips: $("#eEscolhidos"), max: 40 });
   const recebendo = proximoPrazo().getTime();
   const sel = $("#selFds");
   let padrao = null;
