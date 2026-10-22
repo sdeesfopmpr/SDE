@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.7">
+<meta name="sde-versao" content="2026-10-22.8">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -168,7 +168,9 @@
   .selo { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 700; background: var(--verde-claro); color: var(--verde); }
   .selo.n2 { background: #e1f0fa; color: #075e93; }
   .selo.n3 { background: #fbf1d6; color: #7a5a00; }
-  .selo.n4 { background: var(--verde-esc); color: #fff; }
+  .selo.tipo-coord { background: var(--verde-esc); color: #fff; }
+  .selo.tipo-cad { background: #eef0f5; color: var(--suave); }
+  tr.linha-coord td { background: #f6f7fc; }
   .selo.cinza { background: #eceeeb; color: var(--suave); }
   .lista-simples { margin: 0; padding-left: 18px; color: var(--suave); }
   .lista-simples li { margin: 4px 0; }
@@ -697,7 +699,7 @@
           <div id="planilhaCab" class="namce-cab"></div>
         </div>
         <div class="cartao">
-          <h2>2. Dosimetria e NAMCE <small class="ajuda">(Coordenação)</small></h2>
+          <h2>2. Dosimetria e NAMCE</h2>
           <div id="namceCab" class="namce-cab"></div>
           <div id="resumoSemana" class="resumo"></div>
           <div class="filtros so-coord">
@@ -816,12 +818,6 @@
         <h2>Bloqueados e recusados</h2>
         <div id="listaInativos"></div>
       </div>
-      <div class="cartao">
-        <h2>Cópia de segurança</h2>
-        <p class="legenda">Baixa uma planilha do Excel com todos os dados do sistema: usuários, cadetes, anotações com as defesas, NAMCEs, Planilhas de Anotados e escalas (e a dosimetria, se você for da Coordenação). Guarde em local seguro: tem dados pessoais e defesas.</p>
-        <button class="btn sec" type="button" id="btnExportar">Baixar cópia dos dados (Excel)</button>
-        <div id="msgExportar" class="ajuda" style="margin-top:8px"></div>
-      </div>
     </div>
   </section>
 </main>
@@ -864,16 +860,16 @@ const NIVEIS = {
   0: "Sem acesso",
   1: "Nível 1 · Cadete",
   2: "Nível 2 · Anotador",
-  3: "Nível 3 · Missão SDE",
-  4: "Nível 4 · Coordenação"
+  3: "Nível 3 · Administração",
+  4: "Nível 3 · Administração"
 };
 const DESC_NIVEL = {
   1: "Consulta as próprias anotações, apresenta defesa até a segunda-feira 23h59 seguinte ao fechamento da semana e vê a MCE recebida após a dosimetria.",
   2: "Tudo do nível 1, e também lança anotações e FO+.",
-  3: "Administração da Missão SDE: tudo dos níveis 1 e 2, e também acompanha as anotações e defesas, publica a Planilha de Anotados, cadastra cadetes e escalas e libera acessos.",
-  4: "Coordenação: tudo do nível 3, e também faz a dosimetria e publica a NAMCE."
+  3: "Tudo dos níveis 1 e 2, e também acompanha as anotações e defesas, faz a dosimetria, publica a Planilha de Anotados e a NAMCE, cadastra cadetes e escalas e libera acessos.",
+  4: "Tudo dos níveis 1 e 2, e também acompanha as anotações e defesas, faz a dosimetria, publica a Planilha de Anotados e a NAMCE, cadastra cadetes e escalas e libera acessos."
 };
-const coord = () => !!perfil && perfil.nivel >= 4;
+const coord = () => !!perfil && perfil.nivel >= 3;
 
 // ================== Utilidades ==================
 const $ = (s) => document.querySelector(s);
@@ -938,7 +934,7 @@ function dataHora(ts) {
 }
 
 function seloNivel(n) {
-  return h("span", { class: "selo" + (n >= 4 ? " n4" : n === 3 ? " n3" : n === 2 ? " n2" : n === 0 ? " cinza" : "") }, NIVEIS[n] || "—");
+  return h("span", { class: "selo" + (n >= 3 ? " n3" : n === 2 ? " n2" : n === 0 ? " cinza" : "") }, NIVEIS[n] || "—");
 }
 
 function erroAuth(err) {
@@ -1255,7 +1251,7 @@ function abasDisponiveis() {
   if (perfil.cadeteId) abas.push({ id: "minhas", nome: "Minhas anotações", contador: "contMinhas" });
   if (perfil.nivel >= 2) abas.push({ id: "lancar", nome: "Lançar anotação" });
   if (perfil.nivel >= 3) {
-    abas.push({ id: "semana", nome: perfil.nivel >= 4 ? "Dosimetria" : "Acompanhamento" });
+    abas.push({ id: "semana", nome: "Dosimetria" });
     abas.push({ id: "escalas", nome: "Escalas" });
     abas.push({ id: "cadetes", nome: "Cadetes" });
     abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
@@ -1290,13 +1286,12 @@ function abrirApp() {
     prepararEscalas();
     prepararCadetes();
     assinarUsuarios();
-    assinarCoord();
     assinarSemana();
     assinarEscalasLista();
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "coord"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista"].forEach(desassinar);
   }
   desenharMinhas();
   mostrar("v-app");
@@ -2126,31 +2121,11 @@ function desenharSemana() {
   const n = namces[String(semanaW)];
   document.querySelectorAll("#painel-fechada .so-coord").forEach((e) => { e.hidden = !coord(); });
   if (n && n.status === "publicada") { contador("contFechada", 0); desenharPublicada(n); return; }
-  if (!coord()) { desenharSemanaMissao(); return; }
   desenharCabecalho(n);
   desenharLista();
 }
 
 const PADRAO_NAMCE = { assinante: "Maj. QOEM PM Rafael de Souza", cargo: "Comandante da Escola de Formação de Oficiais", local: "São José dos Pinhais" };
-/** Missão SDE (nível 3): acompanha a semana fechada (anotações e defesas); a dosimetria é da coordenação. */
-function desenharSemanaMissao() {
-  cabW = null;
-  const validas = semana.filter((a) => !a.anulada);
-  const aad = validas.filter((a) => a.tipo === "aad");
-  contador("contFechada", 0);
-  $("#namceCab").replaceChildren(h("div", { style: "grid-column: 1 / -1" },
-    h("span", { class: "selo-pub rascunho" }, "Aguardando a Coordenação"),
-    h("span", { class: "ajuda", style: "margin-left:10px" }, "A dosimetria e a NAMCE são feitas pela Coordenação (nível 4). Quando a NAMCE for publicada, ela aparece aqui.")));
-  $("#resumoSemana").replaceChildren(
-    h("span", {}, h("strong", {}, aad.length), " AAD"),
-    h("span", {}, h("strong", {}, aad.filter((a) => a.defesaEm).length), " com defesa"),
-    h("span", {}, h("strong", {}, validas.length - aad.length), " FO+"),
-    h("span", {}, Date.now() <= semanaW ? `Defesas abertas até segunda ${dataCurta(semanaW)} 23h59` : "Prazo de defesa encerrado"));
-  if (!validas.length) { $("#listaSemana").replaceChildren(h("div", { class: "cartao" }, h("p", { class: "vazio" }, "Nenhuma anotação nesta semana."))); return; }
-  $("#listaSemana").replaceChildren(tabelaAcompanhamento(validas, false));
-  carregarDefesas(aad, desenharSemana);
-}
-
 function ultimaPublicada() {
   return Object.values(namces).filter((n) => n.status === "publicada").sort((a, b) => (b.prazo?.toMillis?.() || 0) - (a.prazo?.toMillis?.() || 0))[0];
 }
@@ -3051,65 +3026,6 @@ async function aplicarPromocao() {
   btn.disabled = false;
 }
 
-// ---------- Cópia de segurança (planilha do Excel)
-const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-function dh(ts) {
-  if (!ts) return "";
-  const ms = typeof ts === "number" ? ts : ts.toMillis ? ts.toMillis() : null;
-  return ms ? new Date(ms).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "";
-}
-async function exportarDados() {
-  const btn = $("#btnExportar"), msg = $("#msgExportar");
-  btn.disabled = true;
-  try {
-    msg.textContent = "Carregando a ferramenta de planilhas…";
-    if (!window.XLSX) await new Promise((ok, erro) => { const sc = document.createElement("script"); sc.src = XLSX_URL; sc.onload = ok; sc.onerror = () => erro(new Error("xlsx")); document.head.appendChild(sc); });
-    const ler = async (nome) => (await getDocs(collection(db, nome))).docs.map((d) => ({ id: d.id, ...d.data() }));
-    msg.textContent = "Lendo os dados…";
-    const [us, cads, anots, nams, escs] = await Promise.all(["usuarios", "cadetes", "anotacoes", "namces", "escalas"].map(ler));
-    const dosis = coord() ? await ler("dosimetria") : [];
-    const comDefesa = anots.filter((a) => a.defesaEm);
-    const textos = {};
-    for (let i = 0; i < comDefesa.length; i++) {
-      msg.textContent = `Lendo as defesas… ${i + 1} de ${comDefesa.length}`;
-      try { const s = await getDoc(doc(db, "anotacoes", comDefesa[i].id, "defesa", "texto")); if (s.exists()) textos[comDefesa[i].id] = s.data().texto; }
-      catch (err) { console.error(err); }
-    }
-    const guerraDe = Object.fromEntries(cads.map((c) => [c.id, c.guerra]));
-    const X = window.XLSX, wb = X.utils.book_new();
-    const aba = (nome, linhas) => X.utils.book_append_sheet(wb, X.utils.json_to_sheet(linhas.length ? linhas : [{ "(vazio)": "" }]), nome);
-    aba("Usuários", us.sort(ordenar).map((u) => ({ "Nome de guerra": u.guerra, "Nome": u.nome, "Tipo": u.tipo, "Curso/ano": u.ano || "", "Turma": u.turma || "",
-      "Pelotão": u.pelotao || "", "Posto": u.posto || "", "E-mail": u.email, "Nível": NIVEIS[u.nivel] || u.nivel, "Situação": u.status, "Pedido em": dh(u.criadoEm) })));
-    aba("Cadetes", cads.sort(ordenar).map((c) => ({ "Nome de guerra": c.guerra, "Nome": c.nome, "Curso/ano": c.ano, "Turma": c.turma || "", "Pelotão": c.pelotao,
-      "Ativo": c.ativo ? "sim" : "não", "Com conta": c.uid ? "sim" : "não" })));
-    aba("Anotações", anots.sort((a, b) => criadoMs(a) - criadoMs(b)).map((a) => ({ "Código": a.id, "Tipo": a.tipo === "fo" ? "FO+" : "AAD",
-      "Cadete": a.cadeteGuerra, "Nome": a.cadeteNome, "Turma": grupoDe(a), "Pelotão": a.cadetePelotao, "Anotador": a.anotadorNome,
-      "Fato em": dh(a.fatoEm), "Lançada em": dh(a.criadoEm), "Semana (defesa até)": dh(a.prazo), "Descrição": a.descricao,
-      "Defesa enviada em": dh(a.defesaEm), "Defesa": textos[a.id] || "", "MCE": a.mce ? a.mce.texto : "", "NAMCE": a.mce ? a.mce.namce : "",
-      "Anulada (registro antigo)": a.anulada ? `${a.anuladaPor || ""}: ${a.anuladaMotivo || ""}` : "" })));
-    if (coord()) aba("Dosimetria", dosis.map((d) => ({ "Anotação": d.id, "Semana (defesa até)": dh(d.semana), "Decisão": d.decisao || "",
-      "Blocos": (d.blocos || []).join(" + "), "Transferida de": d.transferidaDe || "", "Atualizado em": dh(d.atualizadoEm) })));
-    aba("NAMCEs", nams.sort((a, b) => +a.id - +b.id).map((n) => ({ "Semana (defesa até)": dh(+n.id), "NAMCE nº": n.numero ? `${n.numero}/${n.ano}` : "",
-      "Situação": n.status || "", "Publicada em": dh(n.publicadaEm), "Por": n.publicadaPor || "", "Planilhas citadas": n.planilhas || "",
-      "Planilha de Anotados nº": n.planilha && n.planilha.numero ? `${n.planilha.numero}/${n.planilha.ano}` : "",
-      "Planilha publicada em": n.planilha ? dh(n.planilha.publicadaEm) : "", "Planilha por": n.planilha ? n.planilha.publicadaPor || "" : "" })));
-    const itens = [];
-    nams.filter((n) => n.status === "publicada").forEach((n) => (n.itens || []).forEach((it) => itens.push({ "NAMCE nº": `${n.numero}/${n.ano}`,
-      "Turma": it.grupo, "Cadete": it.cadeteGuerra, "Fato": dh(it.fato), "Descrição": it.descricao, "MCE": it.mce, "Transferida de": it.transferidaDe || "" })));
-    aba("NAMCE itens", itens);
-    aba("Escalas", escs.sort((a, b) => (a.inicio?.toMillis?.() || 0) - (b.inicio?.toMillis?.() || 0)).map((e) => ({ "Cadete": guerraDe[e.cadeteId] || e.cadeteId,
-      "Serviço": e.servico, "Início": dh(e.inicio), "Fim": dh(e.fim) })));
-    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-    X.writeFile(wb, `SDE_copia_${hoje}.xlsx`);
-    msg.textContent = `Cópia gerada: ${anots.length} anotação(ões), ${cads.length} cadete(s), ${us.length} usuário(s).`;
-  } catch (err) {
-    console.error(err);
-    msg.textContent = "";
-    avisar("Não foi possível gerar a cópia. Verifique a internet e tente de novo.", true);
-  }
-  btn.disabled = false;
-}
-$("#btnExportar").addEventListener("click", exportarDados);
 $("#btnPromover").addEventListener("click", aplicarPromocao);
 
 function prepararCadetes() {
@@ -3240,7 +3156,7 @@ function desenharAcessos() {
             h("td", {}, h("strong", {}, u.guerra), h("div", { class: "ajuda" }, u.nome)),
             h("td", {}, turmaTexto(u)),
             h("td", {}, h("span", { class: "selo cinza" }, u.status === "bloqueado" ? "Bloqueado" : "Recusado")),
-            h("td", { class: "acoes" }, u.nivel >= 4 && !coord() ? h("span", { class: "ajuda" }, "só a Coordenação") :
+            h("td", { class: "acoes" },
               u.status === "bloqueado"
                 ? h("button", { class: "btn sec peq", type: "button", onclick: () => mudarStatus(u, "ativo", "Acesso reativado.") }, "Reativar")
                 : h("button", { class: "btn sec peq", type: "button", onclick: () => mudarStatus(u, "pendente", "Pedido reaberto.") }, "Reabrir pedido"))
@@ -3249,36 +3165,19 @@ function desenharAcessos() {
   );
 }
 
-/** Níveis que eu posso dar a esta conta. O nível 4 só vai para conta de coordenação. */
-function niveisPossiveis(u) {
-  const ns = [1, 2, 3];
-  if (u.tipo === "coordenacao" && (coord() || !coordExiste)) ns.push(4);
-  return ns;
-}
-let coordExiste = true;   // até carregar, supõe que já existe (não oferece o nível 4 sem necessidade)
-function assinarCoord() {
-  assinar("coord", "c", () => onSnapshot(doc(db, "config", "coordenacao"),
-    (s) => { coordExiste = s.exists(); desenharAcessos(); }, (err) => console.error(err)));
-}
 function confirmarNivel(u, n) {
-  if (n === 4) return confirm(`Dar acesso de NÍVEL 4 (Coordenação: dosimetria e NAMCE) para ${u.guerra}?` +
-    (!coordExiste && !coord() ? "\n\nEste será o PRIMEIRO coordenador. Depois disso, só um coordenador poderá liberar outro." : ""));
-  if (n === 3) return confirm(`Dar acesso de NÍVEL 3 (Missão SDE: administração) para ${u.guerra}?`);
+  if (n === 3) return confirm(`Dar acesso de NÍVEL 3 (administração: dosimetria, NAMCE, cadastros e acessos) para ${u.guerra}?`);
   return true;
 }
-/** Grava o nível; se for o primeiro coordenador, registra junto (as regras exigem). */
-async function gravarNivel(u, alteracao, lote = writeBatch(db)) {
-  lote.update(doc(db, "usuarios", u.id), alteracao);
-  if (alteracao.nivel === 4 && !coord() && !coordExiste) {
-    lote.set(doc(db, "config", "coordenacao"), { primeiro: u.id, criadoEm: serverTimestamp() });
-  }
-  await lote.commit();
+/** Etiqueta para distinguir as contas da Coordenação das contas de cadete. */
+function seloTipo(u) {
+  return u.tipo === "coordenacao" ? h("span", { class: "selo tipo-coord" }, "Coordenação") : h("span", { class: "selo tipo-cad" }, "Cadete");
 }
 
 function cartaoPedido(u) {
   const sel = h("select", { "aria-label": "Nível de acesso" },
-    niveisPossiveis(u).map((n) => h("option", { value: String(n) }, NIVEIS[n])));
-  sel.value = u.tipo === "coordenacao" ? String(Math.max(...niveisPossiveis(u))) : "1";
+    [1, 2, 3].map((n) => h("option", { value: String(n) }, NIVEIS[n])));
+  sel.value = u.tipo === "coordenacao" ? "3" : "1";
   const btnOk = h("button", { class: "btn peq", type: "button" }, "Aprovar");
   const btnNao = h("button", { class: "btn perigo peq", type: "button" }, "Recusar");
 
@@ -3332,19 +3231,18 @@ function desenharAtivos(ativos) {
       h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma / posto"), h("th", {}, "Nível"), h("th", {}))),
       h("tbody", {}, lista.map((u) => {
         const eu = u.id === meuId;
-        const protegido = u.nivel >= 4 && !coord();     // só a coordenação mexe em conta de coordenação
         let nivelCel;
-        if (eu || protegido) {
+        if (eu) {
           nivelCel = h("span", {}, seloNivel(u.nivel), " ", eu ? h("span", { class: "ajuda" }, "(você)") : null);
         } else {
           const sel = h("select", { "aria-label": `Nível de ${u.guerra}` },
-            [...new Set([...niveisPossiveis(u), u.nivel])].sort().map((n) => h("option", { value: String(n) }, NIVEIS[n])));
-          sel.value = String(u.nivel);
+            [1, 2, 3].map((n) => h("option", { value: String(n) }, NIVEIS[n])));
+          sel.value = String(Math.min(u.nivel, 3));
           sel.addEventListener("change", async () => {
             const n = +sel.value;
-            if (!(n >= 3 ? confirmarNivel(u, n) : confirm(`Mudar ${u.guerra} para ${NIVEIS[n]}?`))) { sel.value = String(u.nivel); return; }
+            if (!(n === 3 ? confirmarNivel(u, n) : confirm(`Mudar ${u.guerra} para ${NIVEIS[n]}?`))) { sel.value = String(Math.min(u.nivel, 3)); return; }
             try {
-              await gravarNivel(u, { nivel: n, analisadoPor: meuId, analisadoEm: serverTimestamp() });
+              await updateDoc(doc(db, "usuarios", u.id), { nivel: n, analisadoPor: meuId, analisadoEm: serverTimestamp() });
               avisar("Nível alterado.");
             } catch (err) {
               console.error(err);
@@ -3354,11 +3252,11 @@ function desenharAtivos(ativos) {
           });
           nivelCel = sel;
         }
-        return h("tr", {},
-          h("td", {}, h("strong", {}, u.guerra), h("div", { class: "ajuda" }, u.nome)),
+        return h("tr", { class: u.tipo === "coordenacao" ? "linha-coord" : "" },
+          h("td", {}, h("strong", {}, u.guerra), " ", seloTipo(u), h("div", { class: "ajuda" }, u.nome)),
           h("td", {}, turmaTexto(u)),
           h("td", {}, nivelCel),
-          h("td", { class: "acoes" }, eu || protegido ? null :
+          h("td", { class: "acoes" }, eu ? null :
             h("button", { class: "btn perigo peq", type: "button", onclick: () => {
               if (confirm(`Bloquear o acesso de ${u.guerra}?`)) mudarStatus(u, "bloqueado", "Acesso bloqueado.");
             } }, "Bloquear"))
@@ -3431,7 +3329,8 @@ async function aprovar(u, nivel) {
       alteracao.cadeteId = ref.id;
     }
   }
-  await gravarNivel(u, alteracao, lote);
+  lote.update(doc(db, "usuarios", u.id), alteracao);
+  await lote.commit();
 }
 
 async function mudarStatus(u, status, textoOk) {

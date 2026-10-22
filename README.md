@@ -18,8 +18,7 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 ## Níveis de acesso
 1. Cadete: vê as próprias anotações, faz a defesa até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a NAMCE.
 2. Anotador: nível 1 + lança anotações e FO+ (fato de no máximo 72 horas antes do lançamento).
-3. Missão SDE (administração, cadetes): nível 2 + acompanhamento das anotações e defesas, Planilha de Anotados, cadastro de cadetes (com "Promover turmas"), escalas, acessos e cópia de segurança em Excel.
-4. Coordenação (só contas do tipo coordenação): tudo do nível 3 + dosimetria e NAMCE. O primeiro coordenador é liberado uma única vez pelo nível 3; depois, só coordenador libera ou altera coordenador.
+3. Administração (cadetes da Missão SDE e Coordenação, com os mesmos acessos): tudo + acompanhamento, dosimetria, Planilha de Anotados, NAMCE, cadastro de cadetes (com "Promover turmas"), escalas e acessos. Na aba Acessos, cada conta tem a etiqueta "Cadete" ou "Coordenação".
 
 O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedidos ficam pendentes até um nível 3 aprovar na aba Acessos.
 Ninguém anula, edita ou apaga anotação. NAMCE e Planilha de Anotados ficam travadas depois de publicadas.
