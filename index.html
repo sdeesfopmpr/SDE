@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.10">
+<meta name="sde-versao" content="2026-10-22.11">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -666,7 +666,7 @@
             <input id="buscaCadete" type="text" autocomplete="off">
           </div>
           <div id="escolhidos" class="chips"></div>
-          <div class="ajuda">Digite o nome ou clique na seta para ver a lista da turma escolhida. Pode escolher vários cadetes (até 15): cada um recebe a sua anotação.</div>
+          <div class="ajuda">Digite o nome ou clique na seta para ver a lista da turma escolhida. Pode escolher vários cadetes: cada um recebe a sua anotação.</div>
 
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
             <div><label for="aData">Data do fato</label><input id="aData" type="date"></div>
@@ -767,13 +767,11 @@
     <div class="aba" id="aba-escalas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Importar escala em PDF</h2>
-        <p class="legenda">Previsão de Escala de Serviço Interno, Boletim Interno ou escala especial com graduação, nome e turno (ex.: eleições). O arquivo é lido aqui mesmo, no seu aparelho, e não fica guardado: só os horários dos cadetes cadastrados são salvos. Só entram serviços que tocam o período de cumprimento (sexta 14h a segunda 07h).</p>
         <input type="file" id="arqEscala" accept="application/pdf,.pdf">
         <div id="resultadoImport"></div>
       </div>
       <div class="cartao">
         <h2>Lançar escala manualmente</h2>
-        <p class="legenda">Para escalas que não vieram em PDF ou que o sistema não conseguiu ler.</p>
         <form id="formEscala" novalidate>
           <label for="eBusca">Cadete</label>
           <div class="busca-cadete">
@@ -1386,7 +1384,6 @@ function desenharInicio() {
   $("#aba-inicio").replaceChildren(
     h("div", { class: "cartao" },
       h("h2", {}, `Olá, ${nomeCurto(p)}`),
-      h("p", { class: "legenda" }, DESC_NIVEL[p.nivel] || ""),
       dados
     )
   );
@@ -1594,7 +1591,7 @@ function prepararLancamento() {
   lancamentoPronto = true;
   seletorLancar = criarSeletor({
     busca: $("#buscaCadete"), filtro: $("#filtroTurma"), chips: $("#escolhidos"),
-    max: 15, escolhidos, rotuloMax: "por lançamento",
+    max: Infinity, escolhidos, rotuloMax: "por lançamento",
     excluir: (c) => !!perfil && c.id === perfil.cadeteId      // ninguém se anota
   });
   const agora = hojeLocal();
@@ -1638,9 +1635,12 @@ async function lancarAnotacao(e) {
   const btn = $("#btnLancar");
   btn.disabled = true;
   const anotadorNome = nomeCurto(perfil).toUpperCase();
-  const gravar = async (prazoMs) => {
+  // Grava em lotes de 15: as regras do servidor conferem o cadastro de cada cadete, e o Firebase
+  // limita essas conferências por gravação. Sem limite de cadetes por lançamento.
+  const todos = [...escolhidos.values()];
+  const gravar = async (prazoMs, grupo) => {
     const lote = writeBatch(db);
-    for (const c of escolhidos.values()) {
+    for (const c of grupo) {
       lote.set(doc(collection(db, "anotacoes")), {
         tipo,
         cadeteId: c.id, cadeteNome: c.nome, cadeteGuerra: c.guerra,
@@ -1654,17 +1654,23 @@ async function lancarAnotacao(e) {
     }
     await lote.commit();
   };
+  let feitos = 0;
   try {
-    const prazoMs = proximoPrazo().getTime();
-    try {
-      await gravar(prazoMs);
-    } catch (err) {
-      // Lançada no minuto do fechamento (sexta 18h) com o relógio do aparelho atrasado:
-      // o servidor já virou a semana, então vai para a semana seguinte.
-      if (err.code === "permission-denied" && Math.abs(fechamentoDe(prazoMs) - Date.now()) < 15 * 60000) await gravar(prazoMs + 7 * DIA);
-      else throw err;
+    for (let i = 0; i < todos.length; i += 15) {
+      const grupo = todos.slice(i, i + 15);
+      const prazoMs = proximoPrazo().getTime();
+      try {
+        await gravar(prazoMs, grupo);
+      } catch (err) {
+        // Lançada no minuto do fechamento (sexta 18h) com o relógio do aparelho atrasado:
+        // o servidor já virou a semana, então vai para a semana seguinte.
+        if (err.code === "permission-denied" && Math.abs(fechamentoDe(prazoMs) - Date.now()) < 15 * 60000) await gravar(prazoMs + 7 * DIA, grupo);
+        else throw err;
+      }
+      feitos += grupo.length;
+      grupo.forEach((c) => escolhidos.delete(c.id));
     }
-    avisar(`Anotação lançada para ${escolhidos.size} cadete(s).`);
+    avisar(`Anotação lançada para ${feitos} cadete(s).`);
     escolhidos.clear();
     $("#aDesc").value = "";
     const agora = hojeLocal();
@@ -1672,7 +1678,10 @@ async function lancarAnotacao(e) {
     desenharSugestoes();
   } catch (err) {
     console.error(err);
-    mensagem("#msgAnot", "Não foi possível lançar. Confira os dados e tente de novo.");
+    desenharSugestoes();
+    mensagem("#msgAnot", feitos
+      ? `Foram lançadas ${feitos} anotação(ões), mas houve um erro no restante. Os cadetes que ainda faltam continuam escolhidos: tente de novo.`
+      : "Não foi possível lançar. Confira os dados e tente de novo.");
   } finally {
     btn.disabled = false;
   }
