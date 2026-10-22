@@ -1,8 +1,8 @@
 // SDE · EsFO — Geração do PDF da NAMCE (layout da Nota de Aplicação de Medida Corretiva Escolar)
 // Usa jsPDF + jspdf-autotable (carregados do cdnjs só quando necessário).
 
-const JSPDF = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js";
-const AUTOTABLE = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.9/jspdf.plugin.autotable.min.js";
+export const JSPDF = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js";
+export const AUTOTABLE = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.9/jspdf.plugin.autotable.min.js";
 
 export const PADRAO = {
   assinante: "Maj. QOEM PM Rafael de Souza",
@@ -24,7 +24,7 @@ const ORIENTACOES = [
   "e) Por fim, o Dia-à-EsFO deverá elaborar o relatório e anexá-lo ao presente eProtocolo ao término de seu turno, tramitando-o ao seu sucessor. O militar que assumir o serviço no domingo ficará incumbido de restituir o protocolado à Missão SDE, para o competente encaminhamento final ao Oficial Coordenador."
 ];
 
-function carregarScript(src) {
+export function carregarScript(src) {
   return new Promise((ok, erro) => {
     if ([...document.scripts].some((s) => s.src === src)) return ok();
     const s = document.createElement("script");
@@ -33,10 +33,26 @@ function carregarScript(src) {
   });
 }
 
-async function imagemDataUrl(url) {
+export async function imagemDataUrl(url) {
   const r = await fetch(url);
   const b = await r.blob();
   return new Promise((ok) => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); });
+}
+
+/** Brasões, nomes da instituição e linha; devolve a altura (y) logo abaixo. */
+export async function cabecalhoInstitucional(doc, base = "") {
+  const W = doc.internal.pageSize.getWidth(), ME = 50, MD = 50;
+  const [esq, dir] = await Promise.all([imagemDataUrl(base + "img/brasao-parana.png"), imagemDataUrl(base + "img/brasao-pmpr.png")]);
+  doc.addImage(esq, "PNG", 62, 42, 64, 77, "parana", "FAST");
+  doc.addImage(dir, "PNG", W - 62 - 62, 40, 62, 78, "pmpr", "FAST");
+  let y = 52;
+  const linhaCab = (txt, tam, estilo = "bold") => { doc.setFont("helvetica", estilo); doc.setFontSize(tam); doc.text(txt, W / 2, y, { align: "center" }); y += tam * 1.12; };
+  linhaCab("ESTADO DO PARANÁ", 12.5); linhaCab("POLÍCIA MILITAR", 12.5); linhaCab("DIRETORIA DE EDUCAÇÃO CORPORATIVA", 12.5);
+  linhaCab("ACADEMIA POLICIAL MILITAR DO GUATUPÊ", 10.5); linhaCab("“CORONEL PM ANTONIO MICHALISZYN”", 10.5, "bolditalic");
+  linhaCab("ESCOLA DE FORMAÇÃO DE OFICIAIS", 10.5);
+  y = Math.max(y, 122) + 4;
+  doc.setLineWidth(0.8); doc.setDrawColor(0, 0, 0); doc.line(ME - 10, y, W - MD + 10, y);
+  return y + 24;
 }
 
 function data(ms) {
@@ -59,17 +75,7 @@ export async function gerarNamcePdf(n, { previa = false, salvar = true, base = "
   doc.setLineHeightFactor(1.2);
 
   // ---------- Cabeçalho institucional (1ª página)
-  const [esq, dir] = await Promise.all([imagemDataUrl(base + "img/brasao-parana.png"), imagemDataUrl(base + "img/brasao-pmpr.png")]);
-  doc.addImage(esq, "PNG", 62, 42, 64, 77, "parana", "FAST");
-  doc.addImage(dir, "PNG", W - 62 - 62, 40, 62, 78, "pmpr", "FAST");
-  let y = 52;
-  const linhaCab = (txt, tam, estilo = "bold") => { doc.setFont("helvetica", estilo); doc.setFontSize(tam); doc.text(txt, W / 2, y, { align: "center" }); y += tam * 1.12; };
-  linhaCab("ESTADO DO PARANÁ", 12.5); linhaCab("POLÍCIA MILITAR", 12.5); linhaCab("DIRETORIA DE EDUCAÇÃO CORPORATIVA", 12.5);
-  linhaCab("ACADEMIA POLICIAL MILITAR DO GUATUPÊ", 10.5); linhaCab("“CORONEL PM ANTONIO MICHALISZYN”", 10.5, "bolditalic");
-  linhaCab("ESCOLA DE FORMAÇÃO DE OFICIAIS", 10.5);
-  y = Math.max(y, 122) + 4;
-  doc.setLineWidth(0.8); doc.setDrawColor(...preto); doc.line(ME - 10, y, W - MD + 10, y);
-  y += 24;
+  let y = await cabecalhoInstitucional(doc, base);
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(11);
   doc.text(`Nota de Aplicação de Medida Corretiva Escolar n° ${n.numero}/${n.ano}`, W / 2, y, { align: "center" });

@@ -25,6 +25,8 @@ O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedi
 ## Semana disciplinar
 - A semana de anotações **fecha na sexta-feira às 18h** (pela hora do lançamento no sistema). O que for lançado depois entra na semana seguinte.
 - A defesa escrita pode ser enviada desde o lançamento até a **segunda-feira seguinte, 23h59** (travado nas regras do servidor).
+- Aba **Dosimetria** tem duas abas internas: **Semana atual** (acompanhamento ao vivo das anotações e defesas, com relógio até o fechamento) e **Semana fechada** (Planilha de Anotados, defesas até segunda, dosimetria e NAMCE).
+- **Após o fechamento:** publicar a **Planilha de Anotados** (PDF sem dosimetria, `js/planilha-pdf.js`). Ela fica guardada em `namces/{prazo}.planilha` e o número dela entra sozinho no campo "Planilhas de Anotados nº" da NAMCE.
 - **Quinta-feira:** dosimetria. **Sexta a domingo:** cumprimento (o segundo fim de semana depois da anotação).
 - Ex.: anotação de 20/10 → fecha 23/10 18h → defesa até 26/10 23h59 → dosimetria 29/10 → cumprimento 30/10 a 01/11.
 
@@ -40,4 +42,5 @@ O primeiro usuário a se cadastrar vira administrador (nível 3). Os demais pedi
 - [x] 3. Lançamento de anotações e FO+ (e lista provisória "Anotações da semana" para o nível 3)
 - [x] 4. Dosimetria (13 blocos, Justif., Transf., TD, Já cumprida), publicação da NAMCE, anulação, escalas (lançamento manual) e cadastro de cadetes. Importação de escalas em PDF (Previsão de Serviço Interno, Boletim Interno e escalas especiais com graduação, nome e turno).
 - [x] 5. NAMCE em PDF no layout oficial (prévia com marca d’água e geração automática ao publicar; "Baixar PDF" nas NAMCEs publicadas)
+- [x] 5b. Dosimetria em duas abas (semana atual / semana fechada) e Planilha de Anotados em PDF
 - [ ] 6. Teste com cadetes e liberação

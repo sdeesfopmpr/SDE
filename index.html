@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.2">
+<meta name="sde-versao" content="2026-10-22.3">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -230,7 +230,8 @@
   .resumo { display: flex; gap: 16px; flex-wrap: wrap; color: var(--suave); font-size: 14px; margin-bottom: 6px; }
   .resumo strong { color: var(--texto); }
   .ciclo-escolha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  .ciclo-escolha select { width: auto; }
+  .ciclo-escolha select { width: auto; max-width: 100%; }
+  .cab-painel > * { min-width: 0; max-width: 100%; }
 
   /* ---------- Dosimetria ---------- */
   .namce-cab { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; align-items: end; }
@@ -310,6 +311,41 @@
   .tabela-import input[type=checkbox] { width: auto; }
   details.soltos { margin-top: 8px; font-size: 13.5px; }
   details.soltos summary { cursor: pointer; color: var(--suave); font-weight: 600; }
+
+  /* Abas internas da Dosimetria */
+  .subabas { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 0 14px; border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; background: #fff; }
+  .subabas button { font: inherit; text-align: left; border: 0; background: #f4f5fa; padding: 11px 16px; cursor: pointer; color: var(--suave); border-bottom: 3px solid transparent; }
+  .subabas button + button { border-left: 1px solid var(--borda); }
+  .subabas button[aria-selected=true] { background: #fff; color: var(--texto); border-bottom-color: var(--ouro); }
+  .subabas .sub-tit { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; color: var(--verde-esc); }
+  .subabas button[aria-selected=false] .sub-tit { color: var(--suave); }
+  .subabas small { display: block; font-size: 12.5px; margin-top: 2px; }
+  .subabas .contador { position: static; }
+  .cab-painel { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .relogio { background: var(--verde-esc); color: #fff; border-radius: 10px; padding: 8px 14px; text-align: right; line-height: 1.2; }
+  .relogio strong { display: block; font-size: 20px; color: var(--ouro); font-variant-numeric: tabular-nums; }
+  .relogio small { font-size: 12px; opacity: .85; }
+  .etapas { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; padding: 0; }
+  .etapas li { border: 1px solid var(--borda); border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--suave); background: #fff; }
+  .etapas li strong { display: block; color: var(--texto); font-size: 13.5px; }
+  .etapas li.feita { background: #e9f5ee; border-color: #b9dcc6; }
+  .etapas li.feita strong::before { content: "✓ "; color: var(--ok); }
+  .etapas li.agora { border-color: var(--ouro); box-shadow: inset 0 -3px 0 var(--ouro); }
+  @media (max-width: 760px) { .etapas { grid-template-columns: 1fr 1fr; } }
+  .acomp-tabela { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  .acomp-tabela th { text-align: left; background: var(--verde-esc); color: #fff; padding: 7px 8px; font-weight: 700; position: sticky; top: 0; }
+  .acomp-tabela td { border-bottom: 1px solid var(--borda); padding: 8px; vertical-align: top; }
+  .acomp-tabela tr.grupo td { background: var(--verde-claro); color: var(--verde-esc); font-weight: 800; padding: 6px 10px; }
+  .acomp-tabela .num { width: 30px; color: var(--suave); text-align: center; }
+  .acomp-tabela .quando { width: 120px; white-space: nowrap; }
+  .acomp-tabela .cad { width: 170px; }
+  .acomp-tabela .desc { white-space: pre-wrap; min-width: 220px; }
+  .acomp-tabela .def { min-width: 220px; max-width: 360px; }
+  .acomp-tabela tr.nova td:first-child { box-shadow: inset 4px 0 0 var(--ouro); }
+  .selo-nova { display: inline-block; font-size: 10.5px; font-weight: 800; background: var(--ouro); color: #1b1d2b; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+  .def-aguarda { color: var(--suave); font-size: 12.5px; }
+  .def-enviada { font-size: 11.5px; color: var(--ok); font-weight: 700; margin-bottom: 2px; }
+  .acomp-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: #fff; }
 
   /* Lista da dosimetria (tabela) */
   .dosi-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: #fff; }
@@ -597,32 +633,79 @@
       </div>
     </div>
 
-    <!-- Anotações da semana (nível 3) -->
-    <!-- Dosimetria (nível 3) -->
+    <!-- Dosimetria (nível 3): duas abas internas -->
     <div class="aba" id="aba-semana" role="tabpanel" hidden>
-      <div class="cartao">
-        <h2>Dosimetria</h2>
-        <div class="ciclo-escolha">
-          <label for="selCiclo" style="margin:0">Semana</label>
-          <select id="selCiclo"></select>
-        </div>
-        <div id="namceCab" class="namce-cab"></div>
-        <div id="resumoSemana" class="resumo"></div>
-        <div class="filtros">
-          <input id="buscaDosi" type="search" placeholder="Buscar cadete ou descrição">
-          <label class="check"><input type="checkbox" id="soPendentes"> Só pendentes</label>
-        </div>
-        <div class="legenda-blocos">
-          <span><i class="bl livre"></i>Livre</span>
-          <span><i class="bl sel"></i>Aplicado</span>
-          <span><i class="bl escala"></i>Escala de serviço</span>
-          <span><i class="bl outra"></i>Outra MCE do cadete</span>
-          <span><i class="bl sobrepoe"></i>Sobreposição</span>
-          <span><i class="bl sel conflito"></i>Conflito com escala lançada depois</span>
-          <span>Passe o mouse sobre um campo bloqueado para ver o serviço.</span>
-        </div>
+      <div class="subabas" role="tablist" aria-label="Semanas">
+        <button type="button" role="tab" id="sub-atual" data-sub="atual" aria-controls="painel-atual" aria-selected="true">
+          <span class="sub-tit">Semana atual <span class="contador" id="contAtual" hidden></span></span>
+          <small id="subAtualInfo">recebendo anotações</small>
+        </button>
+        <button type="button" role="tab" id="sub-fechada" data-sub="fechada" aria-controls="painel-fechada" aria-selected="false">
+          <span class="sub-tit">Semana fechada <span class="contador" id="contFechada" hidden></span></span>
+          <small id="subFechadaInfo">defesas e dosimetria</small>
+        </button>
       </div>
-      <div id="listaSemana"></div>
+
+      <!-- Aba 1: acompanhamento da semana que está recebendo anotações -->
+      <div id="painel-atual" role="tabpanel" aria-labelledby="sub-atual">
+        <div class="cartao">
+          <div class="cab-painel">
+            <div>
+              <h2 style="margin-bottom:2px">Acompanhamento da semana</h2>
+              <p class="legenda" id="atualPeriodo" style="margin:0"></p>
+            </div>
+            <div class="relogio" id="atualRelogio" aria-live="polite"></div>
+          </div>
+          <div id="resumoAtual" class="resumo"></div>
+          <div class="filtros">
+            <input id="buscaAtual" type="search" placeholder="Buscar cadete, anotador ou descrição">
+            <select id="ordemAtual" aria-label="Ordem da lista">
+              <option value="turma">Por turma (como na Planilha)</option>
+              <option value="recentes">Mais recentes primeiro</option>
+            </select>
+            <button class="btn sec" type="button" id="btnPreviaPlanAtual">Prévia da Planilha de Anotados</button>
+          </div>
+          <p class="ajuda" style="margin:0">A lista se atualiza sozinha a cada anotação lançada e a cada defesa enviada. Na sexta-feira às 18h a semana fecha e passa para a aba <strong>Semana fechada</strong>, onde a Planilha de Anotados é publicada.</p>
+        </div>
+        <div id="listaAtual"></div>
+      </div>
+
+      <!-- Aba 2: semana já fechada (defesas até segunda, dosimetria, Planilha e NAMCE) -->
+      <div id="painel-fechada" role="tabpanel" aria-labelledby="sub-fechada" hidden>
+        <div class="cartao">
+          <div class="cab-painel">
+            <h2 style="margin:0">Semana fechada</h2>
+            <div class="ciclo-escolha" style="margin:0">
+              <label for="selCiclo" style="margin:0">Semana</label>
+              <select id="selCiclo"></select>
+            </div>
+          </div>
+          <ol class="etapas" id="etapasSemana"></ol>
+        </div>
+        <div class="cartao">
+          <h2>1. Planilha de Anotados <small class="ajuda">(sem dosimetria, publicada após o fechamento)</small></h2>
+          <div id="planilhaCab" class="namce-cab"></div>
+        </div>
+        <div class="cartao">
+          <h2>2. Dosimetria e NAMCE</h2>
+          <div id="namceCab" class="namce-cab"></div>
+          <div id="resumoSemana" class="resumo"></div>
+          <div class="filtros">
+            <input id="buscaDosi" type="search" placeholder="Buscar cadete ou descrição">
+            <label class="check"><input type="checkbox" id="soPendentes"> Só pendentes</label>
+          </div>
+          <div class="legenda-blocos">
+            <span><i class="bl livre"></i>Livre</span>
+            <span><i class="bl sel"></i>Aplicado</span>
+            <span><i class="bl escala"></i>Escala de serviço</span>
+            <span><i class="bl outra"></i>Outra MCE do cadete</span>
+            <span><i class="bl sobrepoe"></i>Sobreposição</span>
+            <span><i class="bl sel conflito"></i>Conflito com escala lançada depois</span>
+            <span>Passe o mouse sobre um campo bloqueado para ver o serviço.</span>
+          </div>
+        </div>
+        <div id="listaSemana"></div>
+      </div>
     </div>
 
     <!-- Escalas (nível 3) -->
@@ -890,7 +973,7 @@ function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
   limpezaCpfFeita = false;
-  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; qtdRecebendo = 0; cabW = null; editandoCadete = null; importacao = null;
+  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
@@ -900,7 +983,7 @@ function limparMemoria() {
   if (seletorLancar) seletorLancar.limpar();
   if (seletorEscala) seletorEscala.limpar();
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos",
-   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
+   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#planilhaCab", "#listaAtual", "#resumoAtual", "#etapasSemana", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
 }
 
@@ -1183,6 +1266,7 @@ function abrirApp() {
 
 function trocarAba(id) {
   abaAtual = id;
+  if (id === "semana") tique();
   document.querySelector("main").classList.toggle("largo", id === "semana");
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
@@ -1206,19 +1290,11 @@ function desenharInicio() {
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
 
-  const proximas = [];
-  if (p.nivel >= 3) proximas.push("Geração da NAMCE em PDF");
-
   $("#aba-inicio").replaceChildren(
     h("div", { class: "cartao" },
       h("h2", {}, `Olá, ${nomeCurto(p)}`),
       h("p", { class: "legenda" }, DESC_NIVEL[p.nivel] || ""),
       dados
-    ),
-    h("div", { class: "cartao" },
-      h("h3", {}, "Em construção"),
-      h("p", { class: "legenda", style: "margin-bottom:8px" }, "Estas funções vão aparecer aqui conforme forem liberadas:"),
-      h("ul", { class: "lista-simples" }, proximas.map((t) => h("li", {}, t)))
     )
   );
 }
@@ -1583,53 +1659,90 @@ function ordenarAnot(a, b) {
   return a.cadeteGuerra.localeCompare(b.cadeteGuerra, "pt-BR") || (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0);
 }
 
+// ---------- Abas internas: "Semana atual" (acompanhamento) e "Semana fechada" (dosimetria)
+let atualW = 0;                 // prazo da semana que está recebendo anotações
+let atual = [];                 // anotações dessa semana (ao vivo)
+let subAtual = "atual";
+let relogioTimer = null;
+let selecaoManual = false;      // o usuário escolheu a semana fechada na lista?
+
 function prepararCiclos() {
   if (ciclosProntos) return;
   ciclosProntos = true;
-  const recebendo = proximoPrazo().getTime();
-  const agora = Date.now();
-  const sel = $("#selCiclo");
-  for (let i = 0; i < 10; i++) {
-    const W = recebendo - i * 7 * DIA;
-    let rotulo = "";
-    if (i === 0) rotulo = " · recebendo anotações";
-    else if (W >= agora) rotulo = " · defesas abertas";
-    else if (i === 1) rotulo = " · dosimetria";
-    sel.append(h("option", { value: String(W) },
-      `Anotações até sex ${dataCurta(fechamentoDe(W))} 18h — cumprimento ${dataCurta(sextaDe(W))} a ${dataCurta(sextaDe(W) + 2 * DIA)}${rotulo}`));
-  }
-  // abre na semana que fechou por último (defesa na segunda, dosimetria na quinta)
-  sel.value = String(recebendo - 7 * DIA);
-  sel.addEventListener("change", () => { selecaoManual = true; assinarSemana(); });
+  try { const s = localStorage.getItem("sde-subaba"); if (s === "atual" || s === "fechada") subAtual = s; } catch (e) { /* sem armazenamento */ }
+  document.querySelectorAll(".subabas button").forEach((b) => b.addEventListener("click", () => trocarSub(b.dataset.sub)));
+  montarOpcoesCiclo();
+  $("#selCiclo").addEventListener("change", () => { selecaoManual = true; assinarSemana(); });
   $("#buscaDosi").addEventListener("input", desenharLista);
   $("#soPendentes").addEventListener("change", desenharLista);
+  $("#buscaAtual").addEventListener("input", desenharAtual);
+  $("#ordemAtual").addEventListener("change", desenharAtual);
+  $("#btnPreviaPlanAtual").addEventListener("click", () => pdfPlanilha(atualW, true));
+  trocarSub(subAtual);
 }
 
-let selecaoManual = false;      // o usuário escolheu a semana na lista?
-let qtdRecebendo = 0;           // anotações já lançadas para a semana que está recebendo
-function irParaSemana(W) {
-  $("#selCiclo").value = String(W);
-  assinarSemana();
+function trocarSub(id) {
+  subAtual = id;
+  try { localStorage.setItem("sde-subaba", id); } catch (e) { /* sem armazenamento */ }
+  document.querySelectorAll(".subabas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.sub === id ? "true" : "false"));
+  $("#painel-atual").hidden = id !== "atual";
+  $("#painel-fechada").hidden = id !== "fechada";
 }
-/** Se a semana aberta automaticamente está vazia e a semana que recebe anotações não, troca sozinho. */
-function talvezTrocarSemana() {
+
+/** Lista de semanas já fechadas (a mais recente primeiro). */
+function montarOpcoesCiclo() {
   const rec = proximoPrazo().getTime();
-  if (selecaoManual || semanaW === rec || !qtdRecebendo) return;
-  if (semana.length === 0 && !namces[String(semanaW)]) irParaSemana(rec);
+  const sel = $("#selCiclo");
+  const antes = sel.value;
+  sel.replaceChildren(...Array.from({ length: 10 }, (_, i) => h("option", { value: String(rec - (i + 1) * 7 * DIA) })));
+  sel.value = selecaoManual && [...sel.options].some((o) => o.value === antes) ? antes : String(rec - 7 * DIA);
+  rotularCiclos();
+}
+function statusSemana(W) {
+  const n = namces[String(W)];
+  if (n && n.status === "publicada") return `NAMCE nº ${n.numero}/${n.ano} publicada`;
+  if (Date.now() <= W) return `defesas até seg ${dataCurta(W)} 23h59`;
+  return "dosimetria";
+}
+function rotularCiclos() {
+  [...$("#selCiclo").options].forEach((o) => {
+    const W = +o.value, f = fechamentoDe(W);
+    o.textContent = `Anotações de sex ${dataCurta(f - 7 * DIA)} a sex ${dataCurta(f)} 18h — cumprimento ${dataCurta(sextaDe(W))} a ${dataCurta(sextaDe(W) + 2 * DIA)} · ${statusSemana(W)}`;
+  });
+}
+
+/** Confere a virada da semana (sexta 18h) e atualiza o relógio. */
+function tique() {
+  if (!perfil || perfil.nivel < 3 || !ciclosProntos) return;
+  const rec = proximoPrazo().getTime();
+  if (atualW && rec !== atualW) {
+    assinarSemana();
+    avisar("A semana de anotações fechou. Ela está agora na aba Semana fechada, pronta para a Planilha de Anotados.");
+  }
+  desenharRelogio();
 }
 
 function assinarSemana() {
-  const W = +$("#selCiclo").value;
-  semanaW = W;
+  // semana atual (recebendo anotações), ao vivo
   const rec = proximoPrazo().getTime();
+  if (rec !== atualW) { if (atualW) montarOpcoesCiclo(); atualW = rec; atual = []; }
   assinar("recebendo", rec, () => onSnapshot(
     query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(rec))),
-    (snap) => { qtdRecebendo = snap.docs.filter((d) => !d.data().anulada).length; talvezTrocarSemana(); desenharLista(); },
-    (err) => console.error(err)
+    (snap) => { atual = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharAtual(); },
+    (err) => { console.error(err); $("#listaAtual").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações.")); }
   ));
+  if (!relogioTimer) {
+    relogioTimer = setInterval(tique, 20000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) tique(); });
+  }
+
+  // semana fechada escolhida (dosimetria)
+  const W = +$("#selCiclo").value;
+  if (W !== semanaW) { semana = []; dosi = {}; }
+  semanaW = W;
   assinar("semana", W, () => onSnapshot(
     query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(W))),
-    (snap) => { semana = snap.docs.map((d) => ({ id: d.id, ...d.data() })); talvezTrocarSemana(); desenharSemana(); },
+    (snap) => { semana = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharSemana(); },
     (err) => { console.error(err); $("#listaSemana").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações.")); }
   ));
   assinar("dosi", W, () => onSnapshot(
@@ -1649,8 +1762,280 @@ function assinarSemana() {
   assinar("namces", "todas", () => onSnapshot(collection(db, "namces"), (snap) => {
     namces = {};
     snap.docs.forEach((d) => { namces[d.id] = { id: d.id, ...d.data() }; });
+    rotularCiclos();
     desenharSemana();
+    desenharAtual();
   }, (err) => console.error(err)));
+  desenharAtual();
+  desenharSemana();
+}
+
+// ---------- Aba "Semana atual": acompanhamento ao vivo
+function tempoAte(ms) {
+  let r = Math.max(0, ms - Date.now());
+  const d = Math.floor(r / DIA); r -= d * DIA;
+  const hr = Math.floor(r / 3600000); r -= hr * 3600000;
+  const mi = Math.floor(r / 60000);
+  return d ? `${d}d ${String(hr).padStart(2, "0")}h ${String(mi).padStart(2, "0")}min` : `${hr}h ${String(mi).padStart(2, "0")}min`;
+}
+function desenharRelogio() {
+  if (!atualW) return;
+  const f = fechamentoDe(atualW);
+  $("#atualPeriodo").textContent = `Anotações lançadas de sexta ${dataCurta(f - 7 * DIA)}, 18h, até sexta ${dataCurta(f)}, 18h · defesa até segunda ${dataCurta(atualW)}, 23h59 · cumprimento de ${fdsTexto(atualW)}`;
+  $("#atualRelogio").replaceChildren(h("small", {}, "Fecha em"), h("strong", {}, tempoAte(f)), h("small", {}, `sexta ${dataCurta(f)} às 18h`));
+  $("#subAtualInfo").textContent = `recebendo anotações até sex ${dataCurta(f)} 18h`;
+}
+
+function ordemPlanilha(a, b) {
+  return (a.cadetePelotao || "").localeCompare(b.cadetePelotao || "") || a.cadeteGuerra.localeCompare(b.cadeteGuerra, "pt-BR")
+    || (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0);
+}
+function criadoMs(a) { return a.criadoEm?.toMillis ? a.criadoEm.toMillis() : 0; }
+
+function desenharAtual() {
+  if (!atualW) return;
+  desenharRelogio();
+  const validas = atual.filter((a) => !a.anulada);
+  const anuladas = atual.filter((a) => a.anulada);
+  const aad = validas.filter((a) => a.tipo === "aad"), fo = validas.filter((a) => a.tipo === "fo");
+  const recentes = validas.filter((a) => Date.now() - criadoMs(a) < DIA).length;
+  contador("contAtual", validas.length);
+  $("#resumoAtual").replaceChildren(...[
+    h("span", {}, h("strong", {}, aad.length), " AAD"),
+    h("span", {}, h("strong", {}, fo.length), " FO+"),
+    h("span", {}, h("strong", {}, new Set(validas.map((a) => a.cadeteId)).size), " cadete(s)"),
+    h("span", {}, h("strong", {}, aad.filter((a) => a.defesaEm).length), " com defesa"),
+    h("span", {}, h("strong", {}, recentes), " lançada(s) nas últimas 24h"),
+    anuladas.length ? h("span", {}, h("strong", {}, anuladas.length), " anulada(s)") : null
+  ].filter(Boolean));
+
+  const termo = normBusca($("#buscaAtual").value.trim());
+  const filtra = (a) => !termo || normBusca(`${a.cadeteGuerra} ${a.cadeteNome} ${a.anotadorNome} ${a.descricao}`).includes(termo);
+  const lista = validas.filter(filtra);
+  const ncol = 7;
+  const corpo = [];
+  if ($("#ordemAtual").value === "recentes") {
+    lista.sort((a, b) => criadoMs(b) - criadoMs(a)).forEach((a, i) => corpo.push(linhaAtual(a, i + 1, true)));
+  } else {
+    const foL = lista.filter((a) => a.tipo === "fo").sort((a, b) => (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0));
+    if (foL.length) {
+      corpo.push(h("tr", { class: "grupo" }, h("td", { colspan: String(ncol) }, "FO+")));
+      foL.forEach((a, i) => corpo.push(linhaAtual(a, i + 1)));
+    }
+    const grupos = {};
+    lista.filter((a) => a.tipo === "aad").forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+    Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
+      corpo.push(h("tr", { class: "grupo" }, h("td", { colspan: String(ncol) }, g)));
+      grupos[g].sort(ordemPlanilha).forEach((a, i) => corpo.push(linhaAtual(a, i + 1)));
+    });
+  }
+  const partes = [];
+  if (corpo.length) {
+    partes.push(h("div", { class: "acomp-wrap" }, h("table", { class: "acomp-tabela" },
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", { class: "quando" }, "Lançada em"), h("th", { class: "cad" }, "Cadete"),
+        h("th", {}, "Anotador"), h("th", { class: "desc" }, "Descrição"), h("th", { class: "def" }, "Defesa"), h("th", {}))),
+      h("tbody", {}, corpo))));
+    carregarDefesas(aad, desenharAtual);
+  } else {
+    partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, validas.length ? "Nada encontrado com essa busca." : "Nenhuma anotação lançada nesta semana até agora.")));
+  }
+  if (anuladas.length) {
+    partes.push(h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${anuladas.length} anotação(ões) anulada(s) nesta semana`),
+      h("ul", { class: "lista-simples" }, anuladas.map((a) => h("li", {}, h("strong", {}, a.cadeteGuerra), ` · ${a.descricao} — anulada por ${a.anuladaPor || "—"}: ${a.anuladaMotivo || ""}`)))));
+  }
+  $("#listaAtual").replaceChildren(...partes);
+}
+
+function textoDefesa(a) {
+  if (a.tipo !== "aad") return h("span", { class: "def-aguarda" }, "—");
+  if (!a.defesaEm) return h("span", { class: "def-aguarda" }, "aguardando (até seg " + dataCurta(a.prazo.toMillis()) + " 23h59)");
+  const d = defesas[a.id];
+  if (d && d.versao === a.defesaEm.seconds) {
+    return h("div", {}, h("div", { class: "def-enviada" }, "Enviada em " + dataHora(a.defesaEm)), h("div", { class: "just-txt", title: d.texto }, d.texto));
+  }
+  return h("span", { class: "ajuda" }, "carregando…");
+}
+
+function linhaAtual(a, num, comTurma = false) {
+  const nova = Date.now() - criadoMs(a) < DIA;
+  return h("tr", { class: nova ? "nova" : "" },
+    h("td", { class: "num" }, num),
+    h("td", { class: "quando" }, a.criadoEm ? dataHora(a.criadoEm) : "agora", nova ? h("span", { class: "selo-nova" }, "NOVA") : null,
+      h("div", { class: "ajuda" }, "fato: " + dataFato(a.fatoEm))),
+    h("td", { class: "cad" }, h("strong", {}, a.cadeteGuerra), " ", a.tipo === "fo" ? tagTipo("fo") : comTurma ? tagTipo("aad") : null,
+      h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
+    h("td", {}, a.anotadorNome),
+    h("td", { class: "desc" }, a.descricao),
+    h("td", { class: "def" }, textoDefesa(a)),
+    h("td", {}, h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "anular")));
+}
+
+// ---------- Planilha de Anotados (publicada após o fechamento, sem dosimetria)
+const PADRAO_PLANILHA = { assinante: "Cad. 3° PM Bruno Pettenuci Gentine", cargo: "Chefe da Missão SDE", local: "São José dos Pinhais" };
+let planCab = null;           // chave do formulário desenhado (para não apagar o que está sendo digitado)
+let corrigindoPlanilha = false;
+let geradorPlanilha = null;
+
+function anoDaSemana(W) { return +new Date(fechamentoDe(W)).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", year: "numeric" }); }
+function planilhaDe(W) { return namces[String(W)]?.planilha || null; }
+function ultimaPlanilha() {
+  return Object.values(namces).map((n) => n.planilha).filter((p) => p && p.status === "publicada")
+    .sort((a, b) => (b.publicadaEm?.toMillis?.() || 0) - (a.publicadaEm?.toMillis?.() || 0))[0];
+}
+function sugestaoPlanilha(ano) {
+  const nums = Object.values(namces).map((n) => n.planilha).filter((p) => p && p.status === "publicada" && p.ano === ano && p.numero).map((p) => p.numero);
+  return nums.length ? Math.max(...nums) + 1 : "";
+}
+function datasPlanilha(W) {
+  const f = fechamentoDe(W);
+  return { fechamento: f, inicio: f - 7 * DIA, prazo: W, sexta: sextaDe(W) };
+}
+/** FO+ e AAD da lista (sem anuladas), na ordem da Planilha. */
+function montarPlanilha(lista) {
+  const validas = lista.filter((a) => !a.anulada);
+  const item = (a) => ({ anotacaoId: a.id, grupo: grupoDe(a), fato: a.fatoEm.toMillis(), anotadorNome: a.anotadorNome,
+    pel: pelNamce(a), cadeteGuerra: a.cadeteGuerra, descricao: a.descricao });
+  const fo = validas.filter((a) => a.tipo === "fo").sort((a, b) => (a.fatoEm?.seconds || 0) - (b.fatoEm?.seconds || 0)).map(item);
+  const grupos = {};
+  validas.filter((a) => a.tipo === "aad").forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+  const itens = [];
+  Object.keys(grupos).sort(ordemGrupo).forEach((g) => grupos[g].sort(ordemPlanilha).forEach((a) => itens.push(item(a))));
+  return { fo, itens };
+}
+function cabPlanilha(W) {
+  const p = planilhaDe(W) || {}, ult = ultimaPlanilha() || {};
+  const ano = p.ano || anoDaSemana(W);
+  return { numero: p.numero || sugestaoPlanilha(ano), ano, assinante: p.assinante || ult.assinante || PADRAO_PLANILHA.assinante,
+    cargo: p.cargo || ult.cargo || PADRAO_PLANILHA.cargo, local: p.local || ult.local || PADRAO_PLANILHA.local };
+}
+
+async function pdfPlanilha(W, previa, publicada = null) {
+  try {
+    avisar(previa ? "Gerando a prévia da Planilha…" : "Gerando o PDF da Planilha de Anotados…");
+    geradorPlanilha ||= await import("./js/planilha-pdf.js");
+    let p;
+    if (publicada) p = { ...publicada, ...datasPlanilha(W) };
+    else if (W === semanaW && $("#plNumero")) p = { ...dadosPlanilhaForm(W), ...montarPlanilha(semana), ...datasPlanilha(W) };
+    else p = { ...cabPlanilha(W), ...montarPlanilha(W === atualW ? atual : semana), ...datasPlanilha(W) };
+    await geradorPlanilha.gerarPlanilhaPdf(p, { previa });
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível gerar o PDF. Verifique a internet e tente de novo.", true);
+  }
+}
+
+function dadosPlanilhaForm(W) {
+  const v = (s) => ($(s) ? $(s).value.trim() : "");
+  return { numero: +v("#plNumero") || "", ano: +v("#plAno") || anoDaSemana(W),
+    assinante: v("#plAssinante") || PADRAO_PLANILHA.assinante, cargo: v("#plCargo") || PADRAO_PLANILHA.cargo, local: v("#plLocal") || PADRAO_PLANILHA.local };
+}
+
+function desenharPlanilha() {
+  const W = semanaW;
+  const p = planilhaDe(W);
+  const publicada = p && p.status === "publicada" && !corrigindoPlanilha;
+  const chave = `${W}|${publicada ? "pub" : "form"}|${publicada ? p.publicadaEm?.seconds : ""}`;
+  if (publicada) {
+    if (planCab === chave) return;
+    planCab = chave;
+    const atualAgora = montarPlanilha(semana);
+    const ids = (x) => [...x.fo, ...x.itens].map((i) => i.anotacaoId).sort().join(",");
+    const mudou = ids(atualAgora) !== ids(p);
+    $("#planilhaCab").replaceChildren(...[
+      h("div", { style: "grid-column: 1 / -1" },
+        h("span", { class: "selo-pub publicada" }, `Planilha de Anotados nº ${p.numero}/${p.ano} publicada`),
+        h("span", { class: "ajuda", style: "margin-left:10px" }, `${p.publicadaEm?.toMillis ? "em " + dataHora(p.publicadaEm) + " " : ""}por ${p.publicadaPor || "—"} · ${p.itens.length} AAD · ${p.fo.length} FO+`)),
+      mudou ? h("div", { class: "msg alerta", style: "grid-column: 1 / -1; margin:0" }, "Houve anulações depois da publicação: a lista atual da semana não é igual à da Planilha publicada.") : null,
+      h("div", { class: "acao", style: "grid-column: 1 / -1" },
+        h("button", { class: "btn", type: "button", onclick: () => pdfPlanilha(W, false, p) }, "Baixar PDF da Planilha"),
+        h("button", { class: "btn sec", type: "button", onclick: () => { corrigindoPlanilha = true; planCab = null; desenharPlanilha(); } }, "Corrigir e publicar de novo"))
+    ].filter(Boolean));
+    return;
+  }
+  if (planCab === chave) {
+    // atualiza campos mudados por outra pessoa, sem atrapalhar quem está digitando
+    if (p) [["#plNumero", p.numero], ["#plAno", p.ano], ["#plAssinante", p.assinante], ["#plCargo", p.cargo], ["#plLocal", p.local]].forEach(([s, v]) => {
+      const i = $(s); if (i && document.activeElement !== i && v !== undefined && v !== null && v !== "") i.value = v;
+    });
+    const num = $("#plNumero");
+    if (num && !num.value && document.activeElement !== num) num.value = sugestaoPlanilha(+$("#plAno").value || anoDaSemana(W));
+    return;
+  }
+  planCab = chave;
+  const c = cabPlanilha(W);
+  const campo = (id, rot, valor, attrs = {}) => {
+    const i = h("input", { id, ...attrs }); i.value = valor ?? "";
+    return { i, el: h("div", { style: attrs.span ? `grid-column: span ${attrs.span}` : null }, h("label", { for: id }, rot), i) };
+  };
+  const num = campo("plNumero", "Planilha nº", c.numero, { type: "number", min: "1", inputmode: "numeric" });
+  const ano = campo("plAno", "Ano", c.ano, { type: "number", min: "2020" });
+  const assin = campo("plAssinante", "Assinante", c.assinante, { span: 2 });
+  const cargo = campo("plCargo", "Cargo", c.cargo, { span: 2 });
+  const local = campo("plLocal", "Local", c.local, { span: 2 });
+  const salvar = () => setDoc(doc(db, "namces", String(W)), {
+    prazo: Timestamp.fromMillis(W), sexta: sextaDe(W),
+    planilha: { numero: +num.i.value || null, ano: +ano.i.value || anoDaSemana(W), assinante: assin.i.value.trim(), cargo: cargo.i.value.trim(), local: local.i.value.trim() }
+  }, { merge: true }).catch((err) => { console.error(err); avisar("Não foi possível salvar os dados da Planilha.", true); });
+  [num, ano, assin, cargo, local].forEach((x) => x.i.addEventListener("change", salvar));
+  const aindaAberta = Date.now() < fechamentoDe(W);
+  $("#planilhaCab").replaceChildren(
+    num.el, ano.el, assin.el, cargo.el, local.el,
+    h("div", { style: "grid-column: 1 / -1" },
+      h("span", { class: "selo-pub rascunho" }, corrigindoPlanilha ? "Corrigindo a Planilha publicada" : "Ainda não publicada"),
+      h("span", { class: "ajuda", style: "margin-left:10px" }, "Lista de FO+ e AAD da semana, sem dosimetria. Defesa até segunda " + dataCurta(W) + ", 23h59.")),
+    h("div", { class: "acao", style: "grid-column: 1 / -1" },
+      h("button", { class: "btn sec", type: "button", onclick: () => pdfPlanilha(W, true) }, "Prévia da Planilha"),
+      h("button", { class: "btn", type: "button", disabled: aindaAberta, onclick: () => publicarPlanilha(W) },
+        corrigindoPlanilha ? "Publicar de novo e gerar PDF" : "Publicar Planilha e gerar PDF"),
+      corrigindoPlanilha ? h("button", { class: "btn sec", type: "button", onclick: () => { corrigindoPlanilha = false; planCab = null; desenharPlanilha(); } }, "Cancelar") : null)
+  );
+}
+
+async function publicarPlanilha(W) {
+  const cab = dadosPlanilhaForm(W);
+  if (!cab.numero || cab.numero < 1) { avisar("Informe o número da Planilha de Anotados.", true); return; }
+  if (Date.now() < fechamentoDe(W)) { avisar("A semana ainda está recebendo anotações.", true); return; }
+  const dup = Object.entries(namces).find(([id, n]) => id !== String(W) && n.planilha && n.planilha.status === "publicada" && n.planilha.numero === cab.numero && n.planilha.ano === cab.ano);
+  if (dup && !confirm(`Já existe uma Planilha de Anotados nº ${cab.numero}/${cab.ano} publicada. Publicar com o mesmo número?`)) return;
+  const { fo, itens } = montarPlanilha(semana);
+  if (!confirm(`Publicar a Planilha de Anotados nº ${cab.numero}/${cab.ano}?\n\n${itens.length} AAD · ${fo.length} FO+\nAnotações de sex ${dataCurta(fechamentoDe(W) - 7 * DIA)} a sex ${dataCurta(fechamentoDe(W))} 18h`)) return;
+  const dados = { ...cab, status: "publicada", publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), fo, itens };
+  try {
+    await setDoc(doc(db, "namces", String(W)), { prazo: Timestamp.fromMillis(W), sexta: sextaDe(W), planilha: dados }, { merge: true });
+    corrigindoPlanilha = false; planCab = null;
+    avisar(`Planilha de Anotados nº ${cab.numero}/${cab.ano} publicada.`);
+    await pdfPlanilha(W, false, { ...dados, publicadaEm: null });
+  } catch (err) {
+    console.error(err);
+    alert("Não foi possível publicar a Planilha. Tente de novo.");
+  }
+}
+
+/** "35 e 38/2026": Planilhas das semanas de onde vêm as AAD desta NAMCE. */
+function sugestaoPlanilhas() {
+  const semanas = new Set([semanaW, ...linhasDosi().map((a) => a.prazo?.toMillis?.()).filter(Boolean)]);
+  const porAno = {};
+  [...semanas].map((w) => planilhaDe(w)).filter((p) => p && p.status === "publicada" && p.numero)
+    .forEach((p) => { (porAno[p.ano] ||= new Set()).add(p.numero); });
+  return Object.keys(porAno).sort().map((ano) => {
+    const n = [...porAno[ano]].sort((a, b) => a - b);
+    return (n.length > 1 ? n.slice(0, -1).join(", ") + " e " + n[n.length - 1] : n[0]) + "/" + ano;
+  }).join("; ");
+}
+
+function desenharEtapas() {
+  const W = semanaW, f = fechamentoDe(W), agora = Date.now();
+  const n = namces[String(W)], p = planilhaDe(W);
+  const pubN = n && n.status === "publicada", pubP = p && p.status === "publicada";
+  const etapas = [
+    ["Semana fechada", `sexta ${dataCurta(f)}, 18h`, agora >= f, false],
+    ["Planilha de Anotados", pubP ? `nº ${p.numero}/${p.ano} publicada` : "publicar após o fechamento", pubP, !pubP],
+    ["Defesas", `até segunda ${dataCurta(W)}, 23h59`, agora > W, agora <= W],
+    ["Dosimetria e NAMCE", pubN ? `NAMCE nº ${n.numero}/${n.ano} publicada` : `quinta ${dataCurta(W + 2 * DIA + 1000)}`, pubN, !pubN && agora > W],
+    ["Cumprimento", fdsTexto(W), agora > sextaDe(W) + 3 * DIA, agora >= sextaDe(W) && agora <= sextaDe(W) + 3 * DIA]
+  ];
+  $("#etapasSemana").replaceChildren(...etapas.map(([t, d, feita, agoraE]) => h("li", { class: feita ? "feita" : agoraE ? "agora" : "" }, h("strong", {}, t), d)));
+  $("#subFechadaInfo").textContent = pubN ? `NAMCE nº ${n.numero}/${n.ano} publicada` : agora <= W ? `defesas até seg ${dataCurta(W)} 23h59 · dosimetria` : "dosimetria";
 }
 
 async function carregarExtras() {
@@ -1681,8 +2066,10 @@ function sugestaoNumero(ano) {
 
 function desenharSemana() {
   if (!semanaW) return;
+  desenharEtapas();
+  desenharPlanilha();
   const n = namces[String(semanaW)];
-  if (n && n.status === "publicada") { desenharPublicada(n); return; }
+  if (n && n.status === "publicada") { contador("contFechada", 0); desenharPublicada(n); return; }
   desenharCabecalho(n);
   desenharLista();
 }
@@ -1704,7 +2091,7 @@ function desenharCabecalho(n) {
     };
     const num = campo("nNumero", "NAMCE nº", n?.numero ?? sugestaoNumero(ano), { type: "number", min: "1", inputmode: "numeric" });
     const anoI = campo("nAno", "Ano", n?.ano ?? ano, { type: "number", min: "2020" });
-    const plan = campo("nPlanilhas", "Planilhas de Anotados nº", n?.planilhas ?? "", { placeholder: "Ex.: 27, 28, 29 e 30/2026", span: 2 });
+    const plan = campo("nPlanilhas", "Planilhas de Anotados nº", n?.planilhas || sugestaoPlanilhas(), { placeholder: "Ex.: 27, 28, 29 e 30/2026", span: 2 });
     const assin = campo("nAssinante", "Assinante", n?.assinante ?? ult.assinante ?? PADRAO_NAMCE.assinante, { span: 2 });
     const cargo = campo("nCargo", "Cargo", n?.cargo ?? ult.cargo ?? PADRAO_NAMCE.cargo);
     const local = campo("nLocal", "Local", n?.local ?? ult.local ?? PADRAO_NAMCE.local);
@@ -1729,6 +2116,8 @@ function desenharCabecalho(n) {
       const i = $(s); if (i && document.activeElement !== i && v !== undefined && v !== null) i.value = v;
     });
   }
+  const pl = $("#nPlanilhas");
+  if (pl && !pl.value && document.activeElement !== pl) pl.value = sugestaoPlanilhas();
 }
 
 /** Monta o retrato da NAMCE (itens por turma e FO+) a partir das decisões atuais. */
@@ -1793,15 +2182,9 @@ function desenharLista() {
     h("span", {}, h("strong", {}, comDefesa), " com defesa"),
     h("span", {}, h("strong", {}, fo.length), " FO+"),
     conflitos ? h("span", { style: "color:var(--erro)" }, h("strong", {}, conflitos), " com conflito de escala") : null,
-    h("span", {}, Date.now() < fechamentoDe(semanaW) ? `Recebendo anotações até sexta ${dataCurta(fechamentoDe(semanaW))} 18h`
-      : aberto ? `Defesas abertas até segunda ${dataCurta(semanaW)} 23h59` : "Prazo de defesa encerrado"),
-    (() => {
-      const rec = proximoPrazo().getTime();
-      if (semanaW === rec || !qtdRecebendo) return null;
-      return h("button", { class: "link", type: "button", onclick: () => { selecaoManual = true; irParaSemana(rec); } },
-        `${qtdRecebendo} anotação(ões) já lançada(s) para a semana de ${dataCurta(rec)} → ver`);
-    })()
+    h("span", {}, aberto ? `Defesas abertas até segunda ${dataCurta(semanaW)} 23h59` : "Prazo de defesa encerrado")
   ].filter(Boolean));
+  contador("contFechada", linhas.length - decididas);
 
   const termo = $("#buscaDosi").value.trim().toLowerCase();
   const soPend = $("#soPendentes").checked;
@@ -1826,7 +2209,7 @@ function desenharLista() {
   if (visiveis.length) {
     if (foF.length) partes.push(h("h3", { class: "grupo-titulo" }, "Alterações Administrativas Disciplinares (AAD)"));
     partes.push(tabelaDosi(visiveis, linhas));
-    carregarDefesasSemana(linhas);
+    carregarDefesas(linhas, desenharLista);
   }
   if (!partes.length) partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, linhas.length || fo.length ? "Nada encontrado com esse filtro." : "Nenhuma anotação nesta semana.")));
   $("#listaSemana").replaceChildren(...partes);
@@ -1852,8 +2235,8 @@ const COLUNAS = ["EEsp1", "EEsp2", "EEsp3", "EEsp4", "EEsp5", "EEsp6", "EEsp7", 
 const COL_DECISOES = [["td", "TD"], ["transf", "Transf."], ["justif", "Justif."]];
 const carregandoDefesa = new Set();
 
-/** Busca (uma vez) as defesas da semana para mostrar direto na lista. */
-async function carregarDefesasSemana(linhas) {
+/** Busca (uma vez por versão) as defesas para mostrar direto na lista. */
+async function carregarDefesas(linhas, redesenhar) {
   const faltam = linhas.filter((a) => a.defesaEm && !(defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) && !carregandoDefesa.has(a.id));
   if (!faltam.length) return;
   faltam.forEach((a) => carregandoDefesa.add(a.id));
@@ -1864,7 +2247,7 @@ async function carregarDefesasSemana(linhas) {
     } catch (err) { console.error(err); }
     carregandoDefesa.delete(a.id);
   }));
-  desenharLista();
+  redesenhar();
 }
 
 function tabelaDosi(lista, todas) {
@@ -2006,7 +2389,7 @@ async function publicarNamce() {
     numero, ano, planilhas, prazo: Timestamp.fromMillis(W), sexta: sextaDe(W), status: "publicada",
     assinante: cab.assinante, cargo: cab.cargo, local: cab.local,
     publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), itens, fo
-  }));
+  }, { merge: true }));
   for (const it of itens) {
     ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.decisao, namce: ref } }));
     if (it.decisao === "transf") {
