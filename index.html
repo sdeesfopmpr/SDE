@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.3">
+<meta name="sde-versao" content="2026-10-22.4">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -244,6 +244,9 @@
   .filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0 10px; }
   .filtros input[type=search] { flex: 1; min-width: 200px; }
   .filtros select { width: auto; }
+  .filtro-turma input[type=search] { flex: 2 1 240px; }
+  .filtro-turma select { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+  @media (max-width: 560px) { .filtro-turma select { flex: 1 1 30%; } }
   .check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; cursor: pointer; }
   .check input { width: auto; }
   .legenda-blocos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--suave); }
@@ -767,10 +770,14 @@
       </div>
       <div class="cartao">
         <h2>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span></h2>
-        <div class="filtros">
-          <select id="cFiltroTurma" aria-label="Filtrar por turma"></select>
+        <div class="filtros filtro-turma">
           <input id="cBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
+          <select id="cFAno" aria-label="Filtrar por curso / ano"></select>
+          <select id="cFTurma" aria-label="Filtrar por turma"></select>
+          <select id="cFPel" aria-label="Filtrar por pelotão"></select>
+          <button class="link" type="button" id="cFLimpar" hidden>Limpar filtros</button>
         </div>
+        <p class="ajuda" id="cFTotal" style="margin:0 0 6px"></p>
         <div id="listaCadetes"></div>
       </div>
     </div>
@@ -782,7 +789,14 @@
       </div>
       <div class="cartao">
         <h2>Usuários com acesso</h2>
-        <input class="busca" id="buscaUsuarios" type="search" placeholder="Buscar por nome, nome de guerra ou turma">
+        <div class="filtros filtro-turma">
+          <input id="buscaUsuarios" type="search" placeholder="Buscar por nome ou nome de guerra">
+          <select id="uFAno" aria-label="Filtrar por curso / ano"></select>
+          <select id="uFTurma" aria-label="Filtrar por turma"></select>
+          <select id="uFPel" aria-label="Filtrar por pelotão"></select>
+          <button class="link" type="button" id="uFLimpar" hidden>Limpar filtros</button>
+        </div>
+        <p class="ajuda" id="uFTotal" style="margin:0 0 6px"></p>
         <div id="listaAtivos"></div>
       </div>
       <div class="cartao">
@@ -985,6 +999,7 @@ function limparMemoria() {
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos",
    "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#planilhaCab", "#listaAtual", "#resumoAtual", "#etapasSemana", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
+  ["#cFAno", "#cFTurma", "#cFPel", "#uFAno", "#uFTurma", "#uFPel", "#cBusca", "#buscaUsuarios"].forEach((x) => { if ($(x)) $(x).value = ""; });
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -1589,7 +1604,7 @@ function desenharLancadas() {
             h("td", {}, dataFato(a.fatoEm)),
             h("td", {}, cadeteRotulo(a)),
             h("td", {}, a.anulada ? h("span", { class: "tag anulada", title: "Anulada: " + (a.anuladaMotivo || "") }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo)),
-            h("td", { class: "desc" }, a.descricao + (a.anulada ? " (anulada pela coordenação)" : ""))
+            h("td", { class: "desc" }, a.descricao, a.anulada ? h("div", { class: "ajuda" }, `Anulada pela coordenação${a.anuladaPor ? " (" + a.anuladaPor + ")" : ""}. Motivo: ${a.anuladaMotivo || "—"}`) : null)
           ))))
       : h("p", { class: "vazio" }, "Você ainda não lançou anotações.")
   );
@@ -2349,7 +2364,7 @@ function linhaDosi(a, num, linhas) {
 }
 
 async function anular(a) {
-  const motivo = prompt(`Anular a anotação de ${a.cadeteGuerra}?\n\n"${a.descricao}"\n\nInforme o motivo (o cadete verá a anotação como anulada):`);
+  const motivo = prompt(`Anular a anotação de ${a.cadeteGuerra}?\n\n"${a.descricao}"\n\nInforme o motivo. Ele aparece para o cadete anotado (em "Minhas anotações"), para quem lançou a anotação e para a coordenação (níveis 3).\nA anotação anulada sai da Planilha de Anotados e da dosimetria.`);
   if (motivo === null) return;
   if (motivo.trim().length < 3) { avisar("Informe o motivo da anulação.", true); return; }
   try {
@@ -2905,23 +2920,58 @@ function opcoesPelotao(sel, comVazio) {
     ...["A", "B", "C", "D", "E"].map((p) => h("option", { value: p }, p)));
 }
 
+// ---------- Filtro por curso/ano, turma e pelotão (abas Cadetes e Acessos)
+const ORDEM_CURSOS = ["1º CFO", "2º CFO", "3º CFO", "CHOE", "Coordenação"];
+function cursoDe(x) { return x.tipo === "coordenacao" ? "Coordenação" : (x.ano || ""); }
+function criarFiltroTurma(pre, busca, aoMudar) {
+  const sAno = $(`#${pre}Ano`), sTur = $(`#${pre}Turma`), sPel = $(`#${pre}Pel`), limpar = $(`#${pre}Limpar`);
+  const encher = (sel, valores, todos, rot) => {
+    const antes = sel.value;
+    sel.replaceChildren(h("option", { value: "" }, todos), ...valores.map((v) => h("option", { value: v }, rot(v))));
+    sel.value = valores.includes(antes) ? antes : "";
+  };
+  const passaAno = (x) => !sAno.value || cursoDe(x) === sAno.value;
+  const passaTur = (x) => !sTur.value || (cursoDe(x) !== "Coordenação" && (x.turma || "-") === sTur.value);
+  const passaPel = (x) => !sPel.value || (cursoDe(x) !== "Coordenação" && x.pelotao === sPel.value);
+  const passaTexto = (x) => {
+    const t = normBusca(busca.value.trim());
+    return !t || normBusca(`${x.nome || ""} ${x.guerra || ""}`).includes(t);
+  };
+  const f = {
+    /** Refaz as opções (só valores que existem na lista) e devolve a lista filtrada. */
+    aplicar(lista) {
+      encher(sAno, ORDEM_CURSOS.filter((a) => lista.some((x) => cursoDe(x) === a)), "Todos os cursos", (v) => v);
+      const l1 = lista.filter((x) => passaAno(x) && cursoDe(x) !== "Coordenação");
+      encher(sTur, [...new Set(l1.map((x) => x.turma || "-"))].sort(), "Todas as turmas", (v) => v === "-" ? "Turma única" : "Turma /" + v);
+      const l2 = l1.filter(passaTur);
+      encher(sPel, [...new Set(l2.map((x) => x.pelotao).filter(Boolean))].sort(), "Todos os pelotões", (v) => "Pelotão " + v);
+      sTur.disabled = sPel.disabled = sAno.value === "Coordenação";
+      limpar.hidden = !(sAno.value || sTur.value || sPel.value || busca.value.trim());
+      return lista.filter((x) => passaAno(x) && passaTur(x) && passaPel(x) && passaTexto(x));
+    },
+    filtrando() { return !!(sAno.value || sTur.value || sPel.value || busca.value.trim()); }
+  };
+  [sAno, sTur, sPel].forEach((s) => s.addEventListener("change", aoMudar));
+  busca.addEventListener("input", aoMudar);
+  limpar.addEventListener("click", () => { sAno.value = sTur.value = sPel.value = ""; busca.value = ""; aoMudar(); });
+  return f;
+}
+let filtroCadetes = null, filtroUsuarios = null;
+
 function prepararCadetes() {
   if (cadetesProntos) return;
   cadetesProntos = true;
   opcoesTurma($("#cAno"), true); opcoesSubturma($("#cTurma")); opcoesPelotao($("#cPelotao"), true);
-  preencherTurmas($("#cFiltroTurma"), todosCadetes);
-  $("#cBusca").addEventListener("input", desenharCadetes);
-  $("#cFiltroTurma").addEventListener("change", desenharCadetes);
+  filtroCadetes = criarFiltroTurma("cF", $("#cBusca"), desenharCadetes);
   $("#formCadete").addEventListener("submit", cadastrarCadete);
 }
 
 function desenharCadetes() {
   if (!perfil || perfil.nivel < 3) return;
-  preencherTurmas($("#cFiltroTurma"), todosCadetes);
-  const termo = $("#cBusca").value.trim().toLowerCase(), turma = $("#cFiltroTurma").value;
-  const lista = todosCadetes.filter((c) => (!turma || chaveTurma(c) === turma) &&
-    (!termo || c.guerra.toLowerCase().includes(termo) || c.nome.toLowerCase().includes(termo)));
+  if (!filtroCadetes) return;
+  const lista = filtroCadetes.aplicar(todosCadetes);
   $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
+  $("#cFTotal").textContent = filtroCadetes.filtrando() ? `Mostrando ${lista.length} de ${todosCadetes.length} cadastro(s).` : "";
   if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
   $("#listaCadetes").replaceChildren(h("table", { class: "tabela" },
     h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
@@ -3085,10 +3135,10 @@ function cartaoPedido(u) {
 }
 
 function desenharAtivos(ativos) {
-  const termo = $("#buscaUsuarios").value.trim().toLowerCase();
-  const lista = termo
-    ? ativos.filter((u) => [u.nome, u.guerra, turmaTexto(u), u.email].join(" ").toLowerCase().includes(termo))
-    : ativos;
+  filtroUsuarios ||= criarFiltroTurma("uF", $("#buscaUsuarios"), () => desenharAtivos(usuarios.filter((u) => u.status === "ativo").sort(ordenar)));
+  const lista = filtroUsuarios.aplicar(ativos);
+  const termo = filtroUsuarios.filtrando();
+  $("#uFTotal").textContent = termo ? `Mostrando ${lista.length} de ${ativos.length} usuário(s).` : "";
   const meuId = auth.currentUser?.uid;
 
   if (!lista.length) {
@@ -3134,7 +3184,6 @@ function desenharAtivos(ativos) {
     )
   );
 }
-$("#buscaUsuarios").addEventListener("input", () => desenharAtivos(usuarios.filter((u) => u.status === "ativo").sort(ordenar)));
 
 /** Mesmo nome completo (ignora acentos, maiúsculas e espaços a mais). */
 function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === normBusca(b).replace(/\s+/g, " ").trim(); }
