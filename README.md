@@ -5,6 +5,9 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 - Site: https://sdeesfopmpr.github.io/SDE/
 - Firebase: projeto `sde-esfo` (login por e-mail e senha, banco Firestore em São Paulo)
 
+## Publicar uma versão nova
+- Altere o número em `<meta name="sde-versao" content="...">` no `index.html` a cada publicação: quem estiver com o site aberto recebe o aviso "Há uma versão nova do sistema".
+
 ## Arquivos
 - `index.html`: o sistema inteiro (uma página só).
 - `firestore.rules`: regras de segurança. Sempre que mudar, copie o conteúdo para Firebase → Firestore Database → Regras → Publicar.
