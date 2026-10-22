@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h · sem CPF)
+// SDE · EsFO — Regras de segurança do Firestore (etapas 1 a 5 · semana fecha sexta 18h · sem CPF · sem anulação)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -167,7 +167,8 @@ service cloud.firestore {
       allow create: if nivel(2) && anotacaoValida(request.resource.data);
 
       // o cadete só marca a hora em que enviou a defesa, e só até o prazo;
-      // o nível 3 só grava a MCE publicada e a anulação (nunca altera o texto da anotação)
+      // o nível 3 só grava a MCE na publicação da NAMCE (nunca altera o texto da anotação, nem anula);
+      // depois de gravada, a MCE só muda se a decisão foi Transf. (vai para a NAMCE da semana seguinte)
       allow update: if (ativo()
           && resource.data.cadeteId == meuCadete()
           && resource.data.tipo == 'aad'
@@ -175,8 +176,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
           && request.resource.data.defesaEm == request.time)
         || (nivel(3)
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['mce', 'anulada', 'anuladaPor', 'anuladaEm', 'anuladaMotivo']));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
+          && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao == 'transf'));
 
       allow delete: if false;
 

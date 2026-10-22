@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.4">
+<meta name="sde-versao" content="2026-10-22.5">
 <title>SDE · EsFO</title>
 <style>
   :root {
@@ -1594,17 +1594,27 @@ async function lancarAnotacao(e) {
   }
 }
 
+/** O que a NAMCE decidiu sobre a anotação (visível depois da publicação). */
+function resultadoAnotacao(a) {
+  if (a.tipo !== "aad") return h("span", { class: "ajuda" }, "—");
+  if (!a.mce) return h("span", { class: "ajuda" }, "aguardando a NAMCE");
+  const m = a.mce;
+  const txt = m.decisao === "justif" ? "Justificada" : m.decisao === "transf" ? "Transferida para a semana seguinte" : (m.texto || "—");
+  return h("span", {}, h("strong", {}, txt), h("div", { class: "ajuda" }, "NAMCE nº " + (m.namce || "—")));
+}
+
 function desenharLancadas() {
   const lista = lancadas.slice(0, 30);
   $("#listaLancadas").replaceChildren(
     lista.length
       ? h("table", { class: "tabela" },
-          h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"))),
+          h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"), h("th", {}, "Resultado"))),
           h("tbody", {}, lista.map((a) => h("tr", {},
             h("td", {}, dataFato(a.fatoEm)),
             h("td", {}, cadeteRotulo(a)),
             h("td", {}, a.anulada ? h("span", { class: "tag anulada", title: "Anulada: " + (a.anuladaMotivo || "") }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo)),
-            h("td", { class: "desc" }, a.descricao, a.anulada ? h("div", { class: "ajuda" }, `Anulada pela coordenação${a.anuladaPor ? " (" + a.anuladaPor + ")" : ""}. Motivo: ${a.anuladaMotivo || "—"}`) : null)
+            h("td", { class: "desc" }, a.descricao, a.anulada ? h("div", { class: "ajuda" }, `Anulada pela coordenação${a.anuladaPor ? " (" + a.anuladaPor + ")" : ""}. Motivo: ${a.anuladaMotivo || "—"}`) : null),
+            h("td", {}, resultadoAnotacao(a))
           ))))
       : h("p", { class: "vazio" }, "Você ainda não lançou anotações.")
   );
@@ -1827,7 +1837,7 @@ function desenharAtual() {
   const termo = normBusca($("#buscaAtual").value.trim());
   const filtra = (a) => !termo || normBusca(`${a.cadeteGuerra} ${a.cadeteNome} ${a.anotadorNome} ${a.descricao}`).includes(termo);
   const lista = validas.filter(filtra);
-  const ncol = 7;
+  const ncol = 6;
   const corpo = [];
   if ($("#ordemAtual").value === "recentes") {
     lista.sort((a, b) => criadoMs(b) - criadoMs(a)).forEach((a, i) => corpo.push(linhaAtual(a, i + 1, true)));
@@ -1848,7 +1858,7 @@ function desenharAtual() {
   if (corpo.length) {
     partes.push(h("div", { class: "acomp-wrap" }, h("table", { class: "acomp-tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", { class: "quando" }, "Lançada em"), h("th", { class: "cad" }, "Cadete"),
-        h("th", {}, "Anotador"), h("th", { class: "desc" }, "Descrição"), h("th", { class: "def" }, "Defesa"), h("th", {}))),
+        h("th", {}, "Anotador"), h("th", { class: "desc" }, "Descrição"), h("th", { class: "def" }, "Defesa"))),
       h("tbody", {}, corpo))));
     carregarDefesas(aad, desenharAtual);
   } else {
@@ -1881,8 +1891,7 @@ function linhaAtual(a, num, comTurma = false) {
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
     h("td", {}, a.anotadorNome),
     h("td", { class: "desc" }, a.descricao),
-    h("td", { class: "def" }, textoDefesa(a)),
-    h("td", {}, h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "anular")));
+    h("td", { class: "def" }, textoDefesa(a)));
 }
 
 // ---------- Planilha de Anotados (publicada após o fechamento, sem dosimetria)
@@ -2212,11 +2221,10 @@ function desenharLista() {
     partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
     partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, "Anotador"),
-        h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"), h("th", {}))),
+        h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"))),
       h("tbody", {}, foF.map((a, i) => h("tr", {},
         h("td", { class: "num" }, i + 1), h("td", {}, dataFato(a.fatoEm)), h("td", {}, a.anotadorNome),
-        h("td", {}, pelNamce(a)), h("td", {}, h("strong", {}, a.cadeteGuerra)), h("td", { class: "desc" }, a.descricao),
-        h("td", {}, h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "Anular"))
+        h("td", {}, pelNamce(a)), h("td", {}, h("strong", {}, a.cadeteGuerra)), h("td", { class: "desc" }, a.descricao)
       ))))));
   }
 
@@ -2354,29 +2362,12 @@ function linhaDosi(a, num, linhas) {
     h("td", { class: "col-cad" },
       h("strong", {}, a.cadeteGuerra),
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
-      conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null,
-      h("button", { class: "btn-link-perigo", type: "button", onclick: () => anular(a) }, "anular")),
+      conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null),
     h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),
     h("td", { class: "col-desc" }, a.descricao + (transf ? ` (Transferida NAMCE ${transf.split("/")[0]}).` : "")),
     h("td", { class: "col-just" }, just),
     ...celBlocos, ...celDec
   );
-}
-
-async function anular(a) {
-  const motivo = prompt(`Anular a anotação de ${a.cadeteGuerra}?\n\n"${a.descricao}"\n\nInforme o motivo. Ele aparece para o cadete anotado (em "Minhas anotações"), para quem lançou a anotação e para a coordenação (níveis 3).\nA anotação anulada sai da Planilha de Anotados e da dosimetria.`);
-  if (motivo === null) return;
-  if (motivo.trim().length < 3) { avisar("Informe o motivo da anulação.", true); return; }
-  try {
-    await updateDoc(doc(db, "anotacoes", a.id), {
-      anulada: true, anuladaPor: nomeCurto(perfil).toUpperCase(), anuladaEm: serverTimestamp(), anuladaMotivo: motivo.trim()
-    });
-    if (anotExtra[a.id]) anotExtra[a.id].anulada = true;
-    avisar("Anotação anulada.");
-  } catch (err) {
-    console.error(err);
-    avisar("Não foi possível anular.", true);
-  }
 }
 
 async function publicarNamce() {
