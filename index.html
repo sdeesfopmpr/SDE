@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.12">
+<meta name="sde-versao" content="2026-11-03.13">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -483,6 +483,8 @@
   .dosi-tabela tr.linha-dosi:hover td { background: var(--fundo-2); }
   .dosi-tabela tr.linha-dosi:hover td.col-dec { background: var(--fundo-dec-2); }
   .just-txt { white-space: pre-wrap; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+  .just-txt.aberto { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .btn-ver { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--acento); cursor: pointer; text-decoration: underline; }
   .cel {
     width: 30px; height: 30px; border-radius: 6px; border: 1.5px solid #b9bdd0; background: var(--cartao); cursor: pointer;
     font: inherit; font-weight: 800; font-size: 15px; line-height: 1; color: #fff; padding: 0;
@@ -2260,12 +2262,30 @@ function tabelaAcompanhamento(lista, porRecentes) {
     h("tbody", {}, corpo)));
 }
 
+/** Texto da defesa: mostra as primeiras linhas; se for longo, "ver tudo" abre o texto completo (e "ver menos" recolhe). */
+const defesasAbertas = new Set();
+function textoDefesaLonga(id, texto) {
+  const longo = texto.length > 220 || (texto.match(/\n/g) || []).length >= 4;
+  const aberto = defesasAbertas.has(id);
+  const caixa = h("div", { class: "just-txt" + (aberto ? " aberto" : "") }, texto);
+  if (!longo) return caixa;
+  const btn = h("button", { class: "btn-ver", type: "button", "aria-expanded": aberto ? "true" : "false" }, aberto ? "ver menos ▴" : "ver tudo ▾");
+  btn.addEventListener("click", () => {
+    const abrir = !caixa.classList.contains("aberto");
+    caixa.classList.toggle("aberto", abrir);
+    if (abrir) defesasAbertas.add(id); else defesasAbertas.delete(id);
+    btn.textContent = abrir ? "ver menos ▴" : "ver tudo ▾";
+    btn.setAttribute("aria-expanded", abrir ? "true" : "false");
+  });
+  return h("div", {}, caixa, btn);
+}
+
 function textoDefesa(a) {
   if (a.tipo !== "aad") return h("span", { class: "def-aguarda" }, "—");
   if (!a.defesaEm) return h("span", { class: "def-aguarda" }, "aguardando (até seg " + dataCurta(a.prazo.toMillis()) + " 23h59)");
   const d = defesas[a.id];
   if (d && d.versao === a.defesaEm.seconds) {
-    return h("div", {}, h("div", { class: "def-enviada" }, "Enviada em " + dataHora(a.defesaEm)), h("div", { class: "just-txt", title: d.texto }, d.texto), botaoImagem(a));
+    return h("div", {}, h("div", { class: "def-enviada" }, "Enviada em " + dataHora(a.defesaEm)), textoDefesaLonga(a.id, d.texto), botaoImagem(a));
   }
   return h("span", { class: "ajuda" }, "carregando…");
 }
@@ -2776,7 +2796,7 @@ function linhaDosi(a, num, linhas) {
   // Justificativa (defesa do cadete)
   let just;
   if (!a.defesaEm) just = h("span", { class: "ajuda" }, "—");
-  else if (defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) just = h("div", {}, h("div", { class: "just-txt", title: defesas[a.id].texto }, defesas[a.id].texto), botaoImagem(a));
+  else if (defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) just = h("div", {}, textoDefesaLonga(a.id, defesas[a.id].texto), botaoImagem(a));
   else just = h("span", { class: "ajuda" }, "carregando…");
 
   const ok = decidida(d);
