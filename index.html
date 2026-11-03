@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.6">
+<meta name="sde-versao" content="2026-11-03.7">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -726,7 +726,7 @@
           <div class="ajuda" id="aLimite"></div>
 
           <label for="aDesc">Descrição</label>
-          <textarea id="aDesc" rows="4" maxlength="1000" placeholder="Descreva o que foi constatado"></textarea>
+          <textarea id="aDesc" rows="4" maxlength="1000" placeholder="Descreva o que foi constatado" lang="pt-BR" spellcheck="true" autocorrect="on" autocapitalize="sentences"></textarea>
           <div class="ajuda" id="aPrazo"></div>
 
           <div id="msgAnot" class="msg" hidden></div>
@@ -1597,7 +1597,8 @@ function cartaoMinha(a) {
 
     if (aberto) {
       box.append(h("div", { class: "prazo aberto" }, "Defesa até " + prazoTexto(a.prazo)));
-      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa", "aria-label": "Defesa" });
+      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa", "aria-label": "Defesa",
+        lang: "pt-BR", spellcheck: "true", autocorrect: "on", autocapitalize: "sentences" });
       ta.value = rascunhos[a.id] ?? (def ? def.texto : "");
       ta.addEventListener("input", () => { rascunhos[a.id] = ta.value; });
       const btn = h("button", { class: "btn peq", type: "button", style: "margin-top:8px" }, def ? "Atualizar defesa" : "Enviar defesa");
