@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.8">
+<meta name="sde-versao" content="2026-11-03.9">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -871,8 +871,10 @@
 
     <!-- Cadetes (nível 3) -->
     <div class="aba" id="aba-cadetes" role="tabpanel" hidden>
-      <div class="cartao">
-        <h2>Cadastrar cadete</h2>
+      <div class="cartao recolhivel" data-chave="cadastrar">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Cadastrar cadete<span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <p class="legenda">Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo nome completo, a conta é ligada a este cadastro na aprovação.</p>
         <form id="formCadete" novalidate>
           <label for="cNome">Nome completo</label>
@@ -887,9 +889,12 @@
           <div id="msgCadete" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnCadete">Cadastrar</button>
         </form>
+        </div>
       </div>
-      <div class="cartao">
-        <h2>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span></h2>
+      <div class="cartao recolhivel" data-chave="cadastrados">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span><span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <details class="promover" id="promover">
           <summary>Promover turmas (virada de ano)</summary>
           <p class="legenda">Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em "Desativar" deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).</p>
@@ -905,6 +910,7 @@
         </div>
         <p class="ajuda" id="cFTotal" style="margin:0 0 6px"></p>
         <div id="listaCadetes"></div>
+        </div>
       </div>
     </div>
 
@@ -2022,7 +2028,6 @@ function prepararCiclos() {
   $("#ordemAtual").addEventListener("change", desenharAtual);
   $("#btnPreviaPlanAtual").addEventListener("click", () => pdfPlanilha(atualW, true));
   trocarSub(subAtual);
-  prepararRecolhiveis();
 }
 
 // ---------- Minimizar os quadros da Semana fechada (fica lembrado neste aparelho) ----------
@@ -2055,6 +2060,8 @@ function prepararRecolhiveis() {
     });
   });
 }
+
+prepararRecolhiveis();
 
 function trocarSub(id) {
   subAtual = id;
