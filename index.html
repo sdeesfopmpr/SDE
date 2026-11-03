@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.1">
+<meta name="sde-versao" content="2026-11-03.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1629,7 +1629,7 @@ function assinarLancadas() {
   ));
 }
 
-const LIMITE_FATO = 72 * 3600000;   // fato de no máximo 3 dias (72 horas) antes do lançamento (também travado no servidor)
+const LIMITE_FATO = 24 * 3600000;   // fato de no máximo 24 horas antes do lançamento (também travado no servidor)
 function hojeLocal() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -1657,7 +1657,7 @@ function atualizarPrazoInfo() {
   const lim = new Date(Date.now() - LIMITE_FATO), hoje = hojeLocal();
   $("#aData").min = `${lim.getFullYear()}-${p(lim.getMonth() + 1)}-${p(lim.getDate())}`;
   $("#aData").max = hoje.data;
-  $("#aLimite").textContent = `Só podem ser lançados fatos das últimas 72 horas: a partir de ${p(lim.getDate())}/${p(lim.getMonth() + 1)} às ${p(lim.getHours())}h${p(lim.getMinutes())}.`;
+  $("#aLimite").textContent = `Só podem ser lançados fatos das últimas 24 horas: a partir de ${p(lim.getDate())}/${p(lim.getMonth() + 1)} às ${p(lim.getHours())}h${p(lim.getMinutes())}.`;
   const W = proximoPrazo().getTime();
   $("#aPrazo").textContent = "A semana fecha na sexta-feira às 18h; o que for lançado depois entra na semana seguinte. "
     + `Anotações lançadas agora: defesa até ${prazoTexto(new Date(W))}, dosimetria na quinta ${dataCurta(W + 2 * DIA + 1000)} e cumprimento de ${fdsTexto(W)}.`;
@@ -1676,7 +1676,7 @@ async function lancarAnotacao(e) {
   if (!escolhidos.size) { mensagem("#msgAnot", "Escolha pelo menos um cadete."); return; }
   if (!data || !hora || isNaN(fato)) { mensagem("#msgAnot", "Informe a data e a hora do fato."); return; }
   if (fato.getTime() > Date.now() + 5 * 60000) { mensagem("#msgAnot", "A data do fato não pode estar no futuro."); return; }
-  if (fato.getTime() < Date.now() - LIMITE_FATO) { mensagem("#msgAnot", "Só é possível lançar fatos ocorridos nas últimas 72 horas (3 dias, contando hora e minuto)."); return; }
+  if (fato.getTime() < Date.now() - LIMITE_FATO) { mensagem("#msgAnot", "Só é possível lançar fatos ocorridos nas últimas 24 horas (contando hora e minuto)."); return; }
   if (descricao.length < 5) { mensagem("#msgAnot", "Descreva o que foi constatado."); return; }
 
   const nomes = [...escolhidos.values()].map((c) => c.guerra).join(", ");
