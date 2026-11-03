@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h · sem CPF · sem anulação · NAMCE e Planilha travadas)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -152,7 +152,7 @@ service cloud.firestore {
         && txt(d.descricao, 5, 1000)
         && d.fatoEm is timestamp
         && d.fatoEm <= request.time + duration.value(10, 'm')
-        && d.fatoEm >= request.time - duration.value(24, 'h')     // fato de no máximo 24 horas antes
+        && (nivel(3) || d.fatoEm >= request.time - duration.value(24, 'h'))     // nível 2: fato de no máximo 24 horas antes; nível 3 sem limite
         && d.criadoEm == request.time
         && prazoValido(d.prazo);
     }
