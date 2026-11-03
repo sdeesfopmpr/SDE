@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.3">
+<meta name="sde-versao" content="2026-11-03.4">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -420,6 +420,23 @@
   .def-aguarda { color: var(--suave); font-size: 12.5px; }
   .def-enviada { font-size: 11.5px; color: var(--ok); font-weight: 700; margin-bottom: 2px; }
   .acomp-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); }
+
+  /* Celular: nada da Dosimetria pode alargar a página (as tabelas rolam para o lado dentro do próprio quadro) */
+  #aba-semana { max-width: 100%; overflow-x: hidden; overflow-x: clip; }
+  #aba-semana .cartao, #aba-semana .subabas, #listaSemana, #listaAtual { max-width: 100%; min-width: 0; }
+  .cartao.rolavel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cartao.rolavel .tabela td.desc { min-width: 180px; }
+  .dosi-wrap, .acomp-wrap { max-width: 100%; -webkit-overflow-scrolling: touch; }
+  #aba-semana .desc, #aba-semana .col-desc, #aba-semana .just-txt, #aba-semana .def { overflow-wrap: anywhere; }
+  @media (max-width: 760px) {
+    .namce-cab { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+    .namce-cab > div { min-width: 0; }
+    .namce-cab input { min-width: 0; }
+    .etapas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .subabas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .ciclo-escolha select { width: 100%; }
+    .relogio { width: 100%; text-align: left; }
+  }
 
   /* Lista da dosimetria (tabela) */
   .dosi-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); }
@@ -2372,7 +2389,7 @@ function desenharLista() {
   const foF = fo.filter((a) => !soPend && filtra(a)).sort(ordenarAnot);
   if (foF.length) {
     partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
-    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+    partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, "Anotador"),
         h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"))),
       h("tbody", {}, foF.map((a, i) => h("tr", {},
@@ -2590,7 +2607,7 @@ function desenharPublicada(n) {
   const partes = [];
   if (n.fo.length) {
     partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
-    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+    partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, "Anotador"), h("th", {}, "Pel."), h("th", {}, "Cadete"), h("th", {}, "Descrição"))),
       h("tbody", {}, n.fo.map((f, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(f.fato)),
         h("td", {}, f.anotadorNome), h("td", {}, f.pel), h("td", {}, h("strong", {}, f.cadeteGuerra)), h("td", { class: "desc" }, f.descricao)))))));
@@ -2599,7 +2616,7 @@ function desenharPublicada(n) {
   n.itens.forEach((it) => { (grupos[it.grupo] ||= []).push(it); });
   Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
     partes.push(h("h3", { class: "grupo-titulo" }, g));
-    partes.push(h("div", { class: "cartao", style: "padding:6px 12px" }, h("table", { class: "tabela" },
+    partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
