@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.5">
+<meta name="sde-versao" content="2026-11-03.6">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -447,7 +447,7 @@
 
   /* Lista da dosimetria (tabela) */
   .dosi-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); }
-  .dosi-tabela { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 1360px; width: 100%; }
+  .dosi-tabela { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 1410px; width: 100%; }
   .dosi-tabela th { position: sticky; top: 0; z-index: 2; background: var(--verde-esc); color: #fff; font-weight: 700;
     padding: 6px 6px; text-align: left; vertical-align: bottom; border-right: 1px solid rgba(255,255,255,.12); }
   .dosi-tabela th.col-bl, .dosi-tabela th.col-dec { text-align: center; font-size: 12px; padding: 6px 2px; line-height: 1.15; }
@@ -1583,6 +1583,7 @@ function cartaoMinha(a) {
       blocos: [h("strong", {}, "MCE: "), m.texto],
       justif: [h("strong", {}, "Justificada"), " — defesa aceita, sem MCE."],
       transf: [h("strong", {}, "Transferida"), " para a próxima NAMCE."],
+      aguardando: [h("strong", {}, "Aguardando decisão do Comando"), " — há outro procedimento administrativo; a decisão sai em uma próxima NAMCE."],
       td: [h("strong", {}, "Trabalho Didático (TD)"), " — verifique a atividade com o Oficial Coordenador até o fim do expediente de sexta-feira."],
       cumprida: [h("strong", {}, "Já cumprida.")]
     }[m.decisao] || [h("strong", {}, "MCE: "), m.texto];
@@ -1887,7 +1888,8 @@ function resultadoAnotacao(a) {
   if (a.tipo !== "aad") return h("span", { class: "ajuda" }, "—");
   if (!a.mce) return h("span", { class: "ajuda" }, "aguardando a NAMCE");
   const m = a.mce;
-  const txt = m.decisao === "justif" ? "Justificada" : m.decisao === "transf" ? "Transferida para a semana seguinte" : (m.texto || "—");
+  const txt = m.decisao === "justif" ? "Justificada" : m.decisao === "transf" ? "Transferida para a semana seguinte"
+    : m.decisao === "aguardando" ? "Aguardando decisão do Comando" : (m.texto || "—");
   return h("span", {}, h("strong", {}, txt), h("div", { class: "ajuda" }, "NAMCE nº " + (m.namce || "—")));
 }
 
@@ -1928,7 +1930,15 @@ const BLOCOS = [
   { id: "LC5", rot: "LC 5", dia: 2, ini: 19 * 60, fim: 31 * 60 }
 ];
 const DIAS = ["Sexta", "Sábado", "Domingo"];
-const DECISOES = { justif: "Justif.", transf: "Transf.", td: "TD", cumprida: "Já cumprida" };
+const DECISOES = { justif: "Justif.", transf: "Transf.", td: "TD", cumprida: "Já cumprida", aguardando: "Aguardando decisão do Comando" };
+// Decisões que levam a AAD para a dosimetria da semana seguinte
+const PASSA_ADIANTE = ["transf", "aguardando"];
+/** "(Transferida NAMCE 35)." ou "(Aguardando decisão do Comando desde a NAMCE 35)." */
+function sufixoOrigem(x) {
+  if (x.aguardandoDe) return ` (Aguardando decisão do Comando desde a NAMCE ${x.aguardandoDe.split("/")[0]}).`;
+  if (x.transferidaDe) return ` (Transferida NAMCE ${x.transferidaDe.split("/")[0]}).`;
+  return "";
+}
 
 let semanaW = 0;            // prazo (ms) da semana aberta na dosimetria
 let dosi = {};              // id da anotação -> decisão (coleção dosimetria)
@@ -2447,7 +2457,7 @@ function montarNamce() {
       anotacaoId: a.id, grupo: g, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
       cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma, cadetePelotao: a.cadetePelotao,
       fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
-      decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || ""
+      decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || "", aguardandoDe: d.aguardandoDe || ""
     });
   }));
   const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada).sort(ordenarAnot).map((a) => ({
@@ -2546,7 +2556,7 @@ function conflitosDe(a) {
 // Colunas de seleção na ordem pedida: EEsp 1–8, LC 1–5
 const COLUNAS = ["EEsp1", "EEsp2", "EEsp3", "EEsp4", "EEsp5", "EEsp6", "EEsp7", "EEsp8", "LC1", "LC2", "LC3", "LC4", "LC5"]
   .map((id) => BLOCOS.find((b) => b.id === id));
-const COL_DECISOES = [["td", "TD"], ["transf", "Transf."], ["justif", "Justif."]];
+const COL_DECISOES = [["td", "TD"], ["transf", "Transf."], ["justif", "Justif."], ["aguardando", "Aguard. Cmdo", "Aguardando decisão do Comando (há outro procedimento administrativo; volta na semana seguinte)"]];
 const carregandoDefesa = new Set();
 
 /** Busca (uma vez por versão) as defesas para mostrar direto na lista. */
@@ -2567,7 +2577,7 @@ async function carregarDefesas(linhas, redesenhar) {
 function tabelaDosi(lista, todas) {
   const cabBlocos = COLUNAS.map((b) => h("th", { class: "col-bl", title: `${DIAS[b.dia]} · ${hhmm(b.ini)} às ${hhmm(b.fim)}` },
     b.rot.replace(" ", " "), h("small", {}, `${DIAS[b.dia].slice(0, 3)} ${hhmm(b.ini)}`)));
-  const cabDec = COL_DECISOES.map(([, rot]) => h("th", { class: "col-dec" }, rot));
+  const cabDec = COL_DECISOES.map(([, rot, dica]) => h("th", { class: "col-dec", title: dica || rot }, rot));
   const ncol = 5 + COLUNAS.length + COL_DECISOES.length;
 
   const corpo = [];
@@ -2631,10 +2641,10 @@ function linhaDosi(a, num, linhas) {
     }, sel ? "✓" : estado === "escala" ? "×" : ""));
   });
 
-  const celDec = COL_DECISOES.map(([k, rot]) => {
+  const celDec = COL_DECISOES.map(([k, rot, dica]) => {
     const ativo = d.decisao === k;
     return h("td", { class: "col-dec" }, h("button", {
-      type: "button", class: "cel dec" + (ativo ? " sel" : ""), "aria-pressed": ativo ? "true" : "false", title: rot, "aria-label": rot,
+      type: "button", class: "cel dec" + (ativo ? " sel" : ""), "aria-pressed": ativo ? "true" : "false", title: dica || rot, "aria-label": rot,
       onclick: () => salvar(ativo ? { decisao: "", blocos: [] } : { decisao: k, blocos: [] })
     }, ativo ? "✓" : ""));
   });
@@ -2646,7 +2656,6 @@ function linhaDosi(a, num, linhas) {
   else just = h("span", { class: "ajuda" }, "carregando…");
 
   const ok = decidida(d);
-  const transf = d.transferidaDe || "";
   return h("tr", { class: "linha-dosi " + (conflitos.length ? "com-conflito" : ok ? "decidida" : "pendente"),
     title: conflitos.length ? "Conflito com escala lançada depois: " + conflitos.map((c) => `${c.bloco.rot} × ${c.escala.servico}`).join("; ") : null },
     h("td", { class: "col-num" }, num),
@@ -2655,7 +2664,7 @@ function linhaDosi(a, num, linhas) {
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
       conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null),
     h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),
-    h("td", { class: "col-desc" }, a.descricao + (transf ? ` (Transferida NAMCE ${transf.split("/")[0]}).` : "")),
+    h("td", { class: "col-desc" }, a.descricao + sufixoOrigem(d)),
     h("td", { class: "col-just" }, just),
     ...celBlocos, ...celDec
   );
@@ -2689,9 +2698,10 @@ async function publicarNamce() {
   }, { merge: true }));
   for (const it of itens) {
     ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.decisao, namce: ref } }));
-    if (it.decisao === "transf") {
+    if (PASSA_ADIANTE.includes(it.decisao)) {
+      const origem = it.decisao === "aguardando" ? { aguardandoDe: it.aguardandoDe || ref } : { transferidaDe: it.transferidaDe || ref };
       ops.push((b) => b.set(doc(db, "dosimetria", it.anotacaoId), {
-        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", transferidaDe: it.transferidaDe || ref,
+        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", ...origem,
         atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
       }));
     }
@@ -2741,7 +2751,7 @@ function desenharPublicada(n) {
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
-        h("td", { class: "desc" }, it.descricao + (it.transferidaDe ? ` (Transferida NAMCE ${it.transferidaDe.split("/")[0]}).` : "")),
+        h("td", { class: "desc" }, it.descricao + sufixoOrigem(it)),
         h("td", {}, h("strong", {}, it.mce))))))));
   });
   $("#listaSemana").replaceChildren(...partes);
