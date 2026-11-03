@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.9">
+<meta name="sde-versao" content="2026-11-03.10">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -915,12 +915,17 @@
     </div>
 
     <div class="aba" id="aba-acessos" role="tabpanel" hidden>
-      <div class="cartao">
-        <h2>Pedidos pendentes <span class="contador" id="contPendentes" hidden></span></h2>
+      <div class="cartao recolhivel" data-chave="pendentes">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Pedidos pendentes <span class="contador" id="contPendentes" hidden></span><span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <div id="listaPendentes"></div>
+        </div>
       </div>
-      <div class="cartao">
-        <h2>Usuários com acesso</h2>
+      <div class="cartao recolhivel" data-chave="ativos">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Usuários com acesso <span class="ajuda" id="totAtivos"></span><span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <div class="filtros filtro-turma">
           <input id="buscaUsuarios" type="search" placeholder="Buscar por nome ou nome de guerra">
           <select id="uFAno" aria-label="Filtrar por curso / ano"></select>
@@ -930,10 +935,14 @@
         </div>
         <p class="ajuda" id="uFTotal" style="margin:0 0 6px"></p>
         <div id="listaAtivos"></div>
+        </div>
       </div>
-      <div class="cartao">
-        <h2>Bloqueados e recusados</h2>
+      <div class="cartao recolhivel" data-chave="inativos">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Bloqueados e recusados <span class="ajuda" id="totInativos"></span><span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <div id="listaInativos"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -3489,6 +3498,8 @@ function desenharAcessos() {
   const inativos = usuarios.filter((u) => u.status === "recusado" || u.status === "bloqueado").sort(ordenar);
 
   // contadores
+  $("#totAtivos").textContent = `(${ativos.length})`;
+  $("#totInativos").textContent = `(${inativos.length})`;
   const cont = $("#contPendentes"), contAba = $("#contAba");
   [cont, contAba].forEach((c) => { if (!c) return; c.textContent = pend.length; c.hidden = pend.length === 0; });
 
