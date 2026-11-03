@@ -27,7 +27,7 @@ Ninguém anula, edita ou apaga anotação. NAMCE e Planilha de Anotados ficam tr
 - A semana de anotações **fecha na sexta-feira às 18h** (pela hora do lançamento no sistema). O que for lançado depois entra na semana seguinte.
 - A defesa escrita pode ser enviada desde o lançamento até a **segunda-feira seguinte, 23h59** (travado nas regras do servidor).
 - Aba **Dosimetria** tem duas abas internas: **Semana atual** (acompanhamento ao vivo das anotações e defesas, com relógio até o fechamento) e **Semana fechada** (Planilha de Anotados, defesas até segunda, dosimetria e NAMCE).
-- Aba **Estatísticas** (nível 3): todos os cadetes com o total de AAD e FO+; filtros por curso/ano, turma, pelotão, nome e período; ordem alfabética ou ranking de AAD/FO+; clique no nome para ver cada anotação e o resultado da NAMCE.
+- Aba **Estatísticas** (nível 3), com duas visões — **Anotados** (quem recebe) e **Anotadores** (quem lança): total de AAD e FO+ por pessoa; filtros por curso/ano, turma, pelotão, nome e período; ordem alfabética ou ranking de AAD/FO+; clique no nome para ver cada anotação e o resultado da NAMCE.
 - **Após o fechamento:** publicar a **Planilha de Anotados** (PDF sem dosimetria, `js/planilha-pdf.js`). Ela fica guardada em `namces/{prazo}.planilha` e o número dela entra sozinho no campo "Planilhas de Anotados nº" da NAMCE.
 - **Quinta-feira:** dosimetria. **Sexta a domingo:** cumprimento (o segundo fim de semana depois da anotação).
 - Ex.: anotação de 20/10 → fecha 23/10 18h → defesa até 26/10 23h59 → dosimetria 29/10 → cumprimento 30/10 a 01/11.

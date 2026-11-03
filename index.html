@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.15">
+<meta name="sde-versao" content="2026-11-03.16">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -876,6 +876,10 @@
     <div class="aba" id="aba-estat" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Estatísticas</h2>
+        <div class="subabas est-visao" role="tablist">
+          <button type="button" role="tab" id="estVCad" aria-selected="true"><span class="sub-tit">Anotados</span><small>quem mais recebe AAD e FO+</small></button>
+          <button type="button" role="tab" id="estVAnot" aria-selected="false"><span class="sub-tit">Anotadores</span><small>quem mais lança AAD e FO+</small></button>
+        </div>
         <div class="filtros filtro-turma">
           <input id="eBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
           <select id="eFAno" aria-label="Filtrar por curso / ano"></select>
@@ -3634,18 +3638,26 @@ async function cadastrarCadete(ev) {
 }
 
 // ================== Estatísticas (nível 3) ==================
+// Duas visões: "Anotados" (por cadete que recebeu) e "Anotadores" (por quem lançou).
 // Todas as anotações são lidas só quando a aba é aberta (para poupar leituras do Firebase).
 let estatAnot = [], estatCarregado = false, estatPronto = false, filtroEstat = null;
-const estatAbertos = new Set();   // cadetes com o detalhe aberto
+let estatVisao = "cad";           // "cad" | "anot"
+const estatAbertos = new Set();   // "cad:<id>" / "anot:<uid>" com o detalhe aberto
 
 function prepararEstat() {
   if (estatPronto) return;
   estatPronto = true;
   filtroEstat = criarFiltroTurma("eF", $("#eBusca"), desenharEstat);
-  try { const o = localStorage.getItem("sde-est-ordem"); if (o) $("#eOrdem").value = o; } catch (e) { /* sem armazenamento */ }
+  try {
+    const o = localStorage.getItem("sde-est-ordem"); if (o) $("#eOrdem").value = o;
+    if (localStorage.getItem("sde-est-visao") === "anot") estatVisao = "anot";
+  } catch (e) { /* sem armazenamento */ }
   if (!$("#eOrdem").value) $("#eOrdem").value = "alfa";
   $("#eOrdem").addEventListener("change", () => { try { localStorage.setItem("sde-est-ordem", $("#eOrdem").value); } catch (e) { /* ok */ } desenharEstat(); });
   ["#ePeriodo", "#eSoCom", "#eInativos"].forEach((s) => $(s).addEventListener("change", desenharEstat));
+  const trocar = (v) => { estatVisao = v; try { localStorage.setItem("sde-est-visao", v); } catch (e) { /* ok */ } desenharEstat(); };
+  $("#estVCad").addEventListener("click", () => trocar("cad"));
+  $("#estVAnot").addEventListener("click", () => trocar("anot"));
 }
 
 function assinarEstat() {
@@ -3678,91 +3690,123 @@ function situacaoAad(a) {
 }
 const ROTULO_SIT = { mce: "com MCE", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
 
+/** Pessoas da visão atual (cadetes anotados ou anotadores), cada uma com as suas anotações do período. */
+function pessoasEstat(desde) {
+  const doPeriodo = estatAnot.filter((a) => !desde || msFato(a) >= desde);
+  const inativos = $("#eInativos").checked;
+  const agrupar = (campo) => {
+    const m = new Map();
+    doPeriodo.forEach((a) => { const k = a[campo]; if (!m.has(k)) m.set(k, []); m.get(k).push(a); });
+    return m;
+  };
+  if (estatVisao === "cad") {
+    const por = agrupar("cadeteId");
+    return todosCadetes.filter((c) => c.ativo || inativos).map((c) => ({ o: c, chave: "cad:" + c.id, ativo: c.ativo, an: por.get(c.id) || [] }));
+  }
+  // Anotadores: quem pode lançar hoje (nível 2 ou 3, ativo) + quem já lançou alguma anotação
+  const por = agrupar("anotadorUid");
+  const lista = usuarios.filter((u) => (u.status === "ativo" && u.nivel >= 2) || por.has(u.id))
+    .map((u) => ({ o: u, chave: "anot:" + u.id, ativo: u.status === "ativo" && u.nivel >= 2, an: por.get(u.id) || [] }));
+  // anotador sem conta encontrada (conta apagada): usa o nome gravado na anotação
+  por.forEach((an, uid) => {
+    if (usuarios.some((u) => u.id === uid)) return;
+    lista.push({ o: { id: uid, guerra: an[0].anotadorNome || "—", nome: "conta não encontrada" }, chave: "anot:" + uid, ativo: false, an });
+  });
+  return lista.filter((x) => x.ativo || inativos || x.an.length);
+}
+
 function desenharEstat() {
   if (!perfil || perfil.nivel < 3 || !filtroEstat) return;
+  const anotV = estatVisao === "anot";
+  $("#estVCad").setAttribute("aria-selected", anotV ? "false" : "true");
+  $("#estVAnot").setAttribute("aria-selected", anotV ? "true" : "false");
+  $("#eSoCom").parentElement.lastChild.textContent = anotV ? " Só quem lançou anotações" : " Só quem tem anotações";
+  $("#eInativos").parentElement.lastChild.textContent = anotV ? " Incluir quem não lança mais" : " Incluir inativos";
+
   const ordem = $("#eOrdem").value, desde = inicioPeriodo($("#ePeriodo").value);
-  const porCadete = new Map();
-  estatAnot.forEach((a) => {
-    if (desde && msFato(a) < desde) return;
-    if (!porCadete.has(a.cadeteId)) porCadete.set(a.cadeteId, []);
-    porCadete.get(a.cadeteId).push(a);
-  });
-  const base = todosCadetes.filter((c) => c.ativo || $("#eInativos").checked);
-  let itens = filtroEstat.aplicar(base).map((c) => {
-    const an = (porCadete.get(c.id) || []).slice().sort((x, y) => msFato(y) - msFato(x));
+  const pessoas = pessoasEstat(desde);
+  const porObj = new Map(pessoas.map((x) => [x.o, x]));
+  let itens = filtroEstat.aplicar(pessoas.map((x) => x.o)).map((o) => {
+    const x = porObj.get(o);
+    const an = x.an.slice().sort((p, q) => msFato(q) - msFato(p));
     const aad = an.filter((a) => a.tipo !== "fo");
-    return { c, an, nA: aad.length, nF: an.length - aad.length, just: aad.filter((a) => situacaoAad(a) === "justif").length };
+    return { ...x, an, nA: aad.length, nF: an.length - aad.length, just: aad.filter((a) => situacaoAad(a) === "justif").length };
   });
   if ($("#eSoCom").checked) itens = itens.filter((x) => x.an.length);
 
-  const alfa = (x, y) => (x.c.guerra || "").localeCompare(y.c.guerra || "", "pt-BR");
+  const alfa = (x, y) => (x.o.guerra || "").localeCompare(y.o.guerra || "", "pt-BR");
   const chave = ordem === "aad" ? (x) => x.nA : ordem === "fo" ? (x) => x.nF : null;
   itens.sort(chave ? (x, y) => chave(y) - chave(x) || alfa(x, y) : alfa);
-  // posição no ranking: empatados ficam na mesma posição (1º, 2º, 2º, 4º…)
-  // (quem tem zero fica sem posição)
+  // posição no ranking: empatados ficam na mesma posição (1º, 2º, 2º, 4º…); quem tem zero fica sem posição
   itens.forEach((x, i) => { x.pos = !chave || !chave(x) ? null : i && chave(itens[i - 1]) === chave(x) ? itens[i - 1].pos : i + 1; });
 
   const totA = itens.reduce((s, x) => s + x.nA, 0), totF = itens.reduce((s, x) => s + x.nF, 0);
-  const totJ = itens.reduce((s, x) => s + x.just, 0), comA = itens.filter((x) => x.nA).length;
+  const totJ = itens.reduce((s, x) => s + x.just, 0);
+  const comAlgo = itens.filter((x) => (anotV ? x.an.length : x.nA)).length;
   const num = (v, t) => h("div", { class: "est-num" }, h("strong", {}, String(v)), h("span", {}, t));
   $("#eResumo").replaceChildren(
-    num(totA, "AAD"), num(totF, "FO+"),
-    num(`${comA}/${itens.length}`, "cadetes com AAD"),
+    num(totA, anotV ? "AAD lançadas" : "AAD"), num(totF, anotV ? "FO+ lançados" : "FO+"),
+    num(`${comAlgo}/${itens.length}`, anotV ? "anotadores que lançaram" : "cadetes com AAD"),
     num(totA ? Math.round((totJ / totA) * 100) + "%" : "—", `AAD justificadas${totJ ? ` (${totJ})` : ""}`)
   );
-  $("#eTotal").textContent = filtroEstat.filtrando() || $("#eSoCom").checked ? `Mostrando ${itens.length} cadete(s).` : "";
+  $("#eTotal").textContent = filtroEstat.filtrando() || $("#eSoCom").checked ? `Mostrando ${itens.length} ${anotV ? "anotador(es)" : "cadete(s)"}.` : "";
 
   if (!estatCarregado) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, "Carregando as anotações…")); return; }
-  if (!itens.length) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
-
+  if (!itens.length) {
+    $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, pessoas.length ? "Ninguém encontrado." : anotV ? "Nenhum anotador." : "Nenhum cadete cadastrado."));
+    return;
+  }
   $("#listaEstat").replaceChildren(h("div", { class: "est-lista" },
     h("div", { class: "est-cab", "aria-hidden": "true" },
-      h("span", { class: "pos" }, chave ? "#" : ""), h("span", {}, "Cadete"), h("span", { class: "tur" }, "Turma"),
+      h("span", { class: "pos" }, chave ? "#" : ""), h("span", {}, anotV ? "Anotador" : "Cadete"), h("span", { class: "tur" }, "Turma"),
       h("span", { class: "n" }, "AAD"), h("span", { class: "n" }, "FO+"), h("span", {})),
-    ...itens.map(itemEstat)));
+    ...itens.map((x) => itemEstat(x, anotV))));
 }
 
-function itemEstat(x) {
-  const { c } = x;
-  const aberto = estatAbertos.has(c.id);
+function itemEstat(x, anotV) {
+  const { o } = x;
+  const aberto = estatAbertos.has(x.chave);
   const det = h("div", { class: "est-det", hidden: !aberto });
-  if (aberto) det.append(...detalheEstat(x));
+  if (aberto) det.append(...detalheEstat(x, anotV));
   const linha = h("button", {
     type: "button", class: "est-linha", "aria-expanded": aberto ? "true" : "false",
     onclick: () => {
-      if (estatAbertos.has(c.id)) estatAbertos.delete(c.id); else estatAbertos.add(c.id);
-      item.replaceWith(itemEstat(x));
+      if (estatAbertos.has(x.chave)) estatAbertos.delete(x.chave); else estatAbertos.add(x.chave);
+      item.replaceWith(itemEstat(x, anotV));
     }
   },
     h("span", { class: "pos" }, x.pos ? x.pos + "º" : ""),
-    h("span", { class: "nome" }, h("strong", {}, c.guerra, c.ativo ? "" : " (inativo)"), h("small", {}, c.nome)),
-    h("span", { class: "tur" }, turmaCurta(c)),
+    h("span", { class: "nome" }, h("strong", {}, o.guerra, x.ativo ? "" : anotV ? " (sem acesso de anotador)" : " (inativo)"), h("small", {}, o.nome)),
+    h("span", { class: "tur" }, turmaTexto(o)),
     h("span", { class: "n" + (x.nA ? "" : " zero") }, String(x.nA), x.just ? h("small", {}, `${x.just} justif.`) : null),
     h("span", { class: "n" + (x.nF ? "" : " zero") }, String(x.nF)),
     h("span", { class: "seta", "aria-hidden": "true" }, aberto ? "▴" : "▾"));
-  const item = h("div", { class: "est-item" + (c.ativo ? "" : " inativo") }, linha, det);
+  const item = h("div", { class: "est-item" + (x.ativo ? "" : " inativo") }, linha, det);
   return item;
 }
 
-function detalheEstat(x) {
-  const { c, an } = x;
-  if (!an.length) return [h("p", { class: "vazio", style: "margin-top:8px" }, "Nenhuma anotação no período.")];
+function detalheEstat(x, anotV) {
+  const { o, an } = x;
+  if (!an.length) return [h("p", { class: "vazio", style: "margin-top:8px" }, anotV ? "Nenhuma anotação lançada no período." : "Nenhuma anotação no período.")];
   const cont = {};
   an.filter((a) => a.tipo !== "fo").forEach((a) => { const s = situacaoAad(a); cont[s] = (cont[s] || 0) + 1; });
   const chips = ["mce", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
     .map((s) => h("span", {}, `${cont[s]} ${ROTULO_SIT[s]}`));
-  const ultima = an[0];
+  const distintos = new Set(an.map((a) => a.cadeteId)).size;
   return [
     h("div", { class: "est-chips" },
-      h("span", {}, h("strong", {}, turmaCurta(c))),
+      turmaTexto(o) ? h("span", {}, h("strong", {}, turmaTexto(o))) : null,
+      anotV ? h("span", {}, `${distintos} cadete${distintos === 1 ? "" : "s"} diferente${distintos === 1 ? "" : "s"}`) : null,
       ...chips,
-      h("span", {}, "última em " + dataFato(ultima.fatoEm).split(",")[0])),
+      h("span", {}, "última em " + dataFato(an[0].fatoEm).split(",")[0])),
     ...an.map((a) => {
       const epoca = `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""} · Pel. ${a.cadetePelotao}`;
+      const quem = anotV
+        ? h("span", { class: "anot-meta" }, `· ${a.cadeteGuerra} (${epoca})`)
+        : h("span", { class: "anot-meta" }, "· anotado por " + (a.anotadorNome || "—"));
       return h("div", { class: "est-anot" },
-        h("div", { class: "anot-cab" }, tagTipo(a.tipo), h("strong", {}, "Fato em " + dataFato(a.fatoEm)),
-          h("span", { class: "anot-meta" }, "· anotado por " + (a.anotadorNome || "—")),
-          epoca !== turmaCurta(c) ? h("span", { class: "anot-meta" }, `· na época: ${epoca}`) : null),
+        h("div", { class: "anot-cab" }, tagTipo(a.tipo), h("strong", {}, "Fato em " + dataFato(a.fatoEm)), quem,
+          !anotV && epoca !== turmaTexto(o) ? h("span", { class: "anot-meta" }, `· na época: ${epoca}`) : null),
         h("p", { class: "anot-desc" }, a.descricao),
         a.tipo !== "fo" ? h("div", { class: "est-res" }, "Resultado: ", resultadoAnotacao(a)) : null);
     })
@@ -3774,6 +3818,7 @@ function assinarUsuarios() {
   assinar("usuarios", "todos", () => onSnapshot(collection(db, "usuarios"), (snap) => {
     usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     desenharAcessos();
+    desenharEstat();
     limparCpfsAntigos();
   }, (err) => {
     console.error(err);
