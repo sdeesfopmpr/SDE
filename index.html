@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.11">
+<meta name="sde-versao" content="2026-11-03.12">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -830,6 +830,7 @@
           </div>
         </div>
         <div id="listaSemana"></div>
+        <div id="excluidasSemana"></div>
       </div>
     </div>
 
@@ -1159,7 +1160,7 @@ function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
   limpezaCpfFeita = false;
-  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
+  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; excluidasFechada = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
@@ -1173,7 +1174,7 @@ function limparMemoria() {
   if (seletorLancar) seletorLancar.limpar();
   if (seletorEscala) seletorEscala.limpar();
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos",
-   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#planilhaCab", "#listaAtual", "#resumoAtual", "#etapasSemana", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
+   "#listaPendentes", "#listaAtivos", "#listaInativos", "#namceCab", "#planilhaCab", "#excluidasSemana", "#listaAtual", "#resumoAtual", "#etapasSemana", "#listaEscalas", "#listaCadetes", "#resultadoImport"].forEach((s) => $(s).replaceChildren());
   $("#aDesc").value = "";
   ["#cFAno", "#cFTurma", "#cFPel", "#uFAno", "#uFTurma", "#uFPel", "#cBusca", "#buscaUsuarios"].forEach((x) => { if ($(x)) $(x).value = ""; });
 }
@@ -1469,7 +1470,7 @@ function abrirApp() {
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes", "exclusoesFechada"].forEach(desassinar);
   }
   desenharMinhas();
   mostrar("v-app");
@@ -2021,6 +2022,10 @@ function ordenarAnot(a, b) {
 let atualW = 0;                 // prazo da semana que está recebendo anotações
 let atual = [];                 // anotações dessa semana (ao vivo)
 let excluidas = [];             // anotações dessa semana que o nível 3 excluiu (registro)
+let excluidasFechada = [];      // idem, da semana fechada escolhida
+function desenharExcluidasFechada() {
+  $("#excluidasSemana").replaceChildren(...(excluidasFechada.length ? [listaExcluidas(excluidasFechada)] : []));
+}
 let subAtual = "atual";
 let relogioTimer = null;
 let selecaoManual = false;      // o usuário escolheu a semana fechada na lista?
@@ -2135,12 +2140,17 @@ function assinarSemana() {
 
   // semana fechada escolhida (dosimetria)
   const W = +$("#selCiclo").value;
-  if (W !== semanaW) { semana = []; dosi = {}; }
+  if (W !== semanaW) { semana = []; dosi = {}; excluidasFechada = []; desenharExcluidasFechada(); }
   semanaW = W;
   assinar("semana", W, () => onSnapshot(
     query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(W))),
     (snap) => { semana = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharSemana(); },
     (err) => { console.error(err); $("#listaSemana").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações.")); }
+  ));
+  assinar("exclusoesFechada", W, () => onSnapshot(
+    query(collection(db, "exclusoes"), where("prazo", "==", Timestamp.fromMillis(W))),
+    (snap) => { excluidasFechada = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharExcluidasFechada(); },
+    (err) => console.error(err)
   ));
   if (!coord()) { desassinar("dosi"); desassinar("escalasDosi"); dosi = {}; escalasFds = []; }
   else assinar("dosi", W, () => onSnapshot(
@@ -2217,12 +2227,7 @@ function desenharAtual() {
   } else {
     partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, validas.length ? "Nada encontrado com essa busca." : "Nenhuma anotação lançada nesta semana até agora.")));
   }
-  if (excluidas.length) {
-    partes.push(h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${excluidas.length} anotação(ões) excluída(s) nesta semana`),
-      h("ul", { class: "lista-simples" }, [...excluidas].sort((x, y) => (y.excluidaEm?.seconds || 0) - (x.excluidaEm?.seconds || 0)).map((x) => h("li", {},
-        h("strong", {}, x.cadeteGuerra), ` (${x.tipo === "fo" ? "FO+" : "AAD"}) · ${x.descricao} — lançada por ${x.anotadorNome}; excluída por ${x.excluidaPorNome || "—"}` +
-        (x.excluidaEm?.toMillis ? " em " + dataHora(x.excluidaEm) : "") + (x.motivo ? `. Motivo: ${x.motivo}` : "."))))));
-  }
+  if (excluidas.length) partes.push(listaExcluidas(excluidas));
   if (anuladas.length) {
     partes.push(h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${anuladas.length} anotação(ões) anulada(s) nesta semana`),
       h("ul", { class: "lista-simples" }, anuladas.map((a) => h("li", {}, h("strong", {}, a.cadeteGuerra), ` · ${a.descricao} — anulada por ${a.anuladaPor || "—"}: ${a.anuladaMotivo || ""}`)))));
@@ -2278,6 +2283,15 @@ function linhaAtual(a, num, comTurma = false) {
     h("td", { class: "def" }, textoDefesa(a)),
     h("td", { class: "acao-linha" }, Date.now() < fechamentoDe(a.prazo.toMillis())
       ? h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirAnotacao(a) }, "excluir") : null));
+}
+
+/** Lista (recolhida) das anotações excluídas de uma semana, a partir dos registros em "exclusoes". */
+function listaExcluidas(lista) {
+  return h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${lista.length} anotação(ões) excluída(s) nesta semana`),
+    h("ul", { class: "lista-simples" }, [...lista].sort((x, y) => (y.excluidaEm?.seconds || 0) - (x.excluidaEm?.seconds || 0)).map((x) => h("li", {},
+      h("strong", {}, x.cadeteGuerra), ` (${x.tipo === "fo" ? "FO+" : "AAD"}) · ${x.descricao} — lançada por ${x.anotadorNome}` +
+      (x.criadoEm?.toMillis ? " em " + dataHora(x.criadoEm) : "") + `; excluída por ${x.excluidaPorNome || "—"}` +
+      (x.excluidaEm?.toMillis ? " em " + dataHora(x.excluidaEm) : "") + (x.motivo ? `. Motivo: ${x.motivo}` : ".")))));
 }
 
 /** Nível 3: exclui uma anotação (AAD ou FO+) da semana ainda aberta (até sexta 18h). Fica registro em "exclusoes". */
