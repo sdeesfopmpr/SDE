@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-10-22.11">
+<meta name="sde-versao" content="2026-11-03.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -116,8 +116,31 @@
   }
   .btn-sair:hover, .btn-tema:hover { background: rgba(255,255,255,.1); }
   .topo-dir { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .topo-dir .usuario-topo { display: contents; }
-  .topo-dir .nome { order: 1; } .topo-dir .btn-tema { order: 2; } .topo-dir .btn-sair { order: 3; }
+  .topo-dir .usuario-topo { position: relative; }
+  .btn-usuario {
+    display: inline-flex; align-items: center; gap: 6px; background: transparent; color: #fff; font: inherit; font-weight: 600;
+    border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; cursor: pointer; max-width: 46vw;
+  }
+  .btn-usuario .nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn-usuario:hover, .btn-usuario[aria-expanded=true] { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); }
+  .seta-menu { font-size: 11px; opacity: .85; }
+  .menu-usuario {
+    position: absolute; right: 0; top: calc(100% + 8px); min-width: 210px; z-index: 30;
+    background: var(--cartao); color: var(--texto); border: 1px solid var(--borda); border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(20, 22, 70, .25); padding: 6px; display: flex; flex-direction: column;
+  }
+  .menu-usuario button {
+    text-align: left; background: none; border: 0; font: inherit; color: inherit; padding: 9px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .menu-usuario button:hover, .menu-usuario button:focus-visible { background: var(--fundo-2); outline: none; }
+  .menu-usuario .sair { color: var(--erro); border-top: 1px solid var(--borda); border-radius: 0 0 6px 6px; margin-top: 4px; }
+  .dialogo {
+    border: 1px solid var(--borda); border-radius: 12px; padding: 20px 22px; width: min(460px, calc(100% - 32px));
+    background: var(--cartao); color: var(--texto); box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  .dialogo::backdrop { background: rgba(10, 12, 30, .5); }
+  .dialogo h2 { color: var(--acento-esc); }
+  .dialogo-acoes { display: flex; justify-content: flex-end; margin-top: 16px; }
   .btn-tema {
     background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 6px;
     width: 34px; height: 30px; font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
@@ -498,8 +521,13 @@
   </div>
   <div class="topo-dir">
     <div class="usuario-topo" id="usuarioTopo" hidden>
-      <span class="nome" id="topoNome"></span>
-      <button class="btn-sair" id="btnSair" type="button">Sair</button>
+      <button class="btn-usuario" id="btnUsuario" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menuUsuario">
+        <span class="nome" id="topoNome"></span><span class="seta-menu" aria-hidden="true">▾</span>
+      </button>
+      <div class="menu-usuario" id="menuUsuario" role="menu" hidden>
+        <button type="button" role="menuitem" id="btnMinhasInfo">Minhas informações</button>
+        <button type="button" role="menuitem" id="btnSair" class="sair">Sair</button>
+      </div>
     </div>
     <button class="btn-tema" id="btnTema" type="button" aria-pressed="false" title="Modo escuro" aria-label="Ativar modo escuro">☾</button>
   </div>
@@ -638,7 +666,6 @@
   <section class="vista" id="v-app" hidden>
     <nav class="abas" id="abas" role="tablist"></nav>
 
-    <div class="aba" id="aba-inicio" role="tabpanel"></div>
 
     <!-- Minhas anotações (todos os cadetes) -->
     <div class="aba" id="aba-minhas" role="tabpanel" hidden>
@@ -863,6 +890,12 @@
   </section>
 </main>
 
+<dialog class="dialogo" id="dlgInfo" aria-labelledby="dlgInfoTitulo">
+  <h2 id="dlgInfoTitulo">Minhas informações</h2>
+  <div id="infoConteudo"></div>
+  <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharInfo">Fechar</button></div>
+</dialog>
+
 <div class="aviso" id="aviso" role="status" hidden></div>
 <div class="nova-versao" id="novaVersao" role="status" hidden>
   Há uma versão nova do sistema. <button type="button" class="btn peq" id="btnAtualizar">Atualizar agora</button>
@@ -1006,7 +1039,7 @@ let lancadas = [];          // anotações lançadas por mim
 let semana = [];            // anotações do ciclo escolhido (nível 3)
 const defesas = {};         // id da anotação -> { texto, enviadaEm, versao }
 const rascunhos = {};       // id da anotação -> texto sendo digitado
-let abaAtual = "inicio";
+let abaAtual = "";
 
 // Assinaturas em tempo real, por nome (para ligar/desligar conforme o nível)
 const assinaturas = {};
@@ -1069,7 +1102,9 @@ function limparMemoria() {
   for (const k of Object.keys(defesas)) delete defesas[k];
   for (const k of Object.keys(rascunhos)) delete rascunhos[k];
   escolhidos.clear();
-  abaAtual = "inicio";
+  abaAtual = "";
+  fecharMenu();
+  if ($("#dlgInfo").open) $("#dlgInfo").close();
   if (seletorLancar) seletorLancar.limpar();
   if (seletorEscala) seletorEscala.limpar();
   ["#listaMinhas", "#listaLancadas", "#listaSemana", "#resumoSemana", "#escolhidos",
@@ -1133,7 +1168,27 @@ function mostrarStatus(icone, titulo, texto) {
   mostrar("v-status");
 }
 
-$("#btnSair").addEventListener("click", () => signOut(auth));
+$("#btnSair").addEventListener("click", () => { fecharMenu(); signOut(auth); });
+
+// ---------- Menu do usuário (clicar no nome) ----------
+function fecharMenu() { $("#menuUsuario").hidden = true; $("#btnUsuario").setAttribute("aria-expanded", "false"); }
+$("#btnUsuario").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const abrir = $("#menuUsuario").hidden;
+  $("#btnMinhasInfo").hidden = !(perfil && perfil.status === "ativo");
+  $("#menuUsuario").hidden = !abrir;
+  $("#btnUsuario").setAttribute("aria-expanded", abrir ? "true" : "false");
+  if (abrir) ($("#btnMinhasInfo").hidden ? $("#btnSair") : $("#btnMinhasInfo")).focus();
+});
+document.addEventListener("click", (e) => { if (!$("#usuarioTopo").contains(e.target)) fecharMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#menuUsuario").hidden) { fecharMenu(); $("#btnUsuario").focus(); } });
+$("#btnMinhasInfo").addEventListener("click", () => {
+  fecharMenu();
+  desenharInfo();
+  $("#dlgInfo").showModal();
+});
+$("#btnFecharInfo").addEventListener("click", () => $("#dlgInfo").close());
+$("#dlgInfo").addEventListener("click", (e) => { if (e.target === $("#dlgInfo")) $("#dlgInfo").close(); });
 
 // ---------- Login ----------
 $("#formLogin").addEventListener("submit", async (e) => {
@@ -1305,7 +1360,7 @@ $("#formPedido").addEventListener("submit", async (e) => {
 
 // ================== Sistema (usuário ativo) ==================
 function abasDisponiveis() {
-  const abas = [{ id: "inicio", nome: "Início" }];
+  const abas = [];
   if (perfil.cadeteId) abas.push({ id: "minhas", nome: "Minhas anotações", contador: "contMinhas" });
   if (perfil.nivel >= 2) abas.push({ id: "lancar", nome: "Lançar anotação" });
   if (perfil.nivel >= 3) {
@@ -1319,7 +1374,7 @@ function abasDisponiveis() {
 
 function abrirApp() {
   const abas = abasDisponiveis();
-  if (!abas.some((a) => a.id === abaAtual)) abaAtual = "inicio";
+  if (!abas.some((a) => a.id === abaAtual)) abaAtual = abas[0].id;   // ao entrar: Minhas anotações (ou a primeira aba)
 
   const nav = $("#abas");
   nav.replaceChildren(...abas.map((a) => h("button", {
@@ -1329,7 +1384,6 @@ function abrirApp() {
 
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + abaAtual; });
   document.querySelector("main").classList.toggle("largo", abaAtual === "semana");
-  desenharInicio();
 
   // Minhas anotações
   if (perfil.cadeteId) assinarMinhas(); else desassinar("minhas");
@@ -1371,8 +1425,9 @@ function contador(id, n) {
 }
 
 // ---------- Início ----------
-function desenharInicio() {
+function desenharInfo() {
   const p = perfil;
+  if (!p) return;
   const dados = h("dl", { class: "dados" },
     h("dt", {}, "Nome"), h("dd", {}, p.nome),
     h("dt", {}, "Nome de guerra"), h("dd", {}, p.guerra),
@@ -1381,12 +1436,7 @@ function desenharInicio() {
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
 
-  $("#aba-inicio").replaceChildren(
-    h("div", { class: "cartao" },
-      h("h2", {}, `Olá, ${nomeCurto(p)}`),
-      dados
-    )
-  );
+  $("#infoConteudo").replaceChildren(dados);
 }
 
 // ================== Ciclo semanal ==================
