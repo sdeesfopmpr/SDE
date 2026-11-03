@@ -16,7 +16,7 @@ Sistema Disciplinar Especial da Escola de Formação de Oficiais (APMG).
 - `firestore.rules`: regras de segurança. Sempre que mudar, copie o conteúdo para Firebase → Firestore Database → Regras → Publicar.
 
 ## Níveis de acesso
-1. Cadete: vê as próprias anotações, faz a defesa (texto obrigatório + 1 imagem opcional, reduzida no aparelho e guardada no Firestore) até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a NAMCE.
+1. Cadete (cadastro só com e-mail institucional @pm.pr.gov.br): vê as próprias anotações, faz a defesa (texto obrigatório + 1 imagem opcional, reduzida no aparelho e guardada no Firestore) até a segunda-feira 23h59 seguinte ao fechamento da semana, vê a MCE após a NAMCE.
 2. Anotador: nível 1 + lança anotações e FO+ (fato de no máximo 24 horas antes do lançamento; o nível 3 não tem esse limite).
 3. Administração (cadetes da Missão SDE e Coordenação, com os mesmos acessos): tudo + acompanhamento, dosimetria, Planilha de Anotados, NAMCE, cadastro de cadetes (com "Promover turmas"), escalas e acessos. Na aba Acessos, cada conta tem a etiqueta "Cadete" ou "Coordenação".
 

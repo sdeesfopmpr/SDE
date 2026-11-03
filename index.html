@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.13">
+<meta name="sde-versao" content="2026-11-03.14">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -667,7 +667,8 @@
 
         <div id="camposConta">
           <label for="pEmail">E-mail</label>
-          <input id="pEmail" type="email" autocomplete="email">
+          <input id="pEmail" type="email" autocomplete="email" placeholder="nome@pm.pr.gov.br">
+          <div class="ajuda" id="pEmailAjuda">Cadetes: use o seu e-mail institucional (@pm.pr.gov.br).</div>
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
             <div>
               <label for="pSenha">Senha</label>
@@ -1301,7 +1302,12 @@ function atualizarTipo() {
   const cadete = tipoEscolhido() === "cadete";
   $("#camposCadete").hidden = !cadete;
   $("#camposCoord").hidden = cadete;
+  $("#pEmailAjuda").hidden = !cadete;
+  $("#pEmail").placeholder = cadete ? "nome@pm.pr.gov.br" : "";
 }
+/** Cadete só se cadastra com o e-mail institucional da PMPR (também travado nas regras do servidor). */
+const DOMINIO_CADETE = "@pm.pr.gov.br";
+function emailInstitucional(email) { return (email || "").trim().toLowerCase().endsWith(DOMINIO_CADETE); }
 document.querySelectorAll('input[name="tipo"]').forEach((r) => r.addEventListener("change", atualizarTipo));
 
 /** logado = já tem conta, mas falta o pedido (ex.: o envio anterior falhou). */
@@ -1346,10 +1352,14 @@ function validarPedido(d, comConta) {
     if (!d.ano) return "Selecione o curso / ano.";
     if (!d.pelotao) return "Selecione o pelotão.";
   }
+  if (!comConta && d.tipo === "cadete" && auth.currentUser && !emailInstitucional(auth.currentUser.email)) {
+    return "Esta conta não usa o e-mail institucional (@pm.pr.gov.br). Saia e crie a conta com o e-mail institucional.";
+  }
   if (comConta) {
     const email = $("#pEmail").value.trim();
     const s1 = $("#pSenha").value, s2 = $("#pSenha2").value;
     if (!/^\S+@\S+\.\S+$/.test(email)) return "Informe um e-mail válido.";
+    if (d.tipo === "cadete" && !emailInstitucional(email)) return "Cadetes devem usar o e-mail institucional (terminado em @pm.pr.gov.br).";
     if (s1.length < 6) return "A senha precisa ter pelo menos 6 caracteres.";
     if (s1 !== s2) return "As duas senhas não são iguais.";
   }

@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -29,6 +29,7 @@ service cloud.firestore {
         && d.criadoEm == request.time
         && (
           (d.tipo == 'cadete'
+             && d.email.lower().matches('^[^@]+@pm[.]pr[.]gov[.]br$')     // cadete: só e-mail institucional
              && d.ano in ['1º CFO', '2º CFO', '3º CFO', 'CHOE']
              && txt(d.turma, 0, 3)
              && txt(d.pelotao, 1, 3))
