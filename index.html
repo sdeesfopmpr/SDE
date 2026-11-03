@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.7">
+<meta name="sde-versao" content="2026-11-03.8">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -445,6 +445,18 @@
     .relogio { width: 100%; text-align: left; }
   }
 
+  /* Quadros que podem ser minimizados (Semana fechada) */
+  .btn-recolher { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; width: 100%; text-align: left; background: none; border: 0;
+    padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .btn-recolher:focus-visible { outline: 2px solid var(--verde); outline-offset: 4px; border-radius: 4px; }
+  .seta-rec { display: inline-block; width: 1em; transition: transform .15s; color: var(--suave); }
+  .recolhivel.min .seta-rec { transform: rotate(-90deg); }
+  .recolhivel.min { padding-top: 12px; padding-bottom: 12px; }
+  .recolhivel.min > h2 { margin: 0; }
+  .recolhivel.min .tit-extra { display: none; }
+  .resumo-min { display: none; margin-left: auto; font-size: 13px; font-weight: 600; color: var(--suave); }
+  .recolhivel.min .resumo-min { display: inline; }
+
   /* Lista da dosimetria (tabela) */
   .dosi-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); }
   .dosi-tabela { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 1410px; width: 100%; }
@@ -788,12 +800,18 @@
           </div>
           <ol class="etapas" id="etapasSemana"></ol>
         </div>
-        <div class="cartao">
-          <h2>1. Planilha de Anotados <small class="ajuda">(sem dosimetria, publicada após o fechamento)</small></h2>
+        <div class="cartao recolhivel" data-chave="planilha">
+          <h2><button type="button" class="btn-recolher" aria-expanded="true">
+            <span class="seta-rec" aria-hidden="true">▾</span>1. Planilha de Anotados <small class="ajuda tit-extra">(sem dosimetria, publicada após o fechamento)</small>
+            <span class="resumo-min"></span></button></h2>
+          <div class="corpo-rec">
           <div id="planilhaCab" class="namce-cab"></div>
+          </div>
         </div>
-        <div class="cartao">
-          <h2>2. Dosimetria e NAMCE</h2>
+        <div class="cartao recolhivel" data-chave="namce">
+          <h2><button type="button" class="btn-recolher" aria-expanded="true">
+            <span class="seta-rec" aria-hidden="true">▾</span>2. Dosimetria e NAMCE<span class="resumo-min"></span></button></h2>
+          <div class="corpo-rec">
           <div id="namceCab" class="namce-cab"></div>
           <div id="resumoSemana" class="resumo"></div>
           <div class="filtros so-coord">
@@ -808,6 +826,7 @@
             <span><i class="bl sobrepoe"></i>Sobreposição</span>
             <span><i class="bl sel conflito"></i>Conflito com escala lançada depois</span>
             <span>Passe o mouse sobre um campo bloqueado para ver o serviço.</span>
+          </div>
           </div>
         </div>
         <div id="listaSemana"></div>
@@ -2003,6 +2022,38 @@ function prepararCiclos() {
   $("#ordemAtual").addEventListener("change", desenharAtual);
   $("#btnPreviaPlanAtual").addEventListener("click", () => pdfPlanilha(atualW, true));
   trocarSub(subAtual);
+  prepararRecolhiveis();
+}
+
+// ---------- Minimizar os quadros da Semana fechada (fica lembrado neste aparelho) ----------
+function prepararRecolhiveis() {
+  document.querySelectorAll(".recolhivel").forEach((card) => {
+    const chave = "sde-min-" + card.dataset.chave;
+    const btn = card.querySelector(".btn-recolher"), corpo = card.querySelector(".corpo-rec"), resumo = card.querySelector(".resumo-min");
+    const aplicar = (min) => {
+      card.classList.toggle("min", min);
+      corpo.hidden = min;
+      btn.setAttribute("aria-expanded", min ? "false" : "true");
+      btn.title = min ? "Mostrar" : "Minimizar";
+    };
+    // resumo curto para quando estiver minimizado (situação da Planilha/NAMCE e contagens)
+    const atualizar = () => {
+      const selo = corpo.querySelector(".selo-pub");
+      const partes = [selo ? selo.textContent.trim() : ""];
+      const r = corpo.querySelector("#resumoSemana");
+      if (r && r.textContent.trim()) partes.push([...r.children].slice(0, 3).map((x) => x.textContent.trim()).join(" · "));
+      resumo.textContent = partes.filter(Boolean).join(" — ");
+    };
+    new MutationObserver(atualizar).observe(corpo, { childList: true, subtree: true, characterData: true });
+    let min = false;
+    try { min = localStorage.getItem(chave) === "1"; } catch (e) { /* sem armazenamento */ }
+    aplicar(min); atualizar();
+    btn.addEventListener("click", () => {
+      const novo = !card.classList.contains("min");
+      aplicar(novo);
+      try { localStorage.setItem(chave, novo ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
+    });
+  });
 }
 
 function trocarSub(id) {
