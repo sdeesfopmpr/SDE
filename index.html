@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.4">
+<meta name="sde-versao" content="2026-11-03.5">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -141,6 +141,13 @@
   .dialogo::backdrop { background: rgba(10, 12, 30, .5); }
   .dialogo h2 { color: var(--acento-esc); }
   .dialogo-acoes { display: flex; justify-content: flex-end; margin-top: 16px; }
+  .dialogo-img { width: min(900px, calc(100% - 24px)); padding: 12px; }
+  .dialogo-img img { display: block; max-width: 100%; max-height: 78vh; margin: 0 auto; border-radius: 6px; }
+  .img-defesa { margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .img-defesa img { max-width: 120px; max-height: 90px; border-radius: 6px; border: 1px solid var(--borda); cursor: zoom-in; object-fit: cover; }
+  .img-defesa input[type=file] { width: auto; max-width: 100%; font-size: 13px; padding: 6px; }
+  .btn-img { background: none; border: 1px solid var(--borda); border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 12.5px; color: var(--acento); cursor: pointer; margin-top: 4px; }
+  .btn-img:hover { background: var(--fundo-2); }
   .btn-tema {
     background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 6px;
     width: 34px; height: 30px; font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
@@ -913,6 +920,11 @@
   <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharInfo">Fechar</button></div>
 </dialog>
 
+<dialog class="dialogo dialogo-img" id="dlgImagem" aria-label="Imagem da defesa">
+  <img id="imgDefesa" alt="Imagem enviada com a defesa">
+  <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharImg">Fechar</button></div>
+</dialog>
+
 <div class="aviso" id="aviso" role="status" hidden></div>
 <div class="nova-versao" id="novaVersao" role="status" hidden>
   Há uma versão nova do sistema. <button type="button" class="btn peq" id="btnAtualizar">Atualizar agora</button>
@@ -928,7 +940,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
-  query, where, Timestamp, setDoc, getDocs, deleteField
+  query, where, Timestamp, setDoc, getDocs, deleteField, Bytes
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -1118,6 +1130,8 @@ function limparMemoria() {
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
   for (const k of Object.keys(rascunhos)) delete rascunhos[k];
+  for (const k of Object.keys(imgRasc)) delete imgRasc[k];
+  for (const k of Object.keys(imgCache)) { URL.revokeObjectURL(imgCache[k]); delete imgCache[k]; }
   escolhidos.clear();
   abaAtual = "";
   fecharMenu();
@@ -1582,16 +1596,17 @@ function cartaoMinha(a) {
 
     if (aberto) {
       box.append(h("div", { class: "prazo aberto" }, "Defesa até " + prazoTexto(a.prazo)));
-      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa (opcional)", "aria-label": "Defesa" });
+      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa", "aria-label": "Defesa" });
       ta.value = rascunhos[a.id] ?? (def ? def.texto : "");
       ta.addEventListener("input", () => { rascunhos[a.id] = ta.value; });
       const btn = h("button", { class: "btn peq", type: "button", style: "margin-top:8px" }, def ? "Atualizar defesa" : "Enviar defesa");
       btn.addEventListener("click", () => enviarDefesa(a, ta.value, btn));
-      box.append(ta, btn);
+      box.append(ta, campoImagem(a, def), btn);
       if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + ". Você pode alterar até o prazo."));
     } else {
       box.append(h("div", { class: "prazo fechado" }, a.mce ? "Defesa encerrada (NAMCE publicada)" : "Prazo de defesa encerrado (" + prazoTexto(a.prazo) + ")"));
       if (def) box.append(h("div", { class: "defesa-txt" }, def.texto));
+      if (def && def.temImagem) box.append(miniaturaImagem(a));
       else if (a.defesaEm) box.append(h("div", { class: "ajuda" }, "Defesa enviada em " + dataHora(a.defesaEm) + "."));
       else box.append(h("div", { class: "ajuda" }, "Nenhuma defesa enviada."));
     }
@@ -1600,17 +1615,70 @@ function cartaoMinha(a) {
   return h("div", { class: "anot" }, filhos);
 }
 
+/** Campo de imagem da defesa (cadete, dentro do prazo). */
+function campoImagem(a, def) {
+  const wrap = h("div", { class: "img-defesa" });
+  const r = imgRasc[a.id];
+  const input = h("input", { type: "file", accept: "image/*", "aria-label": "Anexar imagem à defesa" });
+  input.addEventListener("change", async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) { avisar("Escolha uma imagem (foto ou print).", true); return; }
+    try {
+      avisar("Preparando a imagem…");
+      const blob = await reduzirImagem(f);
+      if (imgRasc[a.id] && imgRasc[a.id].url) URL.revokeObjectURL(imgRasc[a.id].url);
+      imgRasc[a.id] = { blob, url: URL.createObjectURL(blob) };
+      avisar("Imagem pronta. Toque em \"" + (def ? "Atualizar defesa" : "Enviar defesa") + "\" para enviar.");
+    } catch (err) { console.error(err); avisar("Não foi possível usar essa imagem. Tente outra foto ou um print.", true); }
+    desenharMinhas();
+  });
+  const remover = (texto) => h("button", { class: "btn-link-perigo", type: "button", onclick: () => {
+    if (imgRasc[a.id] && imgRasc[a.id].url) URL.revokeObjectURL(imgRasc[a.id].url);
+    if (def && def.temImagem) imgRasc[a.id] = { remover: true }; else delete imgRasc[a.id];
+    desenharMinhas();
+  } }, texto);
+  if (r && r.url) {
+    const im = h("img", { src: r.url, alt: "Imagem escolhida", onclick: () => abrirImagem(r.url) });
+    wrap.append(im, h("span", { class: "ajuda" }, "Nova imagem (ainda não enviada)"), remover("tirar"));
+  } else if (def && def.temImagem && !(r && r.remover)) {
+    wrap.append(miniaturaImagem(a), remover("tirar imagem"));
+  } else {
+    wrap.append(h("span", { class: "ajuda" }, r && r.remover ? "A imagem será retirada ao enviar." : "Imagem (opcional, 1 por defesa):"), input);
+  }
+  return wrap;
+}
+/** Miniatura da imagem já enviada (baixa quando aparece). */
+function miniaturaImagem(a) {
+  const im = h("img", { alt: "Imagem enviada com a defesa" });
+  const caixa = h("span", { class: "img-defesa" }, im);
+  urlImagemDefesa(a).then((url) => { if (url) { im.src = url; im.onclick = () => abrirImagem(url); } else caixa.replaceChildren(); })
+    .catch((err) => { console.error(err); caixa.replaceChildren(h("span", { class: "ajuda" }, "(não foi possível carregar a imagem)")); });
+  return caixa;
+}
+
 async function enviarDefesa(a, texto, btn) {
   texto = (texto || "").trim();
   if (!texto) { avisar("Escreva a defesa antes de enviar.", true); return; }
   if (!prazoAberto(a.prazo)) { avisar("O prazo de defesa já terminou.", true); return; }
   btn.disabled = true;
   try {
+    const r = imgRasc[a.id];
+    const antes = defesas[a.id];
+    const temImagem = r && r.blob ? true : r && r.remover ? false : !!(antes && antes.temImagem);
     const lote = writeBatch(db);
-    lote.set(doc(db, "anotacoes", a.id, "defesa", "texto"), { texto, enviadaEm: serverTimestamp() });
+    lote.set(doc(db, "anotacoes", a.id, "defesa", "texto"), { texto, temImagem, enviadaEm: serverTimestamp() });
+    if (r && r.blob) {
+      const bytes = Bytes.fromUint8Array(new Uint8Array(await r.blob.arrayBuffer()));
+      lote.set(doc(db, "anotacoes", a.id, "defesa", "imagem"), { dados: bytes, enviadaEm: serverTimestamp() });
+    } else if (r && r.remover) {
+      lote.delete(doc(db, "anotacoes", a.id, "defesa", "imagem"));
+    }
     lote.update(doc(db, "anotacoes", a.id), { defesaEm: serverTimestamp() });
     await lote.commit();
-    defesas[a.id] = { texto, versao: -1 };
+    defesas[a.id] = { texto, temImagem, versao: -1 };
+    if (r && r.url) URL.revokeObjectURL(r.url);
+    delete imgRasc[a.id];
     delete rascunhos[a.id];
     avisar("Defesa enviada.");
   } catch (err) {
@@ -1618,6 +1686,59 @@ async function enviarDefesa(a, texto, btn) {
     avisar(err.code === "permission-denied" ? "Não foi possível enviar: o prazo pode ter terminado." : "Não foi possível enviar. Tente de novo.", true);
     btn.disabled = false;
   }
+}
+
+// ---------- Imagem da defesa (1 por defesa; reduzida no aparelho e guardada no banco, plano gratuito) ----------
+const imgRasc = {};        // id da anotação -> { blob, url } (nova) ou { remover: true }
+const imgCache = {};       // "id|versao" -> URL da imagem já baixada
+const IMG_MAX_BYTES = 850 * 1024;
+
+/** Reduz a foto para no máximo 1600 px e JPEG até caber em ~850 KB. */
+async function reduzirImagem(arquivo) {
+  const url = URL.createObjectURL(arquivo);
+  try {
+    const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = url; });
+    let lado = 1600, qual = 0.8;
+    for (let tent = 0; tent < 8; tent++) {
+      const esc = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * esc); c.height = Math.round(img.naturalHeight * esc);
+      const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise((ok) => c.toBlob(ok, "image/jpeg", qual));
+      if (blob && blob.size <= IMG_MAX_BYTES) return blob;
+      if (qual > 0.55) qual -= 0.1; else lado = Math.round(lado * 0.8);
+    }
+    throw new Error("grande");
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/** Baixa (uma vez por versão da defesa) a imagem e devolve a URL para mostrar. */
+async function urlImagemDefesa(a) {
+  const chave = `${a.id}|${a.defesaEm?.seconds || 0}`;
+  if (imgCache[chave]) return imgCache[chave];
+  const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "imagem"));
+  if (!s.exists()) return null;
+  const url = URL.createObjectURL(new Blob([s.data().dados.toUint8Array()], { type: "image/jpeg" }));
+  imgCache[chave] = url;
+  return url;
+}
+function abrirImagem(url) {
+  $("#imgDefesa").src = url;
+  $("#dlgImagem").showModal();
+}
+$("#btnFecharImg").addEventListener("click", () => $("#dlgImagem").close());
+$("#dlgImagem").addEventListener("click", (e) => { if (e.target === $("#dlgImagem")) $("#dlgImagem").close(); });
+
+/** Botão "Ver imagem" para quem acompanha a defesa (nível 3). */
+function botaoImagem(a) {
+  const d = defesas[a.id];
+  if (!d || !d.temImagem) return null;
+  return h("button", { class: "btn-img", type: "button", onclick: async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try { const url = await urlImagemDefesa(a); if (url) abrirImagem(url); else avisar("Imagem não encontrada.", true); }
+    catch (err) { console.error(err); avisar("Não foi possível abrir a imagem.", true); }
+    b.disabled = false;
+  } }, "📎 Ver imagem");
 }
 
 // ================== Lançar anotação (nível 2 e 3) ==================
@@ -2049,7 +2170,7 @@ function textoDefesa(a) {
   if (!a.defesaEm) return h("span", { class: "def-aguarda" }, "aguardando (até seg " + dataCurta(a.prazo.toMillis()) + " 23h59)");
   const d = defesas[a.id];
   if (d && d.versao === a.defesaEm.seconds) {
-    return h("div", {}, h("div", { class: "def-enviada" }, "Enviada em " + dataHora(a.defesaEm)), h("div", { class: "just-txt", title: d.texto }, d.texto));
+    return h("div", {}, h("div", { class: "def-enviada" }, "Enviada em " + dataHora(a.defesaEm)), h("div", { class: "just-txt", title: d.texto }, d.texto), botaoImagem(a));
   }
   return h("span", { class: "ajuda" }, "carregando…");
 }
@@ -2521,7 +2642,7 @@ function linhaDosi(a, num, linhas) {
   // Justificativa (defesa do cadete)
   let just;
   if (!a.defesaEm) just = h("span", { class: "ajuda" }, "—");
-  else if (defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) just = h("div", { class: "just-txt", title: defesas[a.id].texto }, defesas[a.id].texto);
+  else if (defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) just = h("div", {}, h("div", { class: "just-txt", title: defesas[a.id].texto }, defesas[a.id].texto), botaoImagem(a));
   else just = h("span", { class: "ajuda" }, "carregando…");
 
   const ok = decidida(d);

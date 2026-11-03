@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -185,15 +185,23 @@ service cloud.firestore {
       match /defesa/{docId} {
         function anot() { return get(/databases/$(database)/documents/anotacoes/$(aid)).data; }
         allow read: if nivel(3) || (ativo() && anot().cadeteId == meuCadete());
-        allow create, update: if ativo()
-          && docId == 'texto'
-          && anot().cadeteId == meuCadete()
-          && anot().tipo == 'aad'
-          && request.time <= anot().prazo
-          && request.resource.data.keys().hasOnly(['texto', 'enviadaEm'])
-          && txt(request.resource.data.texto, 1, 3000)
-          && request.resource.data.enviadaEm == request.time;
-        allow delete: if false;
+        function doCadeteNoPrazo() {
+          return ativo() && anot().cadeteId == meuCadete() && anot().tipo == 'aad' && request.time <= anot().prazo;
+        }
+        // 'texto': a defesa escrita (obrigatória); 'imagem': 1 foto opcional, já reduzida no aparelho (até 900 KB)
+        allow create, update: if doCadeteNoPrazo()
+          && ((docId == 'texto'
+                && request.resource.data.keys().hasOnly(['texto', 'temImagem', 'enviadaEm'])
+                && txt(request.resource.data.texto, 1, 3000)
+                && request.resource.data.get('temImagem', false) is bool
+                && request.resource.data.enviadaEm == request.time)
+            || (docId == 'imagem'
+                && request.resource.data.keys().hasOnly(['dados', 'enviadaEm'])
+                && request.resource.data.dados is bytes
+                && request.resource.data.dados.size() <= 921600
+                && request.resource.data.enviadaEm == request.time));
+        // o cadete pode tirar a imagem até o prazo; o texto nunca é apagado
+        allow delete: if docId == 'imagem' && doCadeteNoPrazo();
       }
     }
 
