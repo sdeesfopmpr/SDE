@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.10">
+<meta name="sde-versao" content="2026-11-03.11">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1159,7 +1159,7 @@ function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
   limpezaCpfFeita = false;
-  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
+  dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
   for (const k of Object.keys(obsRasc)) delete obsRasc[k];
   for (const k of Object.keys(defesas)) delete defesas[k];
@@ -1469,7 +1469,7 @@ function abrirApp() {
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes"].forEach(desassinar);
   }
   desenharMinhas();
   mostrar("v-app");
@@ -2020,6 +2020,7 @@ function ordenarAnot(a, b) {
 // ---------- Abas internas: "Semana atual" (acompanhamento) e "Semana fechada" (dosimetria)
 let atualW = 0;                 // prazo da semana que está recebendo anotações
 let atual = [];                 // anotações dessa semana (ao vivo)
+let excluidas = [];             // anotações dessa semana que o nível 3 excluiu (registro)
 let subAtual = "atual";
 let relogioTimer = null;
 let selecaoManual = false;      // o usuário escolheu a semana fechada na lista?
@@ -2122,6 +2123,11 @@ function assinarSemana() {
     (snap) => { atual = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharAtual(); },
     (err) => { console.error(err); $("#listaAtual").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações.")); }
   ));
+  assinar("exclusoes", rec, () => onSnapshot(
+    query(collection(db, "exclusoes"), where("prazo", "==", Timestamp.fromMillis(rec))),
+    (snap) => { excluidas = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharAtual(); },
+    (err) => console.error(err)
+  ));
   if (!relogioTimer) {
     relogioTimer = setInterval(tique, 20000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) tique(); });
@@ -2211,6 +2217,12 @@ function desenharAtual() {
   } else {
     partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, validas.length ? "Nada encontrado com essa busca." : "Nenhuma anotação lançada nesta semana até agora.")));
   }
+  if (excluidas.length) {
+    partes.push(h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${excluidas.length} anotação(ões) excluída(s) nesta semana`),
+      h("ul", { class: "lista-simples" }, [...excluidas].sort((x, y) => (y.excluidaEm?.seconds || 0) - (x.excluidaEm?.seconds || 0)).map((x) => h("li", {},
+        h("strong", {}, x.cadeteGuerra), ` (${x.tipo === "fo" ? "FO+" : "AAD"}) · ${x.descricao} — lançada por ${x.anotadorNome}; excluída por ${x.excluidaPorNome || "—"}` +
+        (x.excluidaEm?.toMillis ? " em " + dataHora(x.excluidaEm) : "") + (x.motivo ? `. Motivo: ${x.motivo}` : "."))))));
+  }
   if (anuladas.length) {
     partes.push(h("details", { class: "soltos", style: "margin-top:10px" }, h("summary", {}, `${anuladas.length} anotação(ões) anulada(s) nesta semana`),
       h("ul", { class: "lista-simples" }, anuladas.map((a) => h("li", {}, h("strong", {}, a.cadeteGuerra), ` · ${a.descricao} — anulada por ${a.anuladaPor || "—"}: ${a.anuladaMotivo || ""}`)))));
@@ -2220,7 +2232,7 @@ function desenharAtual() {
 
 /** Tabela de anotações com a defesa ao lado (por turma, como na Planilha, ou mais recentes primeiro). */
 function tabelaAcompanhamento(lista, porRecentes) {
-  const ncol = 6;
+  const ncol = 7;
   const corpo = [];
   if (porRecentes) {
     [...lista].sort((a, b) => criadoMs(b) - criadoMs(a)).forEach((a, i) => corpo.push(linhaAtual(a, i + 1, true)));
@@ -2239,7 +2251,7 @@ function tabelaAcompanhamento(lista, porRecentes) {
   }
   return h("div", { class: "acomp-wrap" }, h("table", { class: "acomp-tabela" },
     h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", { class: "quando" }, "Lançada em"), h("th", { class: "cad" }, "Cadete"),
-      h("th", {}, "Anotador"), h("th", { class: "desc" }, "Descrição"), h("th", { class: "def" }, "Defesa"))),
+      h("th", {}, "Anotador"), h("th", { class: "desc" }, "Descrição"), h("th", { class: "def" }, "Defesa"), h("th", { class: "acao-linha" }))),
     h("tbody", {}, corpo)));
 }
 
@@ -2263,7 +2275,37 @@ function linhaAtual(a, num, comTurma = false) {
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
     h("td", {}, a.anotadorNome),
     h("td", { class: "desc" }, a.descricao),
-    h("td", { class: "def" }, textoDefesa(a)));
+    h("td", { class: "def" }, textoDefesa(a)),
+    h("td", { class: "acao-linha" }, Date.now() < fechamentoDe(a.prazo.toMillis())
+      ? h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirAnotacao(a) }, "excluir") : null));
+}
+
+/** Nível 3: exclui uma anotação (AAD ou FO+) da semana ainda aberta (até sexta 18h). Fica registro em "exclusoes". */
+async function excluirAnotacao(a) {
+  if (Date.now() >= fechamentoDe(a.prazo.toMillis())) { avisar("A semana desta anotação já fechou: ela não pode mais ser excluída.", true); return; }
+  const motivo = prompt(`Excluir ${a.tipo === "fo" ? "o FO+" : "a AAD"} de ${a.cadeteGuerra}?\n\n"${a.descricao}"\n(lançada por ${a.anotadorNome})\n\n` +
+    "A anotação some do sistema para o cadete, para quem lançou e da Planilha. Fica só um registro da exclusão para o nível 3.\n\nMotivo (opcional):", "");
+  if (motivo === null) return;
+  try {
+    const lote = writeBatch(db);
+    lote.set(doc(collection(db, "exclusoes")), {
+      anotacaoId: a.id, tipo: a.tipo, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
+      cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma || "", cadetePelotao: a.cadetePelotao,
+      anotadorUid: a.anotadorUid, anotadorNome: a.anotadorNome, descricao: a.descricao, fatoEm: a.fatoEm, criadoEm: a.criadoEm || null,
+      prazo: a.prazo, motivo: motivo.trim().slice(0, 500),
+      excluidaPor: auth.currentUser.uid, excluidaPorNome: nomeCurto(perfil).toUpperCase(), excluidaEm: serverTimestamp()
+    });
+    if (a.tipo === "aad") {
+      lote.delete(doc(db, "anotacoes", a.id, "defesa", "texto"));
+      lote.delete(doc(db, "anotacoes", a.id, "defesa", "imagem"));
+    }
+    lote.delete(doc(db, "anotacoes", a.id));
+    await lote.commit();
+    avisar("Anotação excluída.");
+  } catch (err) {
+    console.error(err);
+    avisar(err.code === "permission-denied" ? "Não foi possível excluir: a semana pode ter fechado." : "Não foi possível excluir. Tente de novo.", true);
+  }
 }
 
 // ---------- Planilha de Anotados (publicada após o fechamento, sem dosimetria)

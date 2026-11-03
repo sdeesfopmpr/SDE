@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -163,7 +163,8 @@ service cloud.firestore {
         || (ativo() && (resource.data.anotadorUid == request.auth.uid
                         || resource.data.cadeteId == meuCadete()));
 
-      // lançar: nível 2 ou 3. Ninguém edita nem apaga depois.
+      // lançar: nível 2 ou 3. Ninguém edita depois. Só o nível 3 pode excluir, e só enquanto a semana
+      // da anotação está aberta (até sexta 18h = prazo − 3d 5h59min59s); fica registro em /exclusoes.
       allow create: if nivel(2) && anotacaoValida(request.resource.data);
 
       // o cadete só marca a hora em que enviou a defesa, e só até o prazo;
@@ -179,7 +180,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
           && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao in ['transf', 'aguardando']));
 
-      allow delete: if false;
+      allow delete: if nivel(3) && request.time < resource.data.prazo - duration.value(280799, 's');
 
       // Defesa escrita: só o próprio cadete (até o prazo) e o nível 3.
       match /defesa/{docId} {
@@ -200,9 +201,22 @@ service cloud.firestore {
                 && request.resource.data.dados is bytes
                 && request.resource.data.dados.size() <= 921600
                 && request.resource.data.enviadaEm == request.time));
-        // o cadete pode tirar a imagem até o prazo; o texto nunca é apagado
-        allow delete: if docId == 'imagem' && doCadeteNoPrazo();
+        // o cadete pode tirar a imagem até o prazo; o nível 3 apaga a defesa junto com a anotação excluída
+        // (só enquanto a semana está aberta)
+        allow delete: if (docId == 'imagem' && doCadeteNoPrazo())
+          || (nivel(3) && request.time < anot().prazo - duration.value(280799, 's'));
       }
+    }
+
+    // ---------- Registro das anotações excluídas (não muda e não apaga) ----------
+    match /exclusoes/{id} {
+      allow read: if nivel(3);
+      allow create: if nivel(3)
+        && request.resource.data.excluidaPor == request.auth.uid
+        && request.resource.data.excluidaEm == request.time
+        && request.resource.data.prazo is timestamp
+        && txt(request.resource.data.get('motivo', ''), 0, 500);
+      allow update, delete: if false;
     }
 
     // ---------- Dosimetria (decisões; invisíveis ao cadete até a publicação) ----------
