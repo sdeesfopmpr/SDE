@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1c1f5c">
 <link rel="icon" type="image/png" href="img/favicon.png">
-<meta name="sde-versao" content="2026-11-03.14">
+<meta name="sde-versao" content="2026-11-03.15">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -327,6 +327,41 @@
   @media (max-width: 560px) { .filtro-turma select { flex: 1 1 30%; } }
   .check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; cursor: pointer; }
   .check input { width: auto; }
+
+  /* Estatísticas */
+  .est-resumo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; }
+  .est-num { border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; background: var(--fundo-2); min-width: 0; }
+  .est-num strong { display: block; font-size: 24px; line-height: 1.1; color: var(--acento-esc); font-variant-numeric: tabular-nums; }
+  .est-num span { font-size: 12.5px; color: var(--suave); }
+  @media (max-width: 640px) { .est-resumo { grid-template-columns: 1fr 1fr; } }
+  .est-op select { width: auto; }
+  @media (max-width: 560px) { .est-op select { flex: 1 1 40%; min-width: 0; } }
+  .est-lista { border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+  .est-cab, .est-linha { display: grid; grid-template-columns: 40px minmax(0, 1fr) 130px 64px 64px 22px; gap: 8px; align-items: center; padding: 8px 10px; }
+  .est-cab { background: var(--fundo-2); color: var(--suave); font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--borda); }
+  .est-cab .n, .est-linha .n { text-align: center; }
+  .est-item + .est-item { border-top: 1px solid var(--borda); }
+  .est-linha { width: 100%; background: var(--cartao); border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .est-linha:hover, .est-linha:focus-visible { background: var(--fundo-2); outline: none; }
+  .est-linha .pos { color: var(--suave); font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .est-linha .nome strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .est-linha .nome small { display: block; color: var(--suave); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .est-linha .tur { font-size: 13.5px; color: var(--suave); }
+  .est-linha .n { font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .est-linha .n.zero { color: var(--suave); font-weight: 500; }
+  .est-linha .n small { display: block; font-size: 11px; font-weight: 600; color: var(--suave); }
+  .est-linha .seta { color: var(--suave); text-align: center; }
+  .est-item.inativo .nome strong { color: var(--suave); }
+  .est-det { padding: 4px 12px 12px; background: var(--fundo-2); border-top: 1px dashed var(--borda); }
+  .est-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+  .est-chips span { font-size: 12.5px; border: 1px solid var(--borda); border-radius: 12px; padding: 2px 10px; background: var(--cartao); }
+  .est-anot { border: 1px solid var(--borda); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--cartao); }
+  .est-anot .anot-desc { margin: 2px 0 6px; overflow-wrap: anywhere; }
+  .est-anot .est-res { font-size: 13.5px; }
+  @media (max-width: 640px) {
+    .est-cab, .est-linha { grid-template-columns: 28px minmax(0, 1fr) 46px 46px 16px; gap: 6px; padding: 8px; }
+    .est-cab .tur, .est-linha .tur { display: none; }
+  }
   .legenda-blocos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--suave); }
   .legenda-blocos span { display: inline-flex; align-items: center; gap: 5px; }
   .bl { display: inline-block; width: 16px; height: 12px; border-radius: 3px; border: 1px solid var(--borda); background: var(--cartao); }
@@ -834,6 +869,38 @@
         </div>
         <div id="listaSemana"></div>
         <div id="excluidasSemana"></div>
+      </div>
+    </div>
+
+    <!-- Estatísticas (nível 3) -->
+    <div class="aba" id="aba-estat" role="tabpanel" hidden>
+      <div class="cartao">
+        <h2>Estatísticas</h2>
+        <div class="filtros filtro-turma">
+          <input id="eBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
+          <select id="eFAno" aria-label="Filtrar por curso / ano"></select>
+          <select id="eFTurma" aria-label="Filtrar por turma"></select>
+          <select id="eFPel" aria-label="Filtrar por pelotão"></select>
+          <button class="link" type="button" id="eFLimpar" hidden>Limpar filtros</button>
+        </div>
+        <div class="filtros est-op">
+          <select id="eOrdem" aria-label="Ordenar">
+            <option value="alfa">Ordem alfabética</option>
+            <option value="aad">Ranking de AAD</option>
+            <option value="fo">Ranking de FO+</option>
+          </select>
+          <select id="ePeriodo" aria-label="Período">
+            <option value="tudo">Todo o período</option>
+            <option value="ano">Este ano</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="30">Últimos 30 dias</option>
+          </select>
+          <label class="check"><input type="checkbox" id="eSoCom"> Só quem tem anotações</label>
+          <label class="check"><input type="checkbox" id="eInativos"> Incluir inativos</label>
+        </div>
+        <div id="eResumo" class="est-resumo"></div>
+        <p class="ajuda" id="eTotal" style="margin:0 0 6px"></p>
+        <div id="listaEstat"></div>
       </div>
     </div>
 
@@ -1443,6 +1510,7 @@ function abasDisponiveis() {
   if (perfil.nivel >= 2) abas.push({ id: "lancar", nome: "Lançar anotação" });
   if (perfil.nivel >= 3) {
     abas.push({ id: "semana", nome: "Dosimetria" });
+    abas.push({ id: "estat", nome: "Estatísticas" });
     abas.push({ id: "escalas", nome: "Escalas" });
     abas.push({ id: "cadetes", nome: "Cadetes" });
     abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
@@ -1476,13 +1544,16 @@ function abrirApp() {
     prepararCiclos();
     prepararEscalas();
     prepararCadetes();
+    prepararEstat();
+    if (abaAtual === "estat") assinarEstat();
     assinarUsuarios();
     assinarSemana();
     assinarEscalasLista();
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes", "exclusoesFechada"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
+    estatAnot = []; estatCarregado = false;
   }
   desenharMinhas();
   mostrar("v-app");
@@ -1491,6 +1562,7 @@ function abrirApp() {
 function trocarAba(id) {
   abaAtual = id;
   if (id === "semana") tique();
+  if (id === "estat" && perfil && perfil.nivel >= 3) assinarEstat();
   document.querySelector("main").classList.toggle("largo", id === "semana");
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
@@ -1802,6 +1874,7 @@ function assinarCadetes() {
     desenharSugestoes();
     if (seletorEscala) seletorEscala.desenhar();
     desenharCadetes();
+    desenharEstat();
   }, (err) => console.error(err)));
 }
 
@@ -3558,6 +3631,142 @@ async function cadastrarCadete(ev) {
     console.error(err);
     mensagem("#msgCadete", "Não foi possível cadastrar.");
   } finally { btn.disabled = false; }
+}
+
+// ================== Estatísticas (nível 3) ==================
+// Todas as anotações são lidas só quando a aba é aberta (para poupar leituras do Firebase).
+let estatAnot = [], estatCarregado = false, estatPronto = false, filtroEstat = null;
+const estatAbertos = new Set();   // cadetes com o detalhe aberto
+
+function prepararEstat() {
+  if (estatPronto) return;
+  estatPronto = true;
+  filtroEstat = criarFiltroTurma("eF", $("#eBusca"), desenharEstat);
+  try { const o = localStorage.getItem("sde-est-ordem"); if (o) $("#eOrdem").value = o; } catch (e) { /* sem armazenamento */ }
+  if (!$("#eOrdem").value) $("#eOrdem").value = "alfa";
+  $("#eOrdem").addEventListener("change", () => { try { localStorage.setItem("sde-est-ordem", $("#eOrdem").value); } catch (e) { /* ok */ } desenharEstat(); });
+  ["#ePeriodo", "#eSoCom", "#eInativos"].forEach((s) => $(s).addEventListener("change", desenharEstat));
+}
+
+function assinarEstat() {
+  assinar("estat", "todas", () => onSnapshot(collection(db, "anotacoes"), (snap) => {
+    estatAnot = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    estatCarregado = true;
+    desenharEstat();
+  }, (err) => {
+    console.error(err);
+    $("#listaEstat").replaceChildren(h("p", { class: "msg erro" }, "Não foi possível carregar as anotações."));
+  }));
+  desenharEstat();
+}
+
+function inicioPeriodo(v) {
+  if (v === "30") return Date.now() - 30 * DIA;
+  if (v === "90") return Date.now() - 90 * DIA;
+  if (v === "ano") {
+    const ano = +new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", year: "numeric" });
+    return Date.UTC(ano, 0, 1, 3);   // 1º de janeiro, 00h (horário de Brasília)
+  }
+  return 0;
+}
+const msFato = (a) => (a.fatoEm && a.fatoEm.toMillis ? a.fatoEm.toMillis() : 0);
+
+/** Situação da AAD para os resumos: justif | td | transf | aguardando | mce | pendente */
+function situacaoAad(a) {
+  if (!a.mce) return "pendente";
+  return ["justif", "td", "transf", "aguardando"].includes(a.mce.decisao) ? a.mce.decisao : "mce";
+}
+const ROTULO_SIT = { mce: "com MCE", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
+
+function desenharEstat() {
+  if (!perfil || perfil.nivel < 3 || !filtroEstat) return;
+  const ordem = $("#eOrdem").value, desde = inicioPeriodo($("#ePeriodo").value);
+  const porCadete = new Map();
+  estatAnot.forEach((a) => {
+    if (desde && msFato(a) < desde) return;
+    if (!porCadete.has(a.cadeteId)) porCadete.set(a.cadeteId, []);
+    porCadete.get(a.cadeteId).push(a);
+  });
+  const base = todosCadetes.filter((c) => c.ativo || $("#eInativos").checked);
+  let itens = filtroEstat.aplicar(base).map((c) => {
+    const an = (porCadete.get(c.id) || []).slice().sort((x, y) => msFato(y) - msFato(x));
+    const aad = an.filter((a) => a.tipo !== "fo");
+    return { c, an, nA: aad.length, nF: an.length - aad.length, just: aad.filter((a) => situacaoAad(a) === "justif").length };
+  });
+  if ($("#eSoCom").checked) itens = itens.filter((x) => x.an.length);
+
+  const alfa = (x, y) => (x.c.guerra || "").localeCompare(y.c.guerra || "", "pt-BR");
+  const chave = ordem === "aad" ? (x) => x.nA : ordem === "fo" ? (x) => x.nF : null;
+  itens.sort(chave ? (x, y) => chave(y) - chave(x) || alfa(x, y) : alfa);
+  // posição no ranking: empatados ficam na mesma posição (1º, 2º, 2º, 4º…)
+  // (quem tem zero fica sem posição)
+  itens.forEach((x, i) => { x.pos = !chave || !chave(x) ? null : i && chave(itens[i - 1]) === chave(x) ? itens[i - 1].pos : i + 1; });
+
+  const totA = itens.reduce((s, x) => s + x.nA, 0), totF = itens.reduce((s, x) => s + x.nF, 0);
+  const totJ = itens.reduce((s, x) => s + x.just, 0), comA = itens.filter((x) => x.nA).length;
+  const num = (v, t) => h("div", { class: "est-num" }, h("strong", {}, String(v)), h("span", {}, t));
+  $("#eResumo").replaceChildren(
+    num(totA, "AAD"), num(totF, "FO+"),
+    num(`${comA}/${itens.length}`, "cadetes com AAD"),
+    num(totA ? Math.round((totJ / totA) * 100) + "%" : "—", `AAD justificadas${totJ ? ` (${totJ})` : ""}`)
+  );
+  $("#eTotal").textContent = filtroEstat.filtrando() || $("#eSoCom").checked ? `Mostrando ${itens.length} cadete(s).` : "";
+
+  if (!estatCarregado) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, "Carregando as anotações…")); return; }
+  if (!itens.length) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
+
+  $("#listaEstat").replaceChildren(h("div", { class: "est-lista" },
+    h("div", { class: "est-cab", "aria-hidden": "true" },
+      h("span", { class: "pos" }, chave ? "#" : ""), h("span", {}, "Cadete"), h("span", { class: "tur" }, "Turma"),
+      h("span", { class: "n" }, "AAD"), h("span", { class: "n" }, "FO+"), h("span", {})),
+    ...itens.map(itemEstat)));
+}
+
+function itemEstat(x) {
+  const { c } = x;
+  const aberto = estatAbertos.has(c.id);
+  const det = h("div", { class: "est-det", hidden: !aberto });
+  if (aberto) det.append(...detalheEstat(x));
+  const linha = h("button", {
+    type: "button", class: "est-linha", "aria-expanded": aberto ? "true" : "false",
+    onclick: () => {
+      if (estatAbertos.has(c.id)) estatAbertos.delete(c.id); else estatAbertos.add(c.id);
+      item.replaceWith(itemEstat(x));
+    }
+  },
+    h("span", { class: "pos" }, x.pos ? x.pos + "º" : ""),
+    h("span", { class: "nome" }, h("strong", {}, c.guerra, c.ativo ? "" : " (inativo)"), h("small", {}, c.nome)),
+    h("span", { class: "tur" }, turmaCurta(c)),
+    h("span", { class: "n" + (x.nA ? "" : " zero") }, String(x.nA), x.just ? h("small", {}, `${x.just} justif.`) : null),
+    h("span", { class: "n" + (x.nF ? "" : " zero") }, String(x.nF)),
+    h("span", { class: "seta", "aria-hidden": "true" }, aberto ? "▴" : "▾"));
+  const item = h("div", { class: "est-item" + (c.ativo ? "" : " inativo") }, linha, det);
+  return item;
+}
+
+function detalheEstat(x) {
+  const { c, an } = x;
+  if (!an.length) return [h("p", { class: "vazio", style: "margin-top:8px" }, "Nenhuma anotação no período.")];
+  const cont = {};
+  an.filter((a) => a.tipo !== "fo").forEach((a) => { const s = situacaoAad(a); cont[s] = (cont[s] || 0) + 1; });
+  const chips = ["mce", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
+    .map((s) => h("span", {}, `${cont[s]} ${ROTULO_SIT[s]}`));
+  const ultima = an[0];
+  return [
+    h("div", { class: "est-chips" },
+      h("span", {}, h("strong", {}, turmaCurta(c))),
+      ...chips,
+      h("span", {}, "última em " + dataFato(ultima.fatoEm).split(",")[0])),
+    ...an.map((a) => {
+      const epoca = `${a.cadeteAno}${a.cadeteTurma ? "/" + a.cadeteTurma : ""} · Pel. ${a.cadetePelotao}`;
+      return h("div", { class: "est-anot" },
+        h("div", { class: "anot-cab" }, tagTipo(a.tipo), h("strong", {}, "Fato em " + dataFato(a.fatoEm)),
+          h("span", { class: "anot-meta" }, "· anotado por " + (a.anotadorNome || "—")),
+          epoca !== turmaCurta(c) ? h("span", { class: "anot-meta" }, `· na época: ${epoca}`) : null),
+        h("p", { class: "anot-desc" }, a.descricao),
+        a.tipo !== "fo" ? h("div", { class: "est-res" }, "Resultado: ", resultadoAnotacao(a)) : null);
+    })
+  ];
 }
 
 // ---------- Acessos (nível 3) ----------
