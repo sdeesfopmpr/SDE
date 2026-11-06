@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.3">
+<meta name="sde-versao" content="2026-11-06.4">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -463,6 +463,17 @@
   .acomp-tabela .desc { white-space: pre-wrap; min-width: 220px; }
   .acomp-tabela .def { min-width: 220px; max-width: 360px; }
   .acomp-tabela tr.nova td:first-child { box-shadow: inset 4px 0 0 var(--ouro); }
+  /* Ícone "?" com a explicação numa mini janela (passar o mouse ou tocar) */
+  .dica { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none;
+    margin-left: 6px; padding: 0; border-radius: 50%; border: 1.5px solid var(--acento); background: transparent;
+    color: var(--acento); font: 700 11.5px/1 inherit; cursor: pointer; vertical-align: 2px; }
+  .dica:hover, .dica[aria-expanded="true"] { background: var(--acento); color: var(--cartao); }
+  .dica:focus-visible { outline: 2px solid var(--ouro); outline-offset: 2px; }
+  #dicaPop { position: fixed; z-index: 1000; max-width: min(320px, calc(100vw - 24px)); background: var(--cartao); color: var(--texto);
+    border: 1px solid var(--borda); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); padding: 10px 12px;
+    font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
+  .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
+  .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
   .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
   .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
   .selo-ciente.nao { border: 1px solid var(--borda); color: var(--suave); font-weight: 700; }
@@ -637,8 +648,7 @@
   <!-- Login -->
   <section class="vista" id="v-login" hidden>
     <div class="cartao estreito">
-      <h1>Entrar</h1>
-      <p class="legenda">Use o e-mail e a senha do seu cadastro.</p>
+      <h1>Entrar <button type="button" class="dica" aria-label="Ajuda" data-dica="Use o e-mail e a senha do seu cadastro. Ainda não tem acesso? Toque em Solicitar acesso.">?</button></h1>
       <form id="formLogin" novalidate>
         <label for="loginEmail">E-mail</label>
         <input id="loginEmail" type="email" autocomplete="username" required>
@@ -657,8 +667,7 @@
   <!-- Pedido de acesso -->
   <section class="vista" id="v-pedido" hidden>
     <div class="cartao medio">
-      <h1 id="tituloPedido">Solicitar acesso</h1>
-      <p class="legenda" id="legendaPedido">Preencha seus dados. A coordenação vai analisar o pedido e liberar o seu nível de acesso.</p>
+      <h1><span id="tituloPedido">Solicitar acesso</span> <button type="button" class="dica" aria-label="Ajuda" data-dica="Preencha seus dados. A coordenação ou a Missão SDE vai analisar o pedido e liberar o seu nível de acesso.">?</button></h1>
       <form id="formPedido" novalidate>
         <label>Você é</label>
         <div class="tipo-escolha" role="radiogroup">
@@ -680,7 +689,7 @@
         <div id="camposCadete">
           <div class="linha">
             <div>
-              <label for="pAno">Curso / ano</label>
+              <label for="pAno">Curso / ano <button type="button" class="dica" aria-label="Ajuda" data-dica="Exemplo: 1º CFO, turma /2, pelotão B.">?</button></label>
               <select id="pAno">
                 <option value="">Selecione</option>
                 <option>1º CFO</option>
@@ -706,16 +715,14 @@
               </select>
             </div>
           </div>
-          <div class="ajuda">Exemplo: 1º CFO, turma /2, pelotão B.</div>
         </div>
 
         <div id="camposConta">
-          <label for="pEmail">E-mail</label>
+          <label for="pEmail">E-mail <button type="button" class="dica" id="pEmailAjuda" aria-label="Ajuda" data-dica="Cadetes: use o seu e-mail institucional (terminado em @pm.pr.gov.br).">?</button></label>
           <input id="pEmail" type="email" autocomplete="email" placeholder="nome@pm.pr.gov.br">
-          <div class="ajuda" id="pEmailAjuda">Cadetes: use o seu e-mail institucional (@pm.pr.gov.br).</div>
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
             <div>
-              <label for="pSenha">Senha</label>
+              <label for="pSenha">Senha <button type="button" class="dica" aria-label="Ajuda" data-dica="Mínimo de 6 caracteres.">?</button></label>
               <input id="pSenha" type="password" autocomplete="new-password" minlength="6">
             </div>
             <div>
@@ -723,7 +730,6 @@
               <input id="pSenha2" type="password" autocomplete="new-password" minlength="6">
             </div>
           </div>
-          <div class="ajuda">Mínimo de 6 caracteres.</div>
         </div>
         <div id="contaLogada" class="ajuda" hidden></div>
 
@@ -753,8 +759,7 @@
     <!-- Minhas anotações (todos os cadetes) -->
     <div class="aba" id="aba-minhas" role="tabpanel" hidden>
       <div class="cartao">
-        <h2>Minhas anotações</h2>
-        <p class="legenda" style="margin-bottom:12px">As anotações aparecem aqui assim que são lançadas. A semana de anotações fecha na sexta-feira às 18h. A defesa escrita pode ser enviada ou alterada desde o lançamento até a <strong>segunda-feira seguinte ao fechamento, às 23h59</strong>.</p>
+        <h2>Minhas anotações <button type="button" class="dica" aria-label="Ajuda" data-dica="As anotações aparecem aqui assim que são lançadas, e a sua ciência fica registrada ao abrir esta aba. A semana de anotações fecha na sexta-feira às 18h. A defesa escrita pode ser enviada ou alterada desde o lançamento até a segunda-feira seguinte ao fechamento, às 23h59.">?</button></h2>
         <div id="listaMinhas"></div>
       </div>
     </div>
@@ -762,7 +767,7 @@
     <!-- Lançar anotação (nível 2 e 3) -->
     <div class="aba" id="aba-lancar" role="tabpanel" hidden>
       <div class="cartao">
-        <h2>Lançar anotação</h2>
+        <h2>Lançar anotação <button type="button" class="dica" id="aPrazo" aria-label="Ajuda" data-dica="">?</button></h2>
         <form id="formAnot" novalidate>
           <label>Tipo</label>
           <div class="tipo-escolha" role="radiogroup">
@@ -770,24 +775,20 @@
             <label><input type="radio" name="tipoAnot" value="fo"><span>FO+ · fato positivo</span></label>
           </div>
 
-          <label for="buscaCadete">Cadete(s) anotado(s)</label>
+          <label for="buscaCadete">Cadete(s) anotado(s) <button type="button" class="dica" aria-label="Ajuda" data-dica="Digite o nome ou clique na seta para ver a lista da turma escolhida. Pode escolher vários cadetes: cada um recebe a sua anotação.">?</button></label>
           <div class="busca-cadete">
             <select id="filtroTurma" aria-label="Filtrar por turma"></select>
             <input id="buscaCadete" type="text" autocomplete="off">
           </div>
           <div id="escolhidos" class="chips"></div>
-          <div class="ajuda">Digite o nome ou clique na seta para ver a lista da turma escolhida. Pode escolher vários cadetes: cada um recebe a sua anotação.</div>
 
           <div class="linha" style="grid-template-columns: 1fr 1fr;">
-            <div><label for="aData">Data do fato</label><input id="aData" type="date"></div>
-            <div><label for="aHora">Hora do fato</label><input id="aHora" type="time"></div>
+            <div><label for="aData">Data em que o fato ocorreu <button type="button" class="dica" id="aLimite" aria-label="Ajuda" data-dica="Informe quando o fato aconteceu, não o momento em que você está lançando.">?</button></label><input id="aData" type="date"></div>
+            <div><label for="aHora">Hora em que o fato ocorreu</label><input id="aHora" type="time"></div>
           </div>
-          <div class="ajuda">Informe quando o fato <strong>aconteceu</strong>, não o momento em que você está lançando.</div>
-          <div class="ajuda" id="aLimite"></div>
 
           <label for="aDesc">Descrição</label>
           <textarea id="aDesc" rows="4" maxlength="1000" placeholder="Descreva o que foi constatado" lang="pt-BR" spellcheck="true" autocorrect="on" autocapitalize="sentences"></textarea>
-          <div class="ajuda" id="aPrazo"></div>
 
           <div id="msgAnot" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnLancar">Lançar anotação</button>
@@ -817,7 +818,7 @@
         <div class="cartao">
           <div class="cab-painel">
             <div>
-              <h2 style="margin-bottom:2px">Acompanhamento da semana</h2>
+              <h2 style="margin-bottom:2px">Acompanhamento da semana <button type="button" class="dica" aria-label="Ajuda" data-dica="A lista se atualiza sozinha a cada anotação lançada, a cada defesa enviada e a cada ciência do cadete. Na sexta-feira às 18h a semana fecha e passa para a aba Semana fechada, onde a Planilha de Anotados é publicada.">?</button></h2>
               <p class="legenda" id="atualPeriodo" style="margin:0"></p>
             </div>
             <div class="relogio" id="atualRelogio" aria-live="polite"></div>
@@ -831,7 +832,6 @@
             </select>
             <button class="btn sec" type="button" id="btnPreviaPlanAtual">Prévia da Planilha de Anotados</button>
           </div>
-          <p class="ajuda" style="margin:0">A lista se atualiza sozinha a cada anotação lançada e a cada defesa enviada. Na sexta-feira às 18h a semana fecha e passa para a aba <strong>Semana fechada</strong>, onde a Planilha de Anotados é publicada.</p>
         </div>
         <div id="listaAtual"></div>
       </div>
@@ -850,8 +850,8 @@
         </div>
         <div class="cartao recolhivel" data-chave="planilha">
           <h2><button type="button" class="btn-recolher" aria-expanded="true">
-            <span class="seta-rec" aria-hidden="true">▾</span>1. Planilha de Anotados <small class="ajuda tit-extra">(sem dosimetria, publicada após o fechamento)</small>
-            <span class="resumo-min"></span></button></h2>
+            <span class="seta-rec" aria-hidden="true">▾</span>1. Planilha de Anotados
+            <span class="resumo-min"></span></button><button type="button" class="dica" aria-label="Ajuda" data-dica="Lista de FO+ e AAD da semana, sem dosimetria. É publicada depois do fechamento (sexta-feira, 18h) e fica travada.">?</button></h2>
           <div class="corpo-rec">
           <div id="planilhaCab" class="namce-cab"></div>
           </div>
@@ -958,9 +958,8 @@
     <div class="aba" id="aba-cadetes" role="tabpanel" hidden>
       <div class="cartao recolhivel" data-chave="cadastrar">
         <h2><button type="button" class="btn-recolher" aria-expanded="true">
-          <span class="seta-rec" aria-hidden="true">▾</span>Cadastrar cadete<span class="resumo-min"></span></button></h2>
+          <span class="seta-rec" aria-hidden="true">▾</span>Cadastrar cadete<span class="resumo-min"></span></button><button type="button" class="dica" aria-label="Ajuda" data-dica="Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo nome completo, a conta é ligada a este cadastro na aprovação.">?</button></h2>
         <div class="corpo-rec">
-        <p class="legenda">Cadastre quem ainda não pediu acesso. Quando o cadete pedir acesso com o mesmo nome completo, a conta é ligada a este cadastro na aprovação.</p>
         <form id="formCadete" novalidate>
           <label for="cNome">Nome completo</label>
           <input id="cNome" maxlength="120">
@@ -981,8 +980,7 @@
           <span class="seta-rec" aria-hidden="true">▾</span>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span><span class="resumo-min"></span></button></h2>
         <div class="corpo-rec">
         <details class="promover" id="promover">
-          <summary>Promover turmas (virada de ano)</summary>
-          <p class="legenda">Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em "Desativar" deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).</p>
+          <summary>Promover turmas (virada de ano) <button type="button" class="dica" aria-label="Ajuda" data-dica="Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em &quot;Desativar&quot; deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).">?</button></summary>
           <div id="promoverLinhas"></div>
           <button class="btn" type="button" id="btnPromover">Aplicar promoção</button>
         </details>
@@ -1112,6 +1110,63 @@ function h(tag, attrs = {}, ...filhos) {
   }
   return e;
 }
+
+// ---------- Ícone "?" com a explicação (mini janela) ----------
+// Com mouse: abre ao passar por cima. Toque ou clique: abre e fecha. Esc, clique fora ou rolar a página fecha.
+function dica(texto) { return h("button", { type: "button", class: "dica", "aria-label": "Ajuda", "data-dica": texto }, "?"); }
+function definirDica(sel, texto) {
+  const b = typeof sel === "string" ? $(sel) : sel;
+  if (!b) return;
+  b.dataset.dica = texto;
+  if (dicaAberta === b) posicionarDica(b);
+}
+let dicaAberta = null, dicaFixa = false;
+const dicaPop = h("div", { id: "dicaPop", role: "tooltip", hidden: true });
+document.body.append(dicaPop);
+function posicionarDica(b) {
+  dicaPop.textContent = b.dataset.dica || "";
+  dicaPop.style.left = "0px"; dicaPop.style.top = "0px";   // mede a largura sem a posição anterior
+  dicaPop.hidden = false;
+  const r = b.getBoundingClientRect(), m = 12;
+  const w = dicaPop.offsetWidth, hp = dicaPop.offsetHeight;
+  let x = Math.min(Math.max(m, r.left + r.width / 2 - w / 2), window.innerWidth - w - m);
+  let y = r.bottom + 8;
+  if (y + hp > window.innerHeight - m && r.top - 8 - hp >= m) y = r.top - 8 - hp;
+  dicaPop.style.left = x + "px"; dicaPop.style.top = y + "px";
+}
+function abrirDica(b, fixa) {
+  if (dicaAberta && dicaAberta !== b) dicaAberta.setAttribute("aria-expanded", "false");
+  dicaAberta = b; dicaFixa = fixa;
+  b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-describedby", "dicaPop");
+  posicionarDica(b);
+}
+function fecharDica() {
+  if (!dicaAberta) return;
+  dicaAberta.setAttribute("aria-expanded", "false"); dicaAberta.removeAttribute("aria-describedby");
+  dicaAberta = null; dicaFixa = false; dicaPop.hidden = true;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest(".dica");
+  if (b) {
+    e.preventDefault(); e.stopPropagation();     // não marca o campo do rótulo nem abre/fecha o quadro
+    if (dicaAberta === b && dicaFixa) fecharDica(); else abrirDica(b, true);
+    return;
+  }
+  if (dicaAberta && !dicaPop.contains(e.target)) fecharDica();
+}, true);
+document.addEventListener("pointerover", (e) => {
+  if (e.pointerType !== "mouse") return;
+  const b = e.target.closest && e.target.closest(".dica");
+  if (b && !dicaFixa) abrirDica(b, false);
+});
+document.addEventListener("pointerout", (e) => {
+  if (e.pointerType !== "mouse" || dicaFixa || !dicaAberta) return;
+  const b = e.target.closest && e.target.closest(".dica");
+  if (b === dicaAberta && !b.contains(e.relatedTarget)) fecharDica();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharDica(); });
+window.addEventListener("scroll", fecharDica, true);
+window.addEventListener("resize", fecharDica);
 
 function mostrar(id) {
   document.querySelectorAll(".vista").forEach((v) => { v.hidden = v.id !== id; });
@@ -1956,14 +2011,14 @@ function atualizarPrazoInfo() {
   $("#aData").max = hoje.data;
   if (temLimiteFato()) {
     $("#aData").min = `${lim.getFullYear()}-${p(lim.getMonth() + 1)}-${p(lim.getDate())}`;
-    $("#aLimite").textContent = `Só podem ser lançados fatos das últimas 24 horas: a partir de ${p(lim.getDate())}/${p(lim.getMonth() + 1)} às ${p(lim.getHours())}h${p(lim.getMinutes())}.`;
+    definirDica("#aLimite", `Informe quando o fato aconteceu, não o momento em que você está lançando. Só podem ser lançados fatos das últimas 24 horas: a partir de ${p(lim.getDate())}/${p(lim.getMonth() + 1)} às ${p(lim.getHours())}h${p(lim.getMinutes())}.`);
   } else {
     $("#aData").removeAttribute("min");
-    $("#aLimite").textContent = "";
+    definirDica("#aLimite", "Informe quando o fato aconteceu, não o momento em que você está lançando.");
   }
   const W = proximoPrazo().getTime();
-  $("#aPrazo").textContent = "A semana fecha na sexta-feira às 18h; o que for lançado depois entra na semana seguinte. "
-    + `Anotações lançadas agora: defesa até ${prazoTexto(new Date(W))}, dosimetria na quinta ${dataCurta(W + 2 * DIA + 1000)} e cumprimento de ${fdsTexto(W)}.`;
+  definirDica("#aPrazo", "A semana fecha na sexta-feira às 18h; o que for lançado depois entra na semana seguinte. "
+    + `Anotações lançadas agora: defesa até ${prazoTexto(new Date(W))}, dosimetria na quinta ${dataCurta(W + 2 * DIA + 1000)} e cumprimento de ${fdsTexto(W)}.`);
 }
 
 function desenharSugestoes() { if (seletorLancar) seletorLancar.desenhar(); }
@@ -2571,7 +2626,7 @@ function desenharPlanilha() {
     num.el, ano.el, assin.el, cargo.el, local.el,
     h("div", { style: "grid-column: 1 / -1" },
       h("span", { class: "selo-pub rascunho" }, corrigindoPlanilha ? "Corrigindo a Planilha publicada" : "Ainda não publicada"),
-      h("span", { class: "ajuda", style: "margin-left:10px" }, "Lista de FO+ e AAD da semana, sem dosimetria. Defesa até segunda " + dataCurta(W) + ", 23h59.")),
+      dica("Lista de FO+ e AAD da semana, sem dosimetria. Defesa até segunda " + dataCurta(W) + ", 23h59.")),
     h("div", { class: "acao", style: "grid-column: 1 / -1" },
       h("button", { class: "btn sec", type: "button", onclick: () => pdfPlanilha(W, true) }, "Prévia da Planilha"),
       h("button", { class: "btn", type: "button", disabled: aindaAberta, onclick: () => publicarPlanilha(W) },
