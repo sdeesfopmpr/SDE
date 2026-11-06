@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.7">
+<meta name="sde-versao" content="2026-11-06.8">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -479,8 +479,6 @@
     font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
   .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
   .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
-  .troca-email { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
-  .troca-email h3 { margin: 0; font-size: 15px; }
   .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
   .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
   .selo-ciente.nao { border: 1px solid var(--borda); color: var(--suave); font-weight: 700; }
@@ -1065,7 +1063,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, signOut, reauthenticateWithCredential, EmailAuthProvider, verifyBeforeUpdateEmail
+  sendPasswordResetEmail, signOut
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
@@ -1239,11 +1237,7 @@ function erroAuth(err) {
     "auth/weak-password": "A senha precisa ter pelo menos 6 caracteres.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
     "auth/network-request-failed": "Sem conexão com a internet.",
-    "auth/user-disabled": "Esta conta foi desativada.",
-    "auth/missing-password": "Informe a sua senha atual.",
-    "auth/requires-recent-login": "Por segurança, saia e entre de novo no sistema antes de trocar o e-mail.",
-    "auth/invalid-new-email": "Novo e-mail inválido.",
-    "auth/operation-not-allowed": "A troca de e-mail não está liberada no Firebase. Avise a Missão SDE."
+    "auth/user-disabled": "Esta conta foi desativada."
   };
   return mapa[c] || "Não foi possível concluir. Tente de novo.";
 }
@@ -1354,21 +1348,12 @@ onAuthStateChanged(auth, (user) => {
   pararPerfil = onSnapshot(doc(db, "usuarios", user.uid), (snap) => {
     perfil = snap.exists() ? { id: snap.id, ...snap.data() } : null;
     perfilCarregado = true;
-    sincronizarEmail(user);
     if (!ocupado) rotear();
   }, (err) => {
     console.error(err);
     mostrarStatus("⚠️", "Erro ao carregar", "Não foi possível ler seus dados. Atualize a página. Se continuar, avise a coordenação.");
   });
 });
-
-/** Depois que o usuário confirma o novo e-mail (link enviado pela troca de e-mail), o perfil passa a mostrar o e-mail novo. */
-function sincronizarEmail(user) {
-  const novo = (user.email || "").toLowerCase();
-  if (!perfil || !novo || (perfil.email || "").toLowerCase() === novo) return;
-  updateDoc(doc(db, "usuarios", user.uid), { email: novo, emailAlteradoEm: serverTimestamp() })
-    .catch((err) => console.error("Não foi possível atualizar o e-mail do perfil", err));
-}
 
 function rotear() {
   const user = auth.currentUser;
@@ -1685,45 +1670,7 @@ function desenharInfo() {
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
 
-  const abrir = h("button", { class: "link", type: "button", style: "margin-top:10px" }, "Alterar e-mail");
-  abrir.addEventListener("click", () => abrir.replaceWith(formTrocaEmail()));
-  $("#infoConteudo").replaceChildren(dados, abrir);
-}
-
-function formTrocaEmail() {
-  const cadete = perfil.tipo !== "coordenacao";
-  const novo = h("input", { type: "email", id: "novoEmail", autocomplete: "email", placeholder: cadete ? "nome@pm.pr.gov.br" : "" });
-  const senha = h("input", { type: "password", id: "senhaEmail", autocomplete: "current-password" });
-  const btn = h("button", { class: "btn cheio", type: "button", style: "margin-top:12px" }, "Enviar link de confirmação");
-  btn.addEventListener("click", async () => {
-    mensagem("#msgEmail", "");
-    const e = novo.value.trim().toLowerCase(), user = auth.currentUser;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { mensagem("#msgEmail", "Informe o novo e-mail."); return; }
-    if (e === (user.email || "").toLowerCase()) { mensagem("#msgEmail", "Este já é o e-mail da sua conta."); return; }
-    if (cadete && !emailInstitucional(e)) { mensagem("#msgEmail", "Cadetes devem usar o e-mail institucional (terminado em @pm.pr.gov.br)."); return; }
-    if (!senha.value) { mensagem("#msgEmail", "Informe a sua senha atual."); return; }
-    btn.disabled = true;
-    try {
-      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, senha.value));
-      await verifyBeforeUpdateEmail(user, e, { url: location.origin + location.pathname });
-      senha.value = "";
-      mensagem("#msgEmail", `Enviamos um link para ${e}. Abra esse e-mail (confira também o spam) e clique no link para confirmar. `
-        + "Até lá, continue entrando com o e-mail atual. Depois de confirmar, entre com o novo e-mail e a mesma senha.", "ok");
-    } catch (err) {
-      console.error(err);
-      mensagem("#msgEmail", erroAuth(err));
-    } finally { btn.disabled = false; }
-  });
-  return h("div", { class: "troca-email" },
-    h("h3", {}, "Alterar e-mail"),
-    h("label", { for: "novoEmail" }, "Novo e-mail",
-      dica("Um link de confirmação é enviado para o novo e-mail. A troca só vale depois que você clicar nele; até lá, continue entrando com o e-mail atual. A senha continua a mesma."
-        + (cadete ? " Cadetes: use o e-mail institucional (@pm.pr.gov.br)." : ""))),
-    novo,
-    h("label", { for: "senhaEmail" }, "Senha atual"),
-    senha,
-    h("div", { id: "msgEmail", class: "msg", hidden: true }),
-    btn);
+  $("#infoConteudo").replaceChildren(dados);
 }
 
 // ================== Ciclo semanal ==================
