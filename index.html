@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.2">
+<meta name="sde-versao" content="2026-11-06.3">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -463,6 +463,10 @@
   .acomp-tabela .desc { white-space: pre-wrap; min-width: 220px; }
   .acomp-tabela .def { min-width: 220px; max-width: 360px; }
   .acomp-tabela tr.nova td:first-child { box-shadow: inset 4px 0 0 var(--ouro); }
+  .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
+  .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
+  .selo-ciente.nao { border: 1px solid var(--borda); color: var(--suave); font-weight: 700; }
+  .ciente-txt { color: var(--ok); font-weight: 600; margin-top: 4px; }
   .selo-nova { display: inline-block; font-size: 10.5px; font-weight: 800; background: var(--ouro); color: #1b1d2b; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
   .def-aguarda { color: var(--suave); font-size: 12.5px; }
   .def-enviada { font-size: 11.5px; color: var(--ok); font-weight: 700; margin-bottom: 2px; }
@@ -1239,6 +1243,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) conf
 function limparMemoria() {
   $("#aviso").hidden = true;
   usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
+  cienciaEnviada.clear();
   limpezaCpfFeita = false;
   dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; excluidasFechada = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
   for (const k of Object.keys(anotExtra)) delete anotExtra[k];
@@ -1573,6 +1578,7 @@ function trocarAba(id) {
   abaAtual = id;
   if (id === "semana") tique();
   if (id === "estat" && perfil && perfil.nivel >= 3) assinarEstat();
+  if (id === "minhas") setTimeout(registrarCiencia, 0);
   document.querySelector("main").classList.toggle("largo", id === "semana");
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
@@ -1688,6 +1694,26 @@ function desenharMinhas() {
     return;
   }
   alvo.replaceChildren(...minhas.map(cartaoMinha));
+  registrarCiencia();
+}
+
+// ---------- Ciência automática ----------
+// Quando o cadete está com a aba "Minhas anotações" aberta e a página visível, cada anotação (AAD ou FO+)
+// ainda sem ciência recebe "cienteEm" (hora do servidor). Gravado uma única vez; as regras impedem mudar depois.
+const cienciaEnviada = new Set();
+function registrarCiencia() {
+  if (!perfil || !perfil.cadeteId || abaAtual !== "minhas" || document.hidden || $("#v-app").hidden) return;
+  minhas.filter((a) => !a.cienteEm && !cienciaEnviada.has(a.id)).forEach((a) => {
+    cienciaEnviada.add(a.id);
+    updateDoc(doc(db, "anotacoes", a.id), { cienteEm: serverTimestamp() })
+      .catch((err) => { console.error(err); cienciaEnviada.delete(a.id); });
+  });
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) registrarCiencia(); });
+function seloCiente(a) {
+  return a.cienteEm && a.cienteEm.toMillis
+    ? h("span", { class: "selo-ciente sim", title: "Ciente em " + dataHora(a.cienteEm) }, "✓ CIENTE")
+    : h("span", { class: "selo-ciente nao", title: "O cadete ainda não abriu a aba Minhas anotações depois do lançamento" }, "SEM CIÊNCIA");
 }
 
 function cartaoMinha(a) {
@@ -1697,8 +1723,9 @@ function cartaoMinha(a) {
       h("strong", {}, "Fato em " + dataFato(a.fatoEm)),
       h("span", { class: "anot-meta" }, "· anotado por " + a.anotadorNome)
     ),
-    h("p", { class: "anot-desc" }, a.descricao)
-  ];
+    h("p", { class: "anot-desc" }, a.descricao),
+    a.cienteEm && a.cienteEm.toMillis ? h("div", { class: "ajuda ciente-txt" }, "✓ Ciente em " + dataHora(a.cienteEm)) : null
+  ].filter(Boolean);
 
   if (a.anulada) {
     filhos.push(h("div", { class: "mce-box" }, h("strong", {}, "Anotação anulada"),
@@ -2307,6 +2334,7 @@ function desenharAtual() {
     h("span", {}, h("strong", {}, fo.length), " FO+"),
     h("span", {}, h("strong", {}, new Set(validas.map((a) => a.cadeteId)).size), " cadete(s)"),
     h("span", {}, h("strong", {}, aad.filter((a) => a.defesaEm).length), " com defesa"),
+    h("span", {}, h("strong", {}, `${validas.filter((a) => a.cienteEm).length}/${validas.length}`), " com ciência"),
     h("span", {}, h("strong", {}, recentes), " lançada(s) nas últimas 24h"),
     anuladas.length ? h("span", {}, h("strong", {}, anuladas.length), " anulada(s)") : null
   ].filter(Boolean));
@@ -2388,8 +2416,9 @@ function linhaAtual(a, num, comTurma = false) {
     h("td", { class: "num" }, num),
     h("td", { class: "quando" }, a.criadoEm ? dataHora(a.criadoEm) : "agora", nova ? h("span", { class: "selo-nova" }, "NOVA") : null,
       h("div", { class: "ajuda" }, "fato: " + dataFato(a.fatoEm))),
-    h("td", { class: "cad" }, h("strong", {}, a.cadeteGuerra), " ", a.tipo === "fo" ? tagTipo("fo") : comTurma ? tagTipo("aad") : null,
-      h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`)),
+    h("td", { class: "cad" }, h("strong", {}, a.cadeteGuerra), " ", a.tipo === "fo" ? tagTipo("fo") : comTurma ? tagTipo("aad") : null, seloCiente(a),
+      h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
+      a.cienteEm && a.cienteEm.toMillis ? h("div", { class: "ajuda" }, "ciente em " + dataHora(a.cienteEm)) : null),
     h("td", {}, a.anotadorNome),
     h("td", { class: "desc" }, a.descricao),
     h("td", { class: "def" }, textoDefesa(a)),
@@ -2896,7 +2925,7 @@ function linhaDosi(a, num, linhas) {
     title: conflitos.length ? "Conflito com escala lançada depois: " + conflitos.map((c) => `${c.bloco.rot} × ${c.escala.servico}`).join("; ") : null },
     h("td", { class: "col-num" }, num),
     h("td", { class: "col-cad" },
-      h("strong", {}, a.cadeteGuerra),
+      h("strong", {}, a.cadeteGuerra), seloCiente(a),
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
       conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null),
     h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),

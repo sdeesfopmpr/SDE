@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -177,6 +177,12 @@ service cloud.firestore {
           && request.time <= resource.data.prazo
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
           && request.resource.data.defesaEm == request.time)
+        // ciência: o próprio cadete, ao abrir "Minhas anotações", grava uma única vez a hora (do servidor) em que viu
+        || (ativo()
+          && resource.data.cadeteId == meuCadete()
+          && !resource.data.keys().hasAny(['cienteEm'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cienteEm'])
+          && request.resource.data.cienteEm == request.time)
         || (nivel(3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
           && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao in ['transf', 'aguardando']));
