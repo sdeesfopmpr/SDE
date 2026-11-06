@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.10">
+<meta name="sde-versao" content="2026-11-06.11">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -2479,12 +2479,29 @@ function tabelaAcompanhamento(lista, porRecentes) {
 
 /** Texto da defesa: mostra as primeiras linhas; se for longo, "ver tudo" abre o texto completo (e "ver menos" recolhe). */
 const defesasAbertas = new Set();
+// O texto fica limitado a 5 linhas; o botão "ver tudo" aparece sempre que o texto passar disso
+// na largura em que está sendo mostrado (no celular a coluna é estreita, então até um texto curto pode passar).
+const roDefesas = typeof ResizeObserver === "function"
+  ? new ResizeObserver((lista) => lista.forEach((e) => {
+      if (!e.target.isConnected) { roDefesas.unobserve(e.target); return; }
+      if (e.target.__ajustar) e.target.__ajustar();
+    }))
+  : null;
 function textoDefesaLonga(id, texto) {
-  const longo = texto.length > 220 || (texto.match(/\n/g) || []).length >= 4;
   const aberto = defesasAbertas.has(id);
   const caixa = h("div", { class: "just-txt" + (aberto ? " aberto" : "") }, texto);
-  if (!longo) return caixa;
   const btn = h("button", { class: "btn-ver", type: "button", "aria-expanded": aberto ? "true" : "false" }, aberto ? "ver menos ▴" : "ver tudo ▾");
+  const ajustar = () => {
+    if (!caixa.isConnected) return;
+    if (caixa.classList.contains("aberto")) {
+      const lh = parseFloat(getComputedStyle(caixa).lineHeight) || 18;
+      btn.hidden = caixa.scrollHeight <= lh * 5 + 2;
+    } else {
+      btn.hidden = caixa.scrollHeight <= caixa.clientHeight + 1;
+    }
+  };
+  // antes de medir: mostra o botão para textos que já se sabe serem longos
+  btn.hidden = !(texto.length > 220 || (texto.match(/\n/g) || []).length >= 4);
   btn.addEventListener("click", () => {
     const abrir = !caixa.classList.contains("aberto");
     caixa.classList.toggle("aberto", abrir);
@@ -2492,6 +2509,8 @@ function textoDefesaLonga(id, texto) {
     btn.textContent = abrir ? "ver menos ▴" : "ver tudo ▾";
     btn.setAttribute("aria-expanded", abrir ? "true" : "false");
   });
+  caixa.__ajustar = ajustar;
+  if (roDefesas) roDefesas.observe(caixa); else requestAnimationFrame(ajustar);
   return h("div", {}, caixa, btn);
 }
 
