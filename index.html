@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.8">
+<meta name="sde-versao" content="2026-11-06.9">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -2306,12 +2306,13 @@ function tique() {
     avisar("A semana de anotações fechou. Ela está agora na aba Semana fechada, pronta para a Planilha de Anotados.");
   }
   desenharRelogio();
+  if (semanaW && $("#planilhaCab").childElementCount) desenharPlanilha();   // libera o extrato quando o prazo de defesa passa
 }
 
 function assinarSemana() {
   // semana atual (recebendo anotações), ao vivo
   const rec = proximoPrazo().getTime();
-  if (rec !== atualW) { if (atualW) montarOpcoesCiclo(); atualW = rec; atual = []; }
+  if (rec !== atualW) { montarOpcoesCiclo(); atualW = rec; atual = []; }   // também ao entrar de novo sem recarregar a página
   assinar("recebendo", rec, () => onSnapshot(
     query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(rec))),
     (snap) => { atual = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharAtual(); },
@@ -2585,6 +2586,42 @@ async function pdfPlanilha(W, previa, publicada = null) {
   }
 }
 
+// ---------- Extrato de ciência (nível 3; liberado depois do prazo de defesa da semana) ----------
+let geradorExtrato = null;
+function extratoLiberado(W) { return !!W && Date.now() > W; }
+function botaoExtrato(W) {
+  const lib = extratoLiberado(W);
+  return h("span", { style: "display:inline-flex; align-items:center" },
+    h("button", { class: "btn sec", type: "button", disabled: !lib, onclick: () => pdfExtrato(W) }, "Extrato de ciência (PDF)"),
+    dica(lib
+      ? "Lista de cada AAD e FO+ desta semana com o cadete, os dados da anotação e a data e hora em que o cadete tomou ciência (ou \"SEM CIÊNCIA\")."
+      : `O extrato de ciência fica disponível depois do prazo de defesa: segunda ${dataCurta(W)}, 23h59.`));
+}
+async function pdfExtrato(W) {
+  if (!extratoLiberado(W)) { avisar(`O extrato fica disponível depois do prazo de defesa (segunda ${dataCurta(W)}, 23h59).`, true); return; }
+  try {
+    avisar("Gerando o extrato de ciência…");
+    geradorExtrato ||= await import("./js/extrato-ciencia-pdf.js");
+    const ms = (t) => (t && t.toMillis ? t.toMillis() : null);
+    const grupos = {};
+    (W === semanaW ? semana : []).filter((a) => !a.anulada).forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
+    const linhas = [];
+    Object.keys(grupos).sort(ordemGrupo).forEach((g) => grupos[g].sort(ordemPlanilha).forEach((a) => linhas.push({
+      cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome, turma: `${grupoDe(a)} · ${a.cadetePelotao}`, tipo: a.tipo,
+      fato: ms(a.fatoEm), anotadorNome: a.anotadorNome, descricao: a.descricao, criado: ms(a.criadoEm), ciente: ms(a.cienteEm)
+    })));
+    const p = planilhaDe(W);
+    await geradorExtrato.gerarExtratoCienciaPdf({
+      ...datasPlanilha(W), linhas,
+      planilha: p && p.status === "publicada" ? `${p.numero}/${p.ano}` : "",
+      geradoPor: perfil ? nomeCurto(perfil) : ""
+    });
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível gerar o extrato. Verifique a internet e tente de novo.", true);
+  }
+}
+
 function dadosPlanilhaForm(W) {
   const v = (s) => ($(s) ? $(s).value.trim() : "");
   return { numero: +v("#plNumero") || "", ano: +v("#plAno") || anoDaSemana(W),
@@ -2595,7 +2632,7 @@ function desenharPlanilha() {
   const W = semanaW;
   const p = planilhaDe(W);
   const publicada = p && p.status === "publicada" && !corrigindoPlanilha;
-  const chave = `${W}|${publicada ? "pub" : "form"}|${publicada ? p.publicadaEm?.seconds : ""}`;
+  const chave = `${W}|${publicada ? "pub" : "form"}|${publicada ? p.publicadaEm?.seconds : ""}|${extratoLiberado(W) ? "ext" : ""}`;
   if (publicada) {
     if (planCab === chave) return;
     planCab = chave;
@@ -2605,6 +2642,7 @@ function desenharPlanilha() {
         h("span", { class: "ajuda", style: "margin-left:10px" }, `${p.publicadaEm?.toMillis ? "em " + dataHora(p.publicadaEm) + " " : ""}por ${p.publicadaPor || "—"} · ${p.itens.length} AAD · ${p.fo.length} FO+`)),
       h("div", { class: "acao", style: "grid-column: 1 / -1" },
         h("button", { class: "btn", type: "button", onclick: () => pdfPlanilha(W, false, p) }, "Baixar PDF da Planilha"),
+        botaoExtrato(W),
         h("span", { class: "ajuda", style: "align-self:center" }, "Publicada: não pode mais ser alterada."))
     ].filter(Boolean));
     return;
@@ -2644,6 +2682,7 @@ function desenharPlanilha() {
       h("button", { class: "btn sec", type: "button", onclick: () => pdfPlanilha(W, true) }, "Prévia da Planilha"),
       h("button", { class: "btn", type: "button", disabled: aindaAberta, onclick: () => publicarPlanilha(W) },
         corrigindoPlanilha ? "Publicar de novo e gerar PDF" : "Publicar Planilha e gerar PDF"),
+      botaoExtrato(W),
       corrigindoPlanilha ? h("button", { class: "btn sec", type: "button", onclick: () => { corrigindoPlanilha = false; planCab = null; desenharPlanilha(); } }, "Cancelar") : null)
   );
 }
