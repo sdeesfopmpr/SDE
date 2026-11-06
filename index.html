@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.4">
+<meta name="sde-versao" content="2026-11-06.5">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1807,8 +1807,9 @@ function cartaoMinha(a) {
     const box = h("div", { class: "defesa-box" });
 
     if (aberto) {
-      box.append(h("div", { class: "prazo aberto" }, "Defesa até " + prazoTexto(a.prazo)));
-      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa", "aria-label": "Defesa",
+      box.append(h("div", { class: "prazo aberto" }, "Defesa ou pedido de transferência até " + prazoTexto(a.prazo),
+        dica("Use este campo para apresentar a sua defesa ou para pedir a transferência da anotação para a semana seguinte. Em qualquer dos casos, explique os seus motivos. O pedido é analisado na dosimetria, junto com a defesa.")));
+      const ta = h("textarea", { rows: "4", maxlength: "3000", placeholder: "Escreva sua defesa ou o seu pedido de transferência, com os motivos", "aria-label": "Defesa ou pedido de transferência",
         lang: "pt-BR", spellcheck: "true", autocorrect: "on", autocapitalize: "sentences" });
       ta.value = rascunhos[a.id] ?? (def ? def.texto : "");
       ta.addEventListener("input", () => { rascunhos[a.id] = ta.value; });
