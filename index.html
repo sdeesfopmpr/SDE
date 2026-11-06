@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.9">
+<meta name="sde-versao" content="2026-11-06.10">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1775,6 +1775,28 @@ function registrarCiencia() {
     updateDoc(doc(db, "anotacoes", a.id), { cienteEm: serverTimestamp() })
       .catch((err) => { console.error(err); cienciaEnviada.delete(a.id); });
   });
+  // ciência do resultado (MCE, Justificada, TD…) depois da publicação da NAMCE — uma por NAMCE
+  minhas.filter((a) => a.mce && a.mce.namce && !cienteDaNamce(a)).forEach((a) => {
+    const k = `${a.id}|${a.mce.namce}`;
+    if (cienciaEnviada.has(k)) return;
+    cienciaEnviada.add(k);
+    updateDoc(doc(db, "anotacoes", a.id), { cienciaNamce: { namce: a.mce.namce, em: serverTimestamp() } })
+      .catch((err) => { console.error(err); cienciaEnviada.delete(k); });
+  });
+}
+/** Ciência já registrada do resultado da NAMCE atual da anotação (ms) ou null. */
+function cienteDaNamce(a) {
+  const c = a.cienciaNamce;
+  return a.mce && c && c.namce === a.mce.namce && c.em && c.em.toMillis ? c.em.toMillis() : null;
+}
+/** Prazo para a ciência da NAMCE: sexta-feira do cumprimento, 12h. */
+function prazoCienciaNamce(n) { return (n.sexta || sextaDe(n.prazo.toMillis())) + 12 * 3600000; }
+function seloCienteNamce(a, prazo) {
+  const ms = a ? cienteDaNamce(a) : null;
+  if (!ms) return h("span", { class: "selo-ciente nao", title: "O cadete ainda não abriu a aba Minhas anotações depois da publicação da NAMCE" }, "SEM CIÊNCIA");
+  const tarde = prazo && ms > prazo;
+  return h("span", {}, h("span", { class: "selo-ciente sim", title: "Ciente do resultado em " + dataHoraMs(ms) }, "✓ CIENTE"),
+    h("div", { class: "ajuda" }, dataHoraMs(ms) + (tarde ? " (após sexta 12h)" : "")));
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) registrarCiencia(); });
 function seloCiente(a) {
@@ -1810,7 +1832,9 @@ function cartaoMinha(a) {
       td: [h("strong", {}, "Trabalho Didático (TD)"), " — verifique a atividade com o Oficial Coordenador até o fim do expediente de sexta-feira."],
       cumprida: [h("strong", {}, "Já cumprida.")]
     }[m.decisao] || [h("strong", {}, "MCE: "), m.texto];
-    filhos.push(h("div", { class: "mce-box" }, ...txt, h("div", { class: "ajuda" }, "NAMCE nº " + m.namce)));
+    const cm = cienteDaNamce(a);
+    filhos.push(h("div", { class: "mce-box" }, ...txt, h("div", { class: "ajuda" }, "NAMCE nº " + m.namce),
+      cm ? h("div", { class: "ajuda ciente-txt" }, "✓ Ciente do resultado em " + dataHoraMs(cm)) : null));
   }
 
   if (a.tipo === "aad") {
@@ -2307,6 +2331,8 @@ function tique() {
   }
   desenharRelogio();
   if (semanaW && $("#planilhaCab").childElementCount) desenharPlanilha();   // libera o extrato quando o prazo de defesa passa
+  const nP = namces[String(semanaW)];
+  if (nP && nP.status === "publicada" && extratoNamceLib !== null && extratoNamceLib !== extratoNamceLiberado(nP)) desenharPublicada(nP);
 }
 
 function assinarSemana() {
@@ -2615,6 +2641,45 @@ async function pdfExtrato(W) {
       ...datasPlanilha(W), linhas,
       planilha: p && p.status === "publicada" ? `${p.numero}/${p.ano}` : "",
       geradoPor: perfil ? nomeCurto(perfil) : ""
+    });
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível gerar o extrato. Verifique a internet e tente de novo.", true);
+  }
+}
+
+// ---------- Extrato de ciência da NAMCE (nível 3; liberado a partir de sexta-feira do cumprimento, 12h) ----------
+let extratoNamceLib = null;
+function extratoNamceLiberado(n) { return Date.now() >= prazoCienciaNamce(n); }
+function botaoExtratoNamce(n) {
+  const lib = extratoNamceLiberado(n), prazo = prazoCienciaNamce(n);
+  return h("span", { style: "display:inline-flex; align-items:center" },
+    h("button", { class: "btn sec", type: "button", disabled: !lib, onclick: () => pdfExtratoNamce(n) }, "Extrato de ciência da NAMCE (PDF)"),
+    dica(lib
+      ? "Lista de cada AAD desta NAMCE com o cadete, a decisão (MCE, Justificada, TD…) e a data e hora em que o cadete tomou ciência do resultado (ou \"SEM CIÊNCIA\"). O prazo para a ciência era sexta-feira, 12h."
+      : `O extrato fica disponível a partir de sexta ${dataCurta(prazo)}, 12h, prazo para os cadetes tomarem ciência do resultado.`));
+}
+async function pdfExtratoNamce(n) {
+  if (!extratoNamceLiberado(n)) { avisar(`O extrato fica disponível a partir de sexta ${dataCurta(prazoCienciaNamce(n))}, 12h.`, true); return; }
+  try {
+    avisar("Gerando o extrato de ciência da NAMCE…");
+    geradorExtrato ||= await import("./js/extrato-ciencia-pdf.js");
+    const ms = (t) => (t && t.toMillis ? t.toMillis() : null);
+    // lê cada anotação de novo, para ter a ciência mais recente (inclusive das que vieram transferidas)
+    const anots = await Promise.all(n.itens.map((it) => getDoc(doc(db, "anotacoes", it.anotacaoId))
+      .then((s) => (s.exists() ? { id: s.id, ...s.data() } : null)).catch(() => null)));
+    const linhas = n.itens.map((it, i) => {
+      const a = anots[i];
+      return {
+        cadeteGuerra: it.cadeteGuerra, cadeteNome: it.cadeteNome, turma: `${it.grupo} · ${it.cadetePelotao}`,
+        fato: it.fato, anotadorNome: it.anotadorNome, descricao: it.descricao + sufixoOrigem(it), mce: it.mce,
+        cienteAnot: a ? ms(a.cienteEm) : null,
+        ciente: a && a.mce && a.mce.namce === `${n.numero}/${n.ano}` ? cienteDaNamce(a) : null
+      };
+    });
+    await geradorExtrato.gerarExtratoNamcePdf({
+      numero: n.numero, ano: n.ano, publicada: ms(n.publicadaEm), sexta: n.sexta || sextaDe(n.prazo.toMillis()),
+      prazoCiencia: prazoCienciaNamce(n), geradoPor: perfil ? nomeCurto(perfil) : "", linhas
     });
   } catch (err) {
     console.error(err);
@@ -3101,11 +3166,17 @@ function desenharPublicada(n) {
         `em ${dataHora(n.publicadaEm)} por ${n.publicadaPor || "—"} · cumprimento ${fdsTexto(semanaW)}` +
         (n.planilhas ? ` · Planilhas nº ${n.planilhas}` : ""))),
     h("div", { class: "acao", style: "grid-column: 1 / -1" },
-      h("button", { class: "btn", type: "button", onclick: () => pdfNamce(false, n) }, "Baixar PDF da NAMCE"))
+      h("button", { class: "btn", type: "button", onclick: () => pdfNamce(false, n) }, "Baixar PDF da NAMCE"),
+      botaoExtratoNamce(n))
   );
+  extratoNamceLib = extratoNamceLiberado(n);
+  const prazoC = prazoCienciaNamce(n);
+  const anotPorId = (id) => semana.find((a) => a.id === id) || anotExtra[id] || null;
+  const comCiencia = n.itens.filter((it) => { const a = anotPorId(it.anotacaoId); return a && cienteDaNamce(a); }).length;
   $("#resumoSemana").replaceChildren(...[
     h("span", {}, h("strong", {}, n.itens.length), " AAD"),
-    h("span", {}, h("strong", {}, n.fo.length), " FO+")
+    h("span", {}, h("strong", {}, n.fo.length), " FO+"),
+    h("span", {}, h("strong", {}, `${comCiencia}/${n.itens.length}`), ` com ciência do resultado (prazo: sexta ${dataCurta(prazoC)}, 12h)`)
   ].filter(Boolean));
   const partes = [];
   if (n.fo.length) {
@@ -3120,11 +3191,12 @@ function desenharPublicada(n) {
   Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
     partes.push(h("h3", { class: "grupo-titulo" }, g));
     partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
-      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"))),
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
         h("td", { class: "desc" }, it.descricao + sufixoOrigem(it)),
-        h("td", {}, h("strong", {}, it.mce))))))));
+        h("td", {}, h("strong", {}, it.mce)),
+        h("td", {}, seloCienteNamce(anotPorId(it.anotacaoId), prazoC))))))));
   });
   $("#listaSemana").replaceChildren(...partes);
 }

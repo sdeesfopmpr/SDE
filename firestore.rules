@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática · ciência da NAMCE)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -177,6 +177,15 @@ service cloud.firestore {
           && request.time <= resource.data.prazo
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['defesaEm'])
           && request.resource.data.defesaEm == request.time)
+        // ciência do resultado da NAMCE: o próprio cadete grava, uma vez por NAMCE, a hora (do servidor) em que viu a decisão
+        || (ativo()
+          && resource.data.cadeteId == meuCadete()
+          && resource.data.keys().hasAny(['mce'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cienciaNamce'])
+          && request.resource.data.cienciaNamce.keys().hasOnly(['namce', 'em'])
+          && request.resource.data.cienciaNamce.namce == resource.data.mce.namce
+          && request.resource.data.cienciaNamce.em == request.time
+          && (!resource.data.keys().hasAny(['cienciaNamce']) || resource.data.cienciaNamce.namce != resource.data.mce.namce))
         // ciência: o próprio cadete, ao abrir "Minhas anotações", grava uma única vez a hora (do servidor) em que viu
         || (ativo()
           && resource.data.cadeteId == meuCadete()
