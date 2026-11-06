@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática · troca de e-mail)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -93,6 +93,15 @@ service cloud.firestore {
             || !request.resource.data.keys().hasAny(['cpf']))     // CPF antigo só pode ser apagado
         && request.resource.data.nivel in [0, 1, 2, 3]
         && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
+
+      // troca de e-mail: o próprio usuário copia para o perfil o e-mail já confirmado na conta
+      // (cadete só com e-mail institucional)
+      allow update: if logado()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'emailAlteradoEm'])
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.emailAlteradoEm == request.time
+        && (resource.data.tipo != 'cadete' || request.resource.data.email.matches('^[^@]+@pm[.]pr[.]gov[.]br$'));
 
       allow delete: if nivel(3);
     }
