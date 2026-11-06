@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.1">
+<meta name="sde-versao" content="2026-11-06.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -778,6 +778,7 @@
             <div><label for="aData">Data do fato</label><input id="aData" type="date"></div>
             <div><label for="aHora">Hora do fato</label><input id="aHora" type="time"></div>
           </div>
+          <div class="ajuda">Informe quando o fato <strong>aconteceu</strong>, não o momento em que você está lançando.</div>
           <div class="ajuda" id="aLimite"></div>
 
           <label for="aDesc">Descrição</label>
@@ -1915,9 +1916,8 @@ function prepararLancamento() {
     max: Infinity, escolhidos, rotuloMax: "por lançamento",
     excluir: (c) => !!perfil && c.id === perfil.cadeteId      // ninguém se anota
   });
-  const agora = hojeLocal();
-  $("#aData").value = agora.data;
-  $("#aHora").value = agora.hora;
+  // data e hora do fato ficam em branco: o anotador informa quando o fato ocorreu (não o momento do lançamento)
+  $("#aData").value = ""; $("#aHora").value = "";
   $("#formAnot").addEventListener("submit", lancarAnotacao);
   atualizarPrazoInfo();
   setInterval(atualizarPrazoInfo, 60000);
@@ -1950,13 +1950,14 @@ async function lancarAnotacao(e) {
   const fato = new Date(`${data}T${hora}`);
 
   if (!escolhidos.size) { mensagem("#msgAnot", "Escolha pelo menos um cadete."); return; }
-  if (!data || !hora || isNaN(fato)) { mensagem("#msgAnot", "Informe a data e a hora do fato."); return; }
+  if (!data || !hora || isNaN(fato)) { mensagem("#msgAnot", "Informe a data e a hora em que o fato aconteceu."); return; }
   if (fato.getTime() > Date.now() + 5 * 60000) { mensagem("#msgAnot", "A data do fato não pode estar no futuro."); return; }
   if (temLimiteFato() && fato.getTime() < Date.now() - LIMITE_FATO) { mensagem("#msgAnot", "Só é possível lançar fatos ocorridos nas últimas 24 horas (contando hora e minuto)."); return; }
   if (descricao.length < 5) { mensagem("#msgAnot", "Descreva o que foi constatado."); return; }
 
   const nomes = [...escolhidos.values()].map((c) => c.guerra).join(", ");
-  if (!confirm(`Lançar ${tipo === "fo" ? "FO+" : "AAD"} para ${escolhidos.size} cadete(s)?\n\n${nomes}\n\nDepois de lançada, a anotação não pode ser editada nem apagada.`)) return;
+  const quando = fato.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " às");
+  if (!confirm(`Lançar ${tipo === "fo" ? "FO+" : "AAD"} para ${escolhidos.size} cadete(s)?\n\n${nomes}\n\nFato ocorrido em ${quando}.\n\nDepois de lançada, a anotação não pode ser editada nem apagada.`)) return;
 
   const btn = $("#btnLancar");
   btn.disabled = true;
@@ -1999,8 +2000,7 @@ async function lancarAnotacao(e) {
     avisar(`Anotação lançada para ${feitos} cadete(s).`);
     escolhidos.clear();
     $("#aDesc").value = "";
-    const agora = hojeLocal();
-    $("#aData").value = agora.data; $("#aHora").value = agora.hora;
+    $("#aData").value = ""; $("#aHora").value = "";
     desenharSugestoes();
   } catch (err) {
     console.error(err);
@@ -2030,7 +2030,7 @@ function desenharLancadas() {
       ? h("table", { class: "tabela" },
           h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"), h("th", {}, "Resultado"))),
           h("tbody", {}, lista.map((a) => h("tr", {},
-            h("td", {}, dataFato(a.fatoEm)),
+            h("td", {}, dataFato(a.fatoEm), a.criadoEm && a.criadoEm.toMillis ? h("div", { class: "ajuda" }, "lançada em " + dataHora(a.criadoEm)) : null),
             h("td", {}, cadeteRotulo(a)),
             h("td", {}, a.anulada ? h("span", { class: "tag anulada", title: "Anulada: " + (a.anuladaMotivo || "") }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo)),
             h("td", { class: "desc" }, a.descricao, a.anulada ? h("div", { class: "ajuda" }, `Anulada pela coordenação${a.anuladaPor ? " (" + a.anuladaPor + ")" : ""}. Motivo: ${a.anuladaMotivo || "—"}`) : null),
