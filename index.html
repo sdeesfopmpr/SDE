@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-06.11">
+<meta name="sde-versao" content="2026-11-07.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -479,6 +479,7 @@
     font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
   .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
   .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
+  .aviso-dup { margin-bottom: 10px; padding: 10px 12px; border-radius: 8px; background: var(--erro-fundo); color: var(--erro); font-size: 13.5px; }
   .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
   .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
   .selo-ciente.nao { border: 1px solid var(--borda); color: var(--suave); font-weight: 700; }
@@ -3801,14 +3802,25 @@ function desenharCadetes() {
   $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
   $("#cFTotal").textContent = filtroCadetes.filtrando() ? `Mostrando ${lista.length} de ${todosCadetes.length} cadastro(s).` : "";
   if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
-  $("#listaCadetes").replaceChildren(h("table", { class: "tabela" },
+  const duplicados = todosCadetes.filter((c) => !c.unidoA && duplicadoComConta(c));
+  $("#listaCadetes").replaceChildren(
+    duplicados.length ? h("div", { class: "aviso-dup" },
+      h("strong", {}, `${duplicados.length} cadastro(s) possivelmente duplicado(s): `),
+      duplicados.map((c) => c.guerra).join(", "),
+      ". Anotações lançadas no cadastro sem conta não aparecem para o cadete. Use \"Unir\" na linha do cadastro sem conta.") : "",
+    h("table", { class: "tabela" },
     h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
     h("tbody", {}, lista.map((c) => editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
-      h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome)),
+      h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome),
+        (() => { const d = !c.unidoA && duplicadoComConta(c);
+          return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, `⚠ Parece duplicado de ${d.guerra} (com acesso)`) : null; })(),
+        c.unidoA ? h("div", { class: "ajuda" }, "Unido ao cadastro com conta de " + ((todosCadetes.find((x) => x.id === c.unidoA) || {}).guerra || "—")) : null),
       h("td", {}, `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`),
       h("td", {}, c.uid ? h("span", { class: "selo" }, "Com acesso") : h("span", { class: "selo cinza" }, "Sem conta")),
       h("td", {}, c.ativo ? "Ativo" : h("span", { class: "selo cinza" }, "Inativo")),
       h("td", { class: "acoes" },
+        (() => { const d = !c.unidoA && duplicadoComConta(c);
+          return d ? h("button", { class: "btn peq", type: "button", onclick: () => unirCadastros(c, d) }, "Unir a " + d.guerra) : null; })(), " ",
         h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = c.id; desenharCadetes(); } }, "Editar"), " ",
         h("button", { class: "btn perigo peq", type: "button", onclick: () => alternarAtivo(c) }, c.ativo ? "Desativar" : "Reativar"))
     )))
@@ -3832,10 +3844,25 @@ function linhaEdicao(c) {
       editandoCadete = null; avisar("Cadastro atualizado.");
     } catch (err) { console.error(err); avisar("Não foi possível salvar.", true); }
   };
+  // cadastro sem conta: unir manualmente ao cadastro com conta da mesma pessoa (quando o nome foi escrito diferente)
+  let unir = null;
+  if (!c.uid && !c.unidoA) {
+    const comConta = todosCadetes.filter((x) => x.uid && x.id !== c.id).sort((x, y) => x.guerra.localeCompare(y.guerra, "pt-BR"));
+    const alvo = h("select", { "aria-label": "Unir a um cadastro com conta" },
+      h("option", { value: "" }, "Unir este cadastro (sem conta) a…"),
+      comConta.map((x) => h("option", { value: x.id }, `${x.guerra} — ${x.nome} (${turmaCurta(x)})`)));
+    unir = h("div", { style: "display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px" }, alvo,
+      h("button", { class: "btn sec peq", type: "button", onclick: () => {
+        const d = todosCadetes.find((x) => x.id === alvo.value);
+        if (!d) { avisar("Escolha o cadastro com conta da mesma pessoa.", true); return; }
+        editandoCadete = null; unirCadastros(c, d);
+      } }, "Unir"),
+      dica("Use quando a mesma pessoa tem dois cadastros: as anotações e escalas deste cadastro sem conta passam para o cadastro com conta escolhido, e este fica inativo. Nada é apagado."));
+  }
   return h("tr", {}, h("td", { colspan: "5" }, h("div", { class: "edicao" }, nome, guerra, ano, turma, pel,
     h("div", { style: "display:flex; gap:6px" },
       h("button", { class: "btn peq", type: "button", onclick: salvar }, "Salvar"),
-      h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = null; desenharCadetes(); } }, "Cancelar")))));
+      h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = null; desenharCadetes(); } }, "Cancelar"))), unir));
 }
 
 async function alternarAtivo(c) {
@@ -4145,7 +4172,10 @@ function cartaoPedido(u) {
       u.nome, " · ", u.tipo === "coordenacao" ? "Coordenação · " + (u.posto || "") : turmaTexto(u),
       h("br"), u.email,
       (() => { const c = u.tipo === "cadete" && !u.cadeteId ? cadastroParaLigar(u) : null;
-        return c ? h("div", { class: "ajuda" }, `Ao aprovar, a conta será ligada ao cadastro já existente de ${c.guerra} (${turmaCurta(c)}).`) : null; })()
+        if (!c) return u.tipo === "cadete" && !u.cadeteId
+          ? h("div", { class: "ajuda" }, "Nenhum cadastro existente com este nome: ao aprovar, será criado um cadastro novo. Se o cadete já estava cadastrado com outro nome, corrija o nome no cadastro antes de aprovar.")
+          : null;
+        return h("div", { class: "ajuda" }, `Ao aprovar, a conta será ligada ao cadastro já existente de ${c.guerra} — ${c.nome} (${turmaCurta(c)}).`); })()
     ),
     h("div", { class: "pedido-acoes" }, sel, btnOk, btnNao)
   );
@@ -4207,7 +4237,52 @@ function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === n
 /** Cadastro feito antes pela coordenação (sem conta) com o mesmo nome completo do pedido. */
 function cadastroParaLigar(u) {
   const c = todosCadetes.filter((x) => !x.uid && mesmoNome(x.nome, u.nome));
-  return c.length === 1 ? c[0] : null;
+  if (c.length === 1) return c[0];
+  // sem nome igual: um único cadastro sem conta com o mesmo nome de guerra, curso/ano e turma (nome escrito diferente no pedido)
+  const g = todosCadetes.filter((x) => !x.uid && x.ativo && mesmaPessoaProvavel(x, u));
+  return g.length === 1 ? g[0] : null;
+}
+/** Mesmo nome de guerra, curso/ano e turma. */
+function mesmaPessoaProvavel(x, y) {
+  return normBusca(x.guerra || "") === normBusca(y.guerra || "") && x.ano === y.ano && (x.turma || "") === (y.turma || "");
+}
+/** Para um cadastro SEM conta: o cadastro COM conta que parece ser a mesma pessoa (nome igual, ou guerra + curso/ano + turma). */
+function duplicadoComConta(c) {
+  if (c.uid) return null;
+  const cand = todosCadetes.filter((x) => x.id !== c.id && x.uid && (mesmoNome(x.nome, c.nome) || mesmaPessoaProvavel(x, c)));
+  return cand.length === 1 ? cand[0] : null;
+}
+
+/**
+ * Une um cadastro duplicado SEM conta ao cadastro COM conta da mesma pessoa:
+ * as anotações e escalas passam para o cadastro com conta (o cadete passa a vê-las na hora)
+ * e o cadastro sem conta fica inativo, com a indicação de para onde foi unido. Nada é apagado.
+ */
+async function unirCadastros(origem, destino) {
+  try {
+    const [an, es] = await Promise.all([
+      getDocs(query(collection(db, "anotacoes"), where("cadeteId", "==", origem.id))),
+      getDocs(query(collection(db, "escalas"), where("cadeteId", "==", origem.id)))
+    ]);
+    if (!confirm(`Unir os cadastros?\n\nSem conta: ${origem.guerra} — ${origem.nome} (${turmaCurta(origem)})\n`
+      + `Com conta: ${destino.guerra} — ${destino.nome} (${turmaCurta(destino)})\n\n`
+      + `${an.size} anotação(ões) e ${es.size} escala(s) passam para o cadastro com conta, e o cadete passa a vê-las em Minhas anotações. `
+      + `O cadastro sem conta fica inativo. Confirme que é a mesma pessoa.`)) return;
+    const ops = [
+      ...an.docs.map((d) => (b) => b.update(d.ref, { cadeteId: destino.id })),
+      ...es.docs.map((d) => (b) => b.update(d.ref, { cadeteId: destino.id }))
+    ];
+    for (let i = 0; i < ops.length; i += 15) {      // lotes pequenos: cada mudança é conferida nas regras do Firebase
+      const lote = writeBatch(db);
+      ops.slice(i, i + 15).forEach((f) => f(lote));
+      await lote.commit();
+    }
+    await updateDoc(doc(db, "cadetes", origem.id), { ativo: false, unidoA: destino.id, unidoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
+    avisar(`Cadastros unidos: ${an.size} anotação(ões) e ${es.size} escala(s) passaram para ${destino.guerra}.`);
+  } catch (err) {
+    console.error(err);
+    avisar("Não foi possível unir os cadastros. Nada foi perdido; tente de novo.", true);
+  }
 }
 
 /**
