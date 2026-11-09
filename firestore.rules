@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática · ciência da NAMCE · unir cadastros duplicados)
+// SDE · EsFO — Regras de segurança do Firestore (semana fecha sexta 18h · fato até 24h no nível 2 · sem CPF · sem anulação · NAMCE e Planilha travadas · imagem na defesa · exclusão na semana aberta · cadete com e-mail @pm.pr.gov.br · ciência automática · ciência da NAMCE · unir cadastros duplicados · pedido escolhendo o cadastro)
 // Copie TODO este conteúdo para: Firebase → Firestore Database → aba "Regras" → Publicar.
 // Tudo o que não está liberado aqui é bloqueado.
 
@@ -21,7 +21,7 @@ service cloud.firestore {
     // Dados de um pedido de acesso (criado pelo próprio usuário)
     function pedidoValido(d, uid) {
       return d.keys().hasAll(['tipo', 'nome', 'guerra', 'email', 'nivel', 'status', 'criadoEm'])
-        && d.keys().hasOnly(['tipo', 'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto',
+        && d.keys().hasOnly(['tipo', 'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto', 'cadastroId',
                              'email', 'nivel', 'status', 'criadoEm'])
         && txt(d.nome, 3, 120)
         && txt(d.guerra, 2, 40)
@@ -30,16 +30,26 @@ service cloud.firestore {
         && (
           (d.tipo == 'cadete'
              && d.email.lower().matches('^[^@]+@pm[.]pr[.]gov[.]br$')     // cadete: só e-mail institucional
-             && d.ano in ['1º CFO', '2º CFO', '3º CFO', 'CHOE']
-             && txt(d.turma, 0, 3)
-             && txt(d.pelotao, 1, 3))
+             && cadastroLivreIgual(d))                                    // e um cadastro da Missão, livre, com os mesmos dados
           || (d.tipo == 'coordenacao' && txt(d.posto, 2, 40))
         );
     }
 
+    // O cadete escolhe o próprio cadastro (feito pela Missão SDE): tem de existir, estar ativo, sem conta,
+    // e o pedido leva exatamente os dados desse cadastro.
+    function cadastroLivreIgual(d) {
+      let c = get(/databases/$(database)/documents/cadetes/$(d.cadastroId)).data;
+      return d.cadastroId is string
+        && c.ativo == true
+        && c.get('uid', '') == ''
+        && d.nome == c.nome && d.guerra == c.guerra && d.ano == c.ano
+        && d.turma == c.get('turma', '') && d.pelotao == c.pelotao;
+    }
+
     function cadeteValido(d) {
-      return d.keys().hasOnly(['nome', 'guerra', 'ano', 'turma', 'pelotao', 'uid',
+      return d.keys().hasOnly(['nome', 'guerra', 'ano', 'turma', 'pelotao', 'uid', 'temConta',
                                'ativo', 'criadoEm', 'atualizadoEm', 'unidoA', 'unidoEm'])
+        && (!d.keys().hasAny(['temConta']) || d.temConta == (d.get('uid', '') != ''))
         && txt(d.nome, 3, 120)
         && txt(d.guerra, 2, 40)
         && d.ano in ['1º CFO', '2º CFO', '3º CFO', 'CHOE']
@@ -111,6 +121,8 @@ service cloud.firestore {
     // Nome, nome de guerra, turma e pelotão: visíveis a todos os usuários ativos.
     match /cadetes/{id} {
       allow read: if ativo();
+      // tela de pedido de acesso (ainda sem login): lista só os cadastros ativos e sem conta
+      allow list: if resource.data.ativo == true && resource.data.temConta == false;
       allow create, update: if nivel(3) && cadeteValido(request.resource.data);
       allow delete: if nivel(3);
 

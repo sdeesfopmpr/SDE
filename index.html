@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-09.1">
+<meta name="sde-versao" content="2026-11-09.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -479,6 +479,18 @@
     font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
   .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
   .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
+  .res-cad { max-height: 280px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 8px; margin-top: 6px; }
+  .res-cad:empty { display: none; }
+  .res-cad button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--borda);
+    background: var(--cartao); color: var(--texto); font: inherit; text-align: left; cursor: pointer; }
+  .res-cad button:last-child { border-bottom: 0; }
+  .res-cad button:hover, .res-cad button:focus-visible { background: var(--fundo-2, var(--verde-claro)); outline: none; }
+  .res-cad button span { color: var(--suave); font-size: 13px; white-space: nowrap; }
+  .res-cad p { margin: 0; padding: 10px 12px; color: var(--suave); font-size: 13.5px; }
+  .cad-escolhido { margin-top: 8px; padding: 10px 12px; border: 1.5px solid var(--acento); border-radius: 8px; font-size: 14px; }
+  .cad-escolhido dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0 0 6px; }
+  .cad-escolhido dt { color: var(--suave); }
+  .cad-escolhido dd { margin: 0; font-weight: 600; }
   .aviso-dup { margin-bottom: 10px; padding: 10px 12px; border-radius: 8px; background: var(--erro-fundo); color: var(--erro); font-size: 13.5px; }
   .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
   .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
@@ -681,6 +693,15 @@
           <label><input type="radio" name="tipo" value="coordenacao"><span>Coordenação</span></label>
         </div>
 
+        <!-- Cadete: escolhe o próprio cadastro (feito pela Missão SDE); os dados vêm dele -->
+        <div id="escolhaCadastro">
+          <label for="pBuscaCad">Procure o seu nome de guerra <button type="button" class="dica" aria-label="Ajuda" data-dica="A lista mostra os cadetes cadastrados pela Missão SDE que ainda não têm conta. Escolha o seu nome: os dados do cadastro são preenchidos sozinhos. Não encontrou o seu nome? Procure a Missão SDE para ser cadastrado.">?</button></label>
+          <input id="pBuscaCad" type="search" autocomplete="off" placeholder="Digite o seu nome de guerra">
+          <div id="pResultados" class="res-cad" role="listbox" aria-label="Cadetes cadastrados"></div>
+          <div id="pEscolhido" class="cad-escolhido" hidden></div>
+        </div>
+
+        <div id="camposLivres">
         <label for="pNome">Nome completo</label>
         <input id="pNome" autocomplete="name" maxlength="120" required>
 
@@ -691,8 +712,9 @@
 
         <label for="pGuerra">Nome de guerra</label>
         <input id="pGuerra" maxlength="40" required style="text-transform: uppercase">
+        </div>
 
-        <div id="camposCadete">
+        <div id="camposCadete" hidden>
           <div class="linha">
             <div>
               <label for="pAno">Curso / ano <button type="button" class="dica" aria-label="Ajuda" data-dica="Exemplo: 1º CFO, turma /2, pelotão B.">?</button></label>
@@ -1450,8 +1472,10 @@ function tipoEscolhido() {
 }
 function atualizarTipo() {
   const cadete = tipoEscolhido() === "cadete";
-  $("#camposCadete").hidden = !cadete;
+  $("#escolhaCadastro").hidden = !cadete;
+  $("#camposLivres").hidden = cadete;
   $("#camposCoord").hidden = cadete;
+  if (cadete) carregarCadastrosLivres();
   $("#pEmailAjuda").hidden = !cadete;
   $("#pEmail").placeholder = cadete ? "nome@pm.pr.gov.br" : "";
 }
@@ -1460,9 +1484,91 @@ const DOMINIO_CADETE = "@pm.pr.gov.br";
 function emailInstitucional(email) { return (email || "").trim().toLowerCase().endsWith(DOMINIO_CADETE); }
 document.querySelectorAll('input[name="tipo"]').forEach((r) => r.addEventListener("change", atualizarTipo));
 
+/**
+ * "temConta" em cada cadastro (true quando já tem conta ligada): é o que a tela de pedido de acesso usa
+ * para listar só os cadastros livres. O nível 3 corrige sozinho os cadastros em que o campo falta ou está errado.
+ */
+let ajustandoTemConta = false;
+async function ajustarTemConta() {
+  if (ajustandoTemConta || !perfil || perfil.nivel < 3) return;
+  const errados = todosCadetes.filter((c) => c.temConta !== !!c.uid);
+  if (!errados.length) return;
+  ajustandoTemConta = true;
+  try {
+    for (let i = 0; i < errados.length; i += 100) {
+      const lote = writeBatch(db);
+      errados.slice(i, i + 100).forEach((c) => lote.update(doc(db, "cadetes", c.id), { temConta: !!c.uid }));
+      await lote.commit();
+    }
+  } catch (err) { console.error("Não foi possível ajustar temConta", err); }
+  finally { ajustandoTemConta = false; }
+}
+
+// ---------- Cadete escolhe o próprio cadastro ----------
+// Lista pública mínima: só cadastros ATIVOS e SEM conta (regra do Firebase: ativo == true e temConta == false).
+let cadastrosLivres = null, cadastroEscolhido = null, carregandoLivres = null;
+async function carregarCadastrosLivres(forcar) {
+  if (cadastrosLivres && !forcar) { desenharResultadosCad(); return; }
+  if (carregandoLivres) return carregandoLivres;
+  $("#pResultados").replaceChildren(h("p", {}, "Carregando a lista de cadetes…"));
+  carregandoLivres = getDocs(query(collection(db, "cadetes"), where("ativo", "==", true), where("temConta", "==", false)))
+    .then((snap) => {
+      cadastrosLivres = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.guerra || "").localeCompare(b.guerra || "", "pt-BR"));
+      desenharResultadosCad();
+    })
+    .catch((err) => {
+      console.error(err);
+      $("#pResultados").replaceChildren(h("p", {}, "Não foi possível carregar a lista de cadetes. Verifique a internet e tente de novo."));
+    })
+    .finally(() => { carregandoLivres = null; });
+  return carregandoLivres;
+}
+function desenharResultadosCad() {
+  const alvo = $("#pResultados");
+  if (cadastroEscolhido) { alvo.replaceChildren(); return; }
+  if (!cadastrosLivres) return;
+  const t = normBusca($("#pBuscaCad").value.trim());
+  const lista = cadastrosLivres.filter((c) => !t || normBusca(c.guerra).includes(t) || normBusca(c.nome).includes(t));
+  if (!lista.length) {
+    alvo.replaceChildren(h("p", {}, t ? "Nenhum cadastro encontrado. Confira a grafia ou procure a Missão SDE para ser cadastrado." : "Nenhum cadastro disponível."));
+    return;
+  }
+  alvo.replaceChildren(...lista.slice(0, 60).map((c) => h("button", { type: "button", role: "option", onclick: () => escolherCadastro(c) },
+    h("strong", {}, c.guerra), h("span", {}, turmaCurta(c)))));
+}
+function escolherCadastro(c) {
+  cadastroEscolhido = c;
+  mensagem("#msgPedido", "");
+  $("#pBuscaCad").hidden = true;
+  const caixa = $("#pEscolhido");
+  caixa.hidden = false;
+  caixa.replaceChildren(
+    h("dl", {},
+      h("dt", {}, "Nome completo"), h("dd", {}, c.nome),
+      h("dt", {}, "Nome de guerra"), h("dd", {}, c.guerra),
+      h("dt", {}, "Curso / turma"), h("dd", {}, `${c.ano}${c.turma ? "/" + c.turma : ""}`),
+      h("dt", {}, "Pelotão"), h("dd", {}, c.pelotao)),
+    h("button", { class: "link", type: "button", onclick: trocarCadastro }, "Não sou eu · escolher outro"),
+    h("div", { class: "ajuda" }, "Algum dado errado? Envie o pedido assim mesmo e avise a Missão SDE, que corrige o cadastro."));
+  desenharResultadosCad();
+}
+function trocarCadastro() {
+  cadastroEscolhido = null;
+  $("#pEscolhido").hidden = true;
+  $("#pBuscaCad").hidden = false;
+  $("#pBuscaCad").value = "";
+  $("#pBuscaCad").focus();
+  desenharResultadosCad();
+}
+$("#pBuscaCad").addEventListener("input", desenharResultadosCad);
+
 /** logado = já tem conta, mas falta o pedido (ex.: o envio anterior falhou). */
 function abrirPedido(logado) {
   mensagem("#msgPedido", "");
+  cadastrosLivres = null; cadastroEscolhido = null;
+  document.querySelector('input[name="tipo"][value="cadete"]').checked = true;
+  $("#pEscolhido").hidden = true; $("#pBuscaCad").hidden = false; $("#pBuscaCad").value = "";
   $("#camposConta").hidden = logado;
   $("#contaLogada").hidden = !logado;
   if (logado) {
@@ -1479,6 +1585,10 @@ function abrirPedido(logado) {
 
 function lerPedido() {
   const tipo = tipoEscolhido();
+  if (tipo === "cadete") {
+    const c = cadastroEscolhido;
+    return c ? { tipo, cadastroId: c.id, nome: c.nome, guerra: c.guerra, ano: c.ano, turma: c.turma || "", pelotao: c.pelotao } : { tipo };
+  }
   const d = {
     tipo,
     nome: $("#pNome").value.trim().replace(/\s+/g, " "),
@@ -1495,6 +1605,7 @@ function lerPedido() {
 }
 
 function validarPedido(d, comConta) {
+  if (d.tipo === "cadete" && !d.cadastroId) return "Procure e escolha o seu nome de guerra na lista.";
   if (d.nome.length < 3) return "Informe o nome completo.";
   if (d.tipo === "coordenacao" && d.posto.length < 2) return "Informe o posto ou graduação.";
   if (d.guerra.length < 2) return "Informe o nome de guerra.";
@@ -1565,7 +1676,9 @@ $("#formPedido").addEventListener("submit", async (e) => {
     } catch (err) {
       console.error(err);
       falha = err.code === "permission-denied"
-        ? "Não foi possível enviar o pedido. Confira os dados; se continuar, procure a Missão SDE."
+        ? (d.tipo === "cadete"
+          ? "Não foi possível enviar o pedido: este cadastro já tem conta ou foi alterado. Escolha de novo o seu nome; se continuar, procure a Missão SDE."
+          : "Não foi possível enviar o pedido. Confira os dados; se continuar, procure a Missão SDE.")
         : "Não foi possível enviar o pedido. Verifique a internet e tente de novo.";
       return;
     }
@@ -2005,6 +2118,7 @@ function assinarCadetes() {
     if (seletorEscala) seletorEscala.desenhar();
     desenharCadetes();
     desenharEstat();
+    ajustarTemConta();
   }, (err) => console.error(err)));
 }
 
@@ -3887,7 +4001,7 @@ async function cadastrarCadete(ev) {
   const btn = $("#btnCadete"); btn.disabled = true;
   try {
     const ref = doc(collection(db, "cadetes"));
-    await setDoc(ref, { ...v, ativo: true, criadoEm: serverTimestamp() });
+    await setDoc(ref, { ...v, ativo: true, temConta: false, criadoEm: serverTimestamp() });
     avisar(`${v.guerra} cadastrado.`);
     ["#cNome", "#cGuerra"].forEach((s) => { $(s).value = ""; });
   } catch (err) {
@@ -4153,7 +4267,7 @@ function cartaoPedido(u) {
       avisar(`${u.guerra} aprovado(a) · ${NIVEIS[n]}.`);
     } catch (err) {
       console.error(err);
-      avisar("Não foi possível aprovar. Tente de novo.", true);
+      avisar(err && err.message && !err.code ? err.message : "Não foi possível aprovar. Tente de novo.", true);
       btnOk.disabled = btnNao.disabled = false;
     }
   });
@@ -4171,7 +4285,14 @@ function cartaoPedido(u) {
     h("div", { class: "pedido-info" },
       u.nome, " · ", u.tipo === "coordenacao" ? "Coordenação · " + (u.posto || "") : turmaTexto(u),
       h("br"), u.email,
-      (() => { const c = u.tipo === "cadete" && !u.cadeteId ? cadastroParaLigar(u) : null;
+      (() => {
+        if (u.tipo === "cadete" && !u.cadeteId && u.cadastroId) {
+          const e = todosCadetes.find((x) => x.id === u.cadastroId);
+          if (!e) return h("div", { class: "ajuda", style: "color:var(--erro)" }, "O cadastro escolhido não existe mais. Recuse e peça um novo pedido.");
+          if (e.uid) return h("div", { class: "ajuda", style: "color:var(--erro)" }, `O cadastro escolhido (${e.guerra}) já está ligado a outra conta. Confira antes de aprovar.`);
+          return h("div", { class: "ajuda" }, `Cadastro escolhido pelo cadete: ${e.guerra} — ${e.nome} (${turmaCurta(e)}). Confira se o e-mail é dele.`);
+        }
+        const c = u.tipo === "cadete" && !u.cadeteId ? cadastroParaLigar(u) : null;
         if (!c) return u.tipo === "cadete" && !u.cadeteId
           ? h("div", { class: "ajuda" }, "Nenhum cadastro existente com este nome: ao aprovar, será criado um cadastro novo. Se o cadete já estava cadastrado com outro nome, corrija o nome no cadastro antes de aprovar.")
           : null;
@@ -4276,8 +4397,8 @@ async function corrigirDuplicado(missao, dup) {
       + `O cadete continua entrando com o mesmo e-mail e senha. Confirme que é a mesma pessoa.`)) return;
     const dados = { nome: missao.nome, guerra: missao.guerra, ano: missao.ano, turma: missao.turma || "", pelotao: missao.pelotao };
     const l1 = writeBatch(db);
-    l1.update(doc(db, "cadetes", dup.id), { uid: deleteField(), ativo: false, atualizadoEm: serverTimestamp() });
-    l1.update(doc(db, "cadetes", missao.id), { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
+    l1.update(doc(db, "cadetes", dup.id), { uid: deleteField(), ativo: false, temConta: false, atualizadoEm: serverTimestamp() });
+    l1.update(doc(db, "cadetes", missao.id), { uid: u.id, ativo: true, temConta: true, atualizadoEm: serverTimestamp() });
     l1.update(doc(db, "usuarios", u.id), { cadeteId: missao.id, ...dados });
     await l1.commit();
     const ops = [...an.docs, ...es.docs].map((d) => (b) => b.update(d.ref, { cadeteId: missao.id }));
@@ -4335,18 +4456,27 @@ async function aprovar(u, nivel) {
     analisadoEm: serverTimestamp()
   };
   if (u.tipo === "cadete" && !u.cadeteId) {
-    // Se a coordenação já cadastrou este cadete (mesmo nome completo), liga a conta ao cadastro existente
-    const existente = cadastroParaLigar(u);
-    if (existente) {
-      lote.update(doc(db, "cadetes", existente.id), { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
-      alteracao.cadeteId = existente.id;
+    if (u.cadastroId) {
+      // pedido novo: o cadete escolheu o próprio cadastro (feito pela Missão)
+      const c = todosCadetes.find((x) => x.id === u.cadastroId);
+      if (!c) throw new Error("O cadastro escolhido pelo cadete não existe mais.");
+      if (c.uid) throw new Error(`O cadastro de ${c.guerra} já está ligado a outra conta.`);
+      lote.update(doc(db, "cadetes", c.id), { uid: u.id, ativo: true, temConta: true, atualizadoEm: serverTimestamp() });
+      alteracao.cadeteId = c.id;
     } else {
-      const ref = doc(collection(db, "cadetes"));
-      lote.set(ref, {
-        nome: u.nome, guerra: u.guerra, ano: u.ano, turma: u.turma || "", pelotao: u.pelotao,
-        uid: u.id, ativo: true, criadoEm: serverTimestamp()
-      });
-      alteracao.cadeteId = ref.id;
+      // pedidos antigos (antes da escolha do cadastro): liga ao cadastro existente ou cria um
+      const existente = cadastroParaLigar(u);
+      if (existente) {
+        lote.update(doc(db, "cadetes", existente.id), { uid: u.id, ativo: true, temConta: true, atualizadoEm: serverTimestamp() });
+        alteracao.cadeteId = existente.id;
+      } else {
+        const ref = doc(collection(db, "cadetes"));
+        lote.set(ref, {
+          nome: u.nome, guerra: u.guerra, ano: u.ano, turma: u.turma || "", pelotao: u.pelotao,
+          uid: u.id, ativo: true, temConta: true, criadoEm: serverTimestamp()
+        });
+        alteracao.cadeteId = ref.id;
+      }
     }
   }
   lote.update(doc(db, "usuarios", u.id), alteracao);
