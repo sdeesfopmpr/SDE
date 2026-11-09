@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-07.1">
+<meta name="sde-versao" content="2026-11-09.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1068,7 +1068,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
-  query, where, Timestamp, setDoc, getDocs, deleteField, Bytes
+  query, where, Timestamp, setDoc, getDocs, deleteField, deleteDoc, Bytes
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -3807,20 +3807,20 @@ function desenharCadetes() {
     duplicados.length ? h("div", { class: "aviso-dup" },
       h("strong", {}, `${duplicados.length} cadastro(s) possivelmente duplicado(s): `),
       duplicados.map((c) => c.guerra).join(", "),
-      ". Anotações lançadas no cadastro sem conta não aparecem para o cadete. Use \"Unir\" na linha do cadastro sem conta.") : "",
+      ". Anotações lançadas no cadastro da Missão não aparecem para o cadete enquanto a conta dele estiver no duplicado. Use \"Manter este cadastro\" na linha do cadastro da Missão (sem conta).") : "",
     h("table", { class: "tabela" },
     h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
     h("tbody", {}, lista.map((c) => editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
       h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome),
         (() => { const d = !c.unidoA && duplicadoComConta(c);
-          return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, `⚠ Parece duplicado de ${d.guerra} (com acesso)`) : null; })(),
+          return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, `⚠ Duplicado: a conta está no cadastro "${d.nome}" (${turmaCurta(d)})`) : null; })(),
         c.unidoA ? h("div", { class: "ajuda" }, "Unido ao cadastro com conta de " + ((todosCadetes.find((x) => x.id === c.unidoA) || {}).guerra || "—")) : null),
       h("td", {}, `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`),
       h("td", {}, c.uid ? h("span", { class: "selo" }, "Com acesso") : h("span", { class: "selo cinza" }, "Sem conta")),
       h("td", {}, c.ativo ? "Ativo" : h("span", { class: "selo cinza" }, "Inativo")),
       h("td", { class: "acoes" },
         (() => { const d = !c.unidoA && duplicadoComConta(c);
-          return d ? h("button", { class: "btn peq", type: "button", onclick: () => unirCadastros(c, d) }, "Unir a " + d.guerra) : null; })(), " ",
+          return d ? h("button", { class: "btn peq", type: "button", onclick: () => corrigirDuplicado(c, d) }, "Manter este cadastro") : null; })(), " ",
         h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = c.id; desenharCadetes(); } }, "Editar"), " ",
         h("button", { class: "btn perigo peq", type: "button", onclick: () => alternarAtivo(c) }, c.ativo ? "Desativar" : "Reativar"))
     )))
@@ -3849,15 +3849,15 @@ function linhaEdicao(c) {
   if (!c.uid && !c.unidoA) {
     const comConta = todosCadetes.filter((x) => x.uid && x.id !== c.id).sort((x, y) => x.guerra.localeCompare(y.guerra, "pt-BR"));
     const alvo = h("select", { "aria-label": "Unir a um cadastro com conta" },
-      h("option", { value: "" }, "Unir este cadastro (sem conta) a…"),
+      h("option", { value: "" }, "Ligar a este cadastro a conta que está em…"),
       comConta.map((x) => h("option", { value: x.id }, `${x.guerra} — ${x.nome} (${turmaCurta(x)})`)));
     unir = h("div", { style: "display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px" }, alvo,
       h("button", { class: "btn sec peq", type: "button", onclick: () => {
         const d = todosCadetes.find((x) => x.id === alvo.value);
-        if (!d) { avisar("Escolha o cadastro com conta da mesma pessoa.", true); return; }
-        editandoCadete = null; unirCadastros(c, d);
-      } }, "Unir"),
-      dica("Use quando a mesma pessoa tem dois cadastros: as anotações e escalas deste cadastro sem conta passam para o cadastro com conta escolhido, e este fica inativo. Nada é apagado."));
+        if (!d) { avisar("Escolha o cadastro duplicado (com conta) da mesma pessoa.", true); return; }
+        editandoCadete = null; corrigirDuplicado(c, d);
+      } }, "Manter este cadastro"),
+      dica("Use quando a mesma pessoa tem dois cadastros: este (da Missão) fica, a conta do cadete passa para ele, as anotações e escalas do outro vêm para cá e o outro cadastro é excluído."));
   }
   return h("tr", {}, h("td", { colspan: "5" }, h("div", { class: "edicao" }, nome, guerra, ano, turma, pel,
     h("div", { style: "display:flex; gap:6px" },
@@ -4248,40 +4248,49 @@ function mesmaPessoaProvavel(x, y) {
 }
 /** Para um cadastro SEM conta: o cadastro COM conta que parece ser a mesma pessoa (nome igual, ou guerra + curso/ano + turma). */
 function duplicadoComConta(c) {
-  if (c.uid) return null;
+  if (c.uid || !c.ativo) return null;
   const cand = todosCadetes.filter((x) => x.id !== c.id && x.uid && (mesmoNome(x.nome, c.nome) || mesmaPessoaProvavel(x, c)));
   return cand.length === 1 ? cand[0] : null;
 }
 
 /**
- * Une um cadastro duplicado SEM conta ao cadastro COM conta da mesma pessoa:
- * as anotações e escalas passam para o cadastro com conta (o cadete passa a vê-las na hora)
- * e o cadastro sem conta fica inativo, com a indicação de para onde foi unido. Nada é apagado.
+ * Corrige um cadastro duplicado mantendo o cadastro feito pela Missão (sem conta):
+ *  1. a conta do cadete passa a ser ligada ao cadastro da Missão (nome, guerra, turma e pelotão da Missão);
+ *  2. anotações e escalas que estivessem no cadastro duplicado passam para o cadastro da Missão;
+ *  3. o cadastro duplicado (criado na aprovação, com os dados digitados pelo cadete) é excluído.
+ * O cadete continua entrando com o mesmo e-mail e senha; não precisa pedir acesso de novo.
  */
-async function unirCadastros(origem, destino) {
+async function corrigirDuplicado(missao, dup) {
+  const u = usuarios.find((x) => x.id === dup.uid);
+  if (!u) { avisar("Não encontrei a conta ligada ao cadastro duplicado.", true); return; }
   try {
     const [an, es] = await Promise.all([
-      getDocs(query(collection(db, "anotacoes"), where("cadeteId", "==", origem.id))),
-      getDocs(query(collection(db, "escalas"), where("cadeteId", "==", origem.id)))
+      getDocs(query(collection(db, "anotacoes"), where("cadeteId", "==", dup.id))),
+      getDocs(query(collection(db, "escalas"), where("cadeteId", "==", dup.id)))
     ]);
-    if (!confirm(`Unir os cadastros?\n\nSem conta: ${origem.guerra} — ${origem.nome} (${turmaCurta(origem)})\n`
-      + `Com conta: ${destino.guerra} — ${destino.nome} (${turmaCurta(destino)})\n\n`
-      + `${an.size} anotação(ões) e ${es.size} escala(s) passam para o cadastro com conta, e o cadete passa a vê-las em Minhas anotações. `
-      + `O cadastro sem conta fica inativo. Confirme que é a mesma pessoa.`)) return;
-    const ops = [
-      ...an.docs.map((d) => (b) => b.update(d.ref, { cadeteId: destino.id })),
-      ...es.docs.map((d) => (b) => b.update(d.ref, { cadeteId: destino.id }))
-    ];
+    if (!confirm(`Manter o cadastro da Missão e excluir o duplicado?\n\n`
+      + `Fica (cadastro da Missão): ${missao.guerra} — ${missao.nome} (${turmaCurta(missao)})\n`
+      + `Sai (duplicado): ${dup.guerra} — ${dup.nome} (${turmaCurta(dup)})\n\n`
+      + `A conta ${u.email} passa a ser ligada ao cadastro da Missão. `
+      + (an.size || es.size ? `${an.size} anotação(ões) e ${es.size} escala(s) do duplicado passam para o cadastro da Missão. ` : "")
+      + `O cadete continua entrando com o mesmo e-mail e senha. Confirme que é a mesma pessoa.`)) return;
+    const dados = { nome: missao.nome, guerra: missao.guerra, ano: missao.ano, turma: missao.turma || "", pelotao: missao.pelotao };
+    const l1 = writeBatch(db);
+    l1.update(doc(db, "cadetes", dup.id), { uid: deleteField(), ativo: false, atualizadoEm: serverTimestamp() });
+    l1.update(doc(db, "cadetes", missao.id), { uid: u.id, ativo: true, atualizadoEm: serverTimestamp() });
+    l1.update(doc(db, "usuarios", u.id), { cadeteId: missao.id, ...dados });
+    await l1.commit();
+    const ops = [...an.docs, ...es.docs].map((d) => (b) => b.update(d.ref, { cadeteId: missao.id }));
     for (let i = 0; i < ops.length; i += 15) {      // lotes pequenos: cada mudança é conferida nas regras do Firebase
       const lote = writeBatch(db);
       ops.slice(i, i + 15).forEach((f) => f(lote));
       await lote.commit();
     }
-    await updateDoc(doc(db, "cadetes", origem.id), { ativo: false, unidoA: destino.id, unidoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
-    avisar(`Cadastros unidos: ${an.size} anotação(ões) e ${es.size} escala(s) passaram para ${destino.guerra}.`);
+    await deleteDoc(doc(db, "cadetes", dup.id));
+    avisar(`Corrigido: a conta de ${missao.guerra} agora está no cadastro da Missão, e o duplicado foi excluído.`);
   } catch (err) {
     console.error(err);
-    avisar("Não foi possível unir os cadastros. Nada foi perdido; tente de novo.", true);
+    avisar("Não foi possível concluir a correção. Tente de novo; se repetir, avise o desenvolvedor.", true);
   }
 }
 
