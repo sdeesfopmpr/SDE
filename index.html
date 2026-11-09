@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-09.2">
+<meta name="sde-versao" content="2026-11-09.3">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1535,7 +1535,8 @@ function desenharResultadosCad() {
     return;
   }
   alvo.replaceChildren(...lista.slice(0, 60).map((c) => h("button", { type: "button", role: "option", onclick: () => escolherCadastro(c) },
-    h("strong", {}, c.guerra), h("span", {}, turmaCurta(c)))));
+    h("strong", {}, c.guerra), h("span", {}, turmaCurta(c)))),
+    lista.length > 60 ? h("p", {}, `Mostrando 60 de ${lista.length}. Digite o seu nome de guerra para encontrar mais rápido.`) : "");
 }
 function escolherCadastro(c) {
   cadastroEscolhido = c;
