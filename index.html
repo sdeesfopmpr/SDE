@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.10">
+<meta name="sde-versao" content="2026-11-10.11">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -3536,13 +3536,13 @@ function desenharPublicada(n) {
     partes.push(h("h3", { class: "grupo-titulo" }, g));
     partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"),
-        h("th", {}, "Cumprimento ", dica("Se o cadete não pôde cumprir a MCE por atestado médico, caso fortuito ou força maior, use \"Não cumpriu\": a anotação volta na Dosimetria da semana seguinte com os blocos que faltam, para aplicar de novo. Disponível até a NAMCE seguinte ser publicada.")))),
+        !NC_ATIVO ? null : h("th", {}, "Cumprimento ", dica("Se o cadete não pôde cumprir a MCE por atestado médico, caso fortuito ou força maior, use \"Não cumpriu\": a anotação volta na Dosimetria da semana seguinte com os blocos que faltam, para aplicar de novo. Disponível até a NAMCE seguinte ser publicada.")))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
         h("td", { class: "desc" }, it.descricao + (it.origemTxt ?? sufixoOrigem(it))),
         h("td", {}, h("strong", {}, it.mce)),
         h("td", {}, seloCienteNamce(anotPorId(it.anotacaoId), prazoC)),
-        h("td", {}, celCumprimento(n, it, anotPorId(it.anotacaoId), semanaW))))))));
+        NC_ATIVO ? h("td", {}, celCumprimento(n, it, anotPorId(it.anotacaoId), semanaW)) : null))))));
   });
   $("#listaSemana").replaceChildren(...partes);
   // anotações de semanas anteriores que ainda não estão carregadas (para ciência e cumprimento)
@@ -3564,6 +3564,8 @@ async function carregarAnotacoes(ids) {
 }
 
 // ---------- MCE não cumprida (atestado, caso fortuito, força maior): volta na Dosimetria da semana seguinte ----------
+// Função guardada (desligada a pedido do Leon em 10/11): para religar, trocar para true.
+const NC_ATIVO = false;
 const NAO_TEM_MCE = ["justif", "transf", "aguardando", "td", "cumprida"];
 const temMce = (it) => (it.blocos || []).length > 0 && !NAO_TEM_MCE.includes(it.decisao);
 /** Wpub = semana (prazo) da NAMCE publicada n. */
@@ -3586,6 +3588,7 @@ function celCumprimento(n, it, a, Wpub) {
 /** Na Dosimetria em aberto: MCEs da NAMCE da semana anterior, para trazer as que não foram cumpridas. */
 let ncCaixaAberta = false;
 function caixaNaoCumpridas() {
+  if (!NC_ATIVO) return null;
   const Wpub = semanaW - 7 * DIA;
   const n = namces[String(Wpub)];
   if (!n || n.status !== "publicada") return null;
