@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.6">
+<meta name="sde-versao" content="2026-11-10.7">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -572,6 +572,16 @@
   .cel.outra { background: #dfe1ec; border-color: #c4c8db; cursor: not-allowed; }
   .cel.sobrepoe { background: var(--fundo-2); border-style: dashed; cursor: not-allowed; }
   .cel:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
+  .cel.parc.sel { background: #c2410c; border-color: #9a3412; color: #fff; }
+  .dosi-tabela th.col-parc { background: #9a3412; text-align: center; font-size: 12px; padding: 6px 2px; line-height: 1.15; }
+  .dosi-tabela td.col-parc { text-align: center; vertical-align: middle; padding: 4px 2px; border-left: 1px solid var(--borda-2); width: 52px; }
+  .parc-box { margin-top: 8px; padding: 7px 9px; border-radius: 8px; border: 1px solid #f0b48c; background: #fff4ec; color: #7c2d12; font-size: 12.5px; white-space: normal; }
+  html[data-tema="escuro"] .parc-box { background: #3a2418; border-color: #7c3a1a; color: #fbd5bb; }
+  .parc-box strong { color: inherit; }
+  .parc-pass { display: inline-flex; align-items: center; gap: 4px; margin: 4px 10px 0 0; white-space: nowrap; }
+  .parc-pass button { width: 24px; height: 24px; border-radius: 6px; border: 1px solid #e5a479; background: var(--cartao); color: inherit; font: inherit; font-weight: 800; cursor: pointer; padding: 0; }
+  .parc-pass b { min-width: 16px; text-align: center; }
+  .selo-rest { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 999px; background: #c2410c; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; }
 
   /* Campo de cadete com lista suspensa */
   .combo { position: relative; }
@@ -1987,6 +1997,7 @@ function cartaoMinha(a) {
     const m = a.mce;
     const txt = {
       blocos: [h("strong", {}, "MCE: "), m.texto],
+      parcial: [h("strong", {}, "MCE (cumprimento parcial): "), m.texto, ". O restante será definido na próxima NAMCE."],
       justif: [h("strong", {}, "Justificada"), " — defesa aceita, sem MCE."],
       transf: [h("strong", {}, "Transferida"), " para a próxima NAMCE."],
       aguardando: [h("strong", {}, "Aguardando decisão do Comando"), " — há outro procedimento administrativo; a decisão sai em uma próxima NAMCE."],
@@ -2345,11 +2356,17 @@ const DIAS = ["Sexta", "Sábado", "Domingo"];
 const DECISOES = { justif: "Justif.", transf: "Transf.", td: "TD", cumprida: "Já cumprida", aguardando: "Aguardando decisão do Comando" };
 // Decisões que levam a AAD para a dosimetria da semana seguinte
 const PASSA_ADIANTE = ["transf", "aguardando"];
-/** "(Transferida NAMCE 35)." ou "(Aguardando decisão do Comando desde a NAMCE 35)." */
+// Cumprimento parcial: restante em quantidade de EEsp e LC, levado para a semana seguinte
+const fmtRest = (r) => [r && r.eesp ? `${r.eesp} EEsp` : "", r && r.lc ? `${r.lc} LC` : ""].filter(Boolean).join(" e ");
+const temRest = (r) => !!(r && (r.eesp || 0) + (r.lc || 0) > 0);
+const contaBlocos = (ids) => ({ eesp: ids.filter((id) => id.startsWith("EEsp")).length, lc: ids.filter((id) => id.startsWith("LC")).length });
+/** "(Transferida NAMCE 35)." / "(Aguardando decisão do Comando desde a NAMCE 35)." / "(Restante da NAMCE 35: 1 EEsp; já cumprido: …)." */
 function sufixoOrigem(x) {
-  if (x.aguardandoDe) return ` (Aguardando decisão do Comando desde a NAMCE ${x.aguardandoDe.split("/")[0]}).`;
-  if (x.transferidaDe) return ` (Transferida NAMCE ${x.transferidaDe.split("/")[0]}).`;
-  return "";
+  let t = "";
+  if (x.aguardandoDe) t = ` (Aguardando decisão do Comando desde a NAMCE ${x.aguardandoDe.split("/")[0]}).`;
+  else if (x.transferidaDe) t = ` (Transferida NAMCE ${x.transferidaDe.split("/")[0]}).`;
+  if (x.parcialDe && temRest(x.pendente)) t += ` (Restante da NAMCE ${x.parcialDe.split("/")[0]}: ${fmtRest(x.pendente)}` + (x.cumpridoAntes ? `; já cumprido: ${x.cumpridoAntes}` : "") + ").";
+  return t;
 }
 
 let semanaW = 0;            // prazo (ms) da semana aberta na dosimetria
@@ -2375,10 +2392,11 @@ function textoBlocos(ids) { return BLOCOS.filter((b) => ids.includes(b.id)).map(
 function textoMce(d) {
   if (!d || !d.decisao) return "";
   let t = d.decisao === "blocos" ? textoBlocos(d.blocos || []) : DECISOES[d.decisao];
+  if (d.decisao === "blocos" && d.parcial && temRest(d.restante)) t += ` (cumprimento parcial; restante de ${fmtRest(d.restante)} transferido para a próxima NAMCE)`;
   if (d.obs) t += ` (${d.obs})`;
   return t;
 }
-function decidida(d) { return !!(d && d.decisao && (d.decisao !== "blocos" || (d.blocos && d.blocos.length))); }
+function decidida(d) { return !!(d && d.decisao && (d.decisao !== "blocos" || (d.blocos && d.blocos.length && (!d.parcial || temRest(d.restante))))); }
 function dataCurta(ms) { return new Date(ms).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }); }
 function dataHoraMs(ms) { return new Date(ms).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 function fdsTexto(W) { return `sexta ${dataCurta(sextaDe(W))} a domingo ${dataCurta(sextaDe(W) + 2 * DIA)}`; }
@@ -2855,7 +2873,7 @@ async function pdfExtratoNamce(n) {
       const a = anots[i];
       return {
         cadeteGuerra: it.cadeteGuerra, cadeteNome: it.cadeteNome, turma: `${it.grupo} · ${it.cadetePelotao}`,
-        fato: it.fato, anotadorNome: it.anotadorNome, descricao: it.descricao + sufixoOrigem(it), mce: it.mce,
+        fato: it.fato, anotadorNome: it.anotadorNome, descricao: it.descricao + (it.origemTxt ?? sufixoOrigem(it)), mce: it.mce,
         cienteAnot: a ? ms(a.cienteEm) : null,
         ciente: a && a.mce && a.mce.namce === `${n.numero}/${n.ano}` ? cienteDaNamce(a) : null
       };
@@ -3077,7 +3095,10 @@ function montarNamce() {
       anotacaoId: a.id, grupo: g, cadeteId: a.cadeteId, cadeteGuerra: a.cadeteGuerra, cadeteNome: a.cadeteNome,
       cadeteAno: a.cadeteAno, cadeteTurma: a.cadeteTurma, cadetePelotao: a.cadetePelotao,
       fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
-      decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || "", aguardandoDe: d.aguardandoDe || ""
+      decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || "", aguardandoDe: d.aguardandoDe || "",
+      ...(d.decisao === "blocos" && d.parcial ? { parcial: true, restante: d.restante } : {}),
+      ...(d.parcialDe ? { parcialDe: d.parcialDe, pendente: d.pendente || null, cumpridoAntes: d.cumpridoAntes || "" } : {}),
+      origemTxt: sufixoOrigem(d)
     });
   }));
   const fo = semana.filter((a) => a.tipo === "fo" && !a.anulada).sort(ordenarAnot).map((a) => ({
@@ -3198,7 +3219,7 @@ function tabelaDosi(lista, todas) {
   const cabBlocos = COLUNAS.map((b) => h("th", { class: "col-bl", title: `${DIAS[b.dia]} · ${hhmm(b.ini)} às ${hhmm(b.fim)}` },
     b.rot.replace(" ", " "), h("small", {}, `${DIAS[b.dia].slice(0, 3)} ${hhmm(b.ini)}`)));
   const cabDec = COL_DECISOES.map(([, rot, dica]) => h("th", { class: "col-dec", title: dica || rot }, rot));
-  const ncol = 5 + COLUNAS.length + COL_DECISOES.length;
+  const ncol = 6 + COLUNAS.length + COL_DECISOES.length;
 
   const corpo = [];
   const grupos = {};
@@ -3212,7 +3233,7 @@ function tabelaDosi(lista, todas) {
     h("thead", {}, h("tr", {},
       h("th", { class: "col-num" }, "Nº"), h("th", { class: "col-cad" }, "Cadete"), h("th", { class: "col-data" }, "Data e hora"),
       h("th", { class: "col-desc" }, "Descrição"), h("th", { class: "col-just" }, "Justificativa"),
-      ...cabBlocos, ...cabDec)),
+      ...cabBlocos, h("th", { class: "col-parc", title: "Cumprimento parcial: o cadete cumpre os blocos marcados e o restante vai para a próxima semana" }, "Parcial"), ...cabDec)),
     h("tbody", {}, corpo)));
 }
 
@@ -3256,7 +3277,7 @@ function linhaDosi(a, num, linhas) {
       type: "button", class: "cel " + estado, title: titulo, "aria-label": titulo, "aria-pressed": sel ? "true" : "false", disabled: !pode,
       onclick: () => {
         const novos = sel ? meus.filter((x) => x !== b.id) : [...meus, b.id];
-        salvar({ decisao: novos.length ? "blocos" : "", blocos: novos });
+        salvar({ decisao: novos.length ? "blocos" : "", blocos: novos, ...(novos.length ? {} : { parcial: false }) });
       }
     }, sel ? "✓" : estado === "escala" ? "×" : ""));
   });
@@ -3265,9 +3286,47 @@ function linhaDosi(a, num, linhas) {
     const ativo = d.decisao === k;
     return h("td", { class: "col-dec" }, h("button", {
       type: "button", class: "cel dec" + (ativo ? " sel" : ""), "aria-pressed": ativo ? "true" : "false", title: dica || rot, "aria-label": rot,
-      onclick: () => salvar(ativo ? { decisao: "", blocos: [] } : { decisao: k, blocos: [] })
+      onclick: () => salvar(ativo ? { decisao: "", blocos: [], parcial: false } : { decisao: k, blocos: [], parcial: false })
     }, ativo ? "✓" : ""));
   });
+
+  // Cumprimento parcial: só com pelo menos um bloco marcado; o restante (EEsp/LC) vai para a semana seguinte
+  const parcial = meus.length > 0 && !!d.parcial;
+  const selN = contaBlocos(meus);
+  const restPadrao = () => {
+    if (temRest(d.pendente)) {
+      const r = { eesp: Math.max(0, (d.pendente.eesp || 0) - selN.eesp), lc: Math.max(0, (d.pendente.lc || 0) - selN.lc) };
+      if (temRest(r)) return r;
+    }
+    return { eesp: 1, lc: 0 };
+  };
+  const celParc = h("td", { class: "col-parc" }, h("button", {
+    type: "button", class: "cel parc" + (parcial ? " sel" : ""), "aria-pressed": parcial ? "true" : "false", disabled: !meus.length,
+    title: meus.length ? "Cumprimento parcial: os blocos marcados são cumpridos neste fim de semana e o restante vai para a próxima semana"
+      : "Marque primeiro os blocos que o cadete consegue cumprir neste fim de semana. Se não conseguir cumprir nada, use Transf.",
+    "aria-label": "Cumprimento parcial",
+    onclick: () => salvar(parcial ? { parcial: false } : { parcial: true, restante: temRest(d.restante) ? d.restante : restPadrao() })
+  }, parcial ? "½" : ""));
+
+  // Caixa sob a descrição: restante que vem da semana anterior e/ou restante que vai para a próxima
+  const caixas = [];
+  if (d.parcialDe && temRest(d.pendente)) {
+    caixas.push(h("div", { class: "parc-box" },
+      h("strong", {}, `Restante a cumprir (NAMCE ${d.parcialDe.split("/")[0]}): ${fmtRest(d.pendente)}`),
+      d.cumpridoAntes ? h("div", {}, "Já cumprido: " + d.cumpridoAntes) : null,
+      h("div", {}, "Marcado nesta semana: " + (meus.length ? `${selN.eesp} EEsp e ${selN.lc} LC` : "nada"))));
+  }
+  if (parcial) {
+    const r = { eesp: d.restante?.eesp || 0, lc: d.restante?.lc || 0 };
+    const passo = (campo, rot) => h("span", { class: "parc-pass" }, rot,
+      h("button", { type: "button", "aria-label": `Menos ${rot}`, disabled: r[campo] <= 0, onclick: () => salvar({ restante: { ...r, [campo]: r[campo] - 1 } }) }, "−"),
+      h("b", {}, String(r[campo])),
+      h("button", { type: "button", "aria-label": `Mais ${rot}`, disabled: r[campo] >= 20, onclick: () => salvar({ restante: { ...r, [campo]: r[campo] + 1 } }) }, "+"));
+    caixas.push(h("div", { class: "parc-box" },
+      h("strong", {}, "Cumprimento parcial · restante para a próxima semana:"), h("br"),
+      passo("eesp", "EEsp"), passo("lc", "LC"),
+      temRest(r) ? null : h("div", {}, "⚠ Informe o restante (ou desmarque Parcial).")));
+  }
 
   // Justificativa (defesa do cadete)
   let just;
@@ -3282,11 +3341,12 @@ function linhaDosi(a, num, linhas) {
     h("td", { class: "col-cad" },
       h("strong", {}, a.cadeteGuerra), seloCiente(a),
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
+      d.parcialDe && temRest(d.pendente) ? h("span", { class: "selo-rest", title: "Anotação de semana anterior com punição cumprida em parte" }, `↪ restante NAMCE ${d.parcialDe.split("/")[0]}`) : null,
       conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null),
     h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),
-    h("td", { class: "col-desc" }, a.descricao + sufixoOrigem(d)),
+    h("td", { class: "col-desc" }, a.descricao + sufixoOrigem({ ...d, parcialDe: "" }), ...caixas),
     h("td", { class: "col-just" }, just),
-    ...celBlocos, ...celDec
+    ...celBlocos, celParc, ...celDec
   );
 }
 
@@ -3299,6 +3359,8 @@ async function publicarNamce() {
   if (Date.now() <= W) { if (!confirm(`O prazo de defesa desta semana ainda não terminou (segunda ${dataCurta(W)}, 23h59). Publicar mesmo assim?`)) return; }
   const linhas = linhasDosi();
   const pend = linhas.filter((a) => !decidida(dosi[a.id]));
+  const semRest = linhas.filter((a) => { const d = dosi[a.id]; return d && d.decisao === "blocos" && d.parcial && !temRest(d.restante); });
+  if (semRest.length) { alert(`Informe o restante do cumprimento parcial de:\n\n${semRest.map((a) => "• " + a.cadeteGuerra).join("\n")}`); return; }
   if (pend.length) { alert(`Ainda há ${pend.length} AAD sem decisão:\n\n${pend.slice(0, 15).map((a) => "• " + a.cadeteGuerra).join("\n")}`); return; }
   const conf = linhas.filter((a) => conflitosDe(a).length);
   if (conf.length && !confirm(`${conf.length} AAD têm blocos em conflito com escala de serviço:\n\n${conf.map((a) => "• " + a.cadeteGuerra).join("\n")}\n\nPublicar mesmo assim?`)) return;
@@ -3317,11 +3379,20 @@ async function publicarNamce() {
     publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), itens, fo
   }, { merge: true }));
   for (const it of itens) {
-    ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.decisao, namce: ref } }));
+    ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.parcial ? "parcial" : it.decisao, namce: ref } }));
+    // o restante de um cumprimento parcial anterior acompanha a anotação se ela for transferida de novo
+    const herdado = it.parcialDe ? { parcialDe: it.parcialDe, pendente: it.pendente, cumpridoAntes: it.cumpridoAntes || "" } : {};
     if (PASSA_ADIANTE.includes(it.decisao)) {
       const origem = it.decisao === "aguardando" ? { aguardandoDe: it.aguardandoDe || ref } : { transferidaDe: it.transferidaDe || ref };
       ops.push((b) => b.set(doc(db, "dosimetria", it.anotacaoId), {
-        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", ...origem,
+        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", ...herdado, ...origem,
+        atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
+      }));
+    } else if (it.parcial) {
+      const cumprido = `${textoBlocos(it.blocos)} (NAMCE ${numero})`;
+      ops.push((b) => b.set(doc(db, "dosimetria", it.anotacaoId), {
+        semana: W + 7 * DIA, decisao: "", blocos: [], obs: "", parcialDe: ref, pendente: it.restante,
+        cumpridoAntes: it.cumpridoAntes ? `${it.cumpridoAntes}; ${cumprido}` : cumprido,
         atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
       }));
     }
@@ -3377,7 +3448,7 @@ function desenharPublicada(n) {
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
-        h("td", { class: "desc" }, it.descricao + sufixoOrigem(it)),
+        h("td", { class: "desc" }, it.descricao + (it.origemTxt ?? sufixoOrigem(it))),
         h("td", {}, h("strong", {}, it.mce)),
         h("td", {}, seloCienteNamce(anotPorId(it.anotacaoId), prazoC))))))));
   });
@@ -3660,7 +3731,7 @@ function punidosDoFds(W) {
   }
   const ids = new Set(anotFds.filter((a) => a.tipo !== "fo").map((a) => a.cadeteId));
   const ant = namces[String(W - 7 * DIA)];
-  if (ant && ant.status === "publicada") ant.itens.filter((it) => PASSA_ADIANTE.includes(it.decisao)).forEach((it) => ids.add(it.cadeteId));
+  if (ant && ant.status === "publicada") ant.itens.filter((it) => PASSA_ADIANTE.includes(it.decisao) || it.parcial).forEach((it) => ids.add(it.cadeteId));
   return { modo: "anotados", ids };
 }
 
@@ -4254,9 +4325,9 @@ const msFato = (a) => (a.fatoEm && a.fatoEm.toMillis ? a.fatoEm.toMillis() : 0);
 /** Situação da AAD para os resumos: justif | td | transf | aguardando | mce | pendente */
 function situacaoAad(a) {
   if (!a.mce) return "pendente";
-  return ["justif", "td", "transf", "aguardando"].includes(a.mce.decisao) ? a.mce.decisao : "mce";
+  return ["justif", "td", "transf", "aguardando", "parcial"].includes(a.mce.decisao) ? a.mce.decisao : "mce";
 }
-const ROTULO_SIT = { mce: "com MCE", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
+const ROTULO_SIT = { mce: "com MCE", parcial: "MCE parcial", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
 
 /** Pessoas da visão atual (cadetes anotados ou anotadores), cada uma com as suas anotações do período. */
 function pessoasEstat(desde) {
@@ -4358,7 +4429,7 @@ function detalheEstat(x, anotV) {
   if (!an.length) return [h("p", { class: "vazio", style: "margin-top:8px" }, anotV ? "Nenhuma anotação lançada no período." : "Nenhuma anotação no período.")];
   const cont = {};
   an.filter((a) => a.tipo !== "fo").forEach((a) => { const s = situacaoAad(a); cont[s] = (cont[s] || 0) + 1; });
-  const chips = ["mce", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
+  const chips = ["mce", "parcial", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
     .map((s) => h("span", {}, `${cont[s]} ${ROTULO_SIT[s]}`));
   const distintos = new Set(an.map((a) => a.cadeteId)).size;
   return [

@@ -135,8 +135,8 @@ export async function gerarNamcePdf(n, { previa = false, salvar = true, base = "
       ...estiloTabela, startY: y,
       head: [titulo(g.nome, 5), ["N°", "Data", g.nome === "CHOE" ? "Aluno-Oficial" : "Cadete", "AAD", "MCE"]],
       body: g.itens.map((it, i) => [String(i + 1), data(it.fato), it.cadeteGuerra,
-        it.descricao + (it.aguardandoDe ? ` (Aguardando decisão do Comando desde a NAMCE ${it.aguardandoDe.split("/")[0]}).`
-          : it.transferidaDe ? ` (Transferida NAMCE ${it.transferidaDe.split("/")[0]}).` : ""),
+        it.descricao + (it.origemTxt ?? (it.aguardandoDe ? ` (Aguardando decisão do Comando desde a NAMCE ${it.aguardandoDe.split("/")[0]}).`
+          : it.transferidaDe ? ` (Transferida NAMCE ${it.transferidaDe.split("/")[0]}).` : "")),
         (it.mce || "").replace(/ \+ /g, "\n")]),
       columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 66 }, 2: { cellWidth: 86 }, 4: { cellWidth: 72 } }
     });

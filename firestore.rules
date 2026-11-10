@@ -211,7 +211,7 @@ service cloud.firestore {
           && request.resource.data.cienteEm == request.time)
         || (nivel(3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
-          && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao in ['transf', 'aguardando']));
+          && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial']));
 
       allow delete: if nivel(3) && request.time < resource.data.prazo - duration.value(280799, 's');
 
