@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.8">
+<meta name="sde-versao" content="2026-11-10.9">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -139,6 +139,8 @@
     text-align: left; background: none; border: 0; font: inherit; color: inherit; padding: 9px 12px; border-radius: 6px; cursor: pointer;
   }
   .menu-usuario button:hover, .menu-usuario button:focus-visible { background: var(--fundo-2); outline: none; }
+  .troca-senha { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
+  .troca-senha form { margin-top: 10px; }
   .menu-usuario .sair { color: var(--erro); border-top: 1px solid var(--borda); border-radius: 0 0 6px 6px; margin-top: 4px; }
   .dialogo {
     border: 1px solid var(--borda); border-radius: 12px; padding: 20px 22px; width: min(460px, calc(100% - 32px));
@@ -1123,6 +1125,22 @@
 <dialog class="dialogo" id="dlgInfo" aria-labelledby="dlgInfoTitulo">
   <h2 id="dlgInfoTitulo">Minhas informações</h2>
   <div id="infoConteudo"></div>
+  <div class="troca-senha">
+    <button class="btn sec" type="button" id="btnAbrirSenha" aria-expanded="false" aria-controls="formSenha">Trocar senha</button>
+    <form id="formSenha" novalidate hidden>
+      <label for="sAtual">Senha atual</label>
+      <input id="sAtual" type="password" autocomplete="current-password">
+      <label for="sNova">Nova senha <button type="button" class="dica" aria-label="Ajuda" data-dica="Mínimo de 6 caracteres. Depois de trocar, use a nova senha para entrar em todos os aparelhos.">?</button></label>
+      <input id="sNova" type="password" autocomplete="new-password" minlength="6">
+      <label for="sNova2">Repita a nova senha</label>
+      <input id="sNova2" type="password" autocomplete="new-password" minlength="6">
+      <div id="msgSenha" class="msg" hidden></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
+        <button class="btn" type="submit" id="btnSalvarSenha">Salvar nova senha</button>
+        <button class="btn sec" type="button" id="btnCancelarSenha">Cancelar</button>
+      </div>
+    </form>
+  </div>
   <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharInfo">Fechar</button></div>
 </dialog>
 
@@ -1142,7 +1160,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, signOut
+  sendPasswordResetEmail, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
@@ -1482,7 +1500,44 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#men
 $("#btnMinhasInfo").addEventListener("click", () => {
   fecharMenu();
   desenharInfo();
+  fecharTrocaSenha();
   $("#dlgInfo").showModal();
+});
+
+// ---------- Trocar senha (na janela "Minhas informações") ----------
+function fecharTrocaSenha() {
+  $("#formSenha").hidden = true; $("#formSenha").reset();
+  $("#btnAbrirSenha").hidden = false; $("#btnAbrirSenha").setAttribute("aria-expanded", "false");
+  mensagem("#msgSenha", "");
+}
+$("#btnAbrirSenha").addEventListener("click", () => {
+  $("#formSenha").hidden = false; $("#btnAbrirSenha").hidden = true; $("#btnAbrirSenha").setAttribute("aria-expanded", "true");
+  $("#sAtual").focus();
+});
+$("#btnCancelarSenha").addEventListener("click", () => { fecharTrocaSenha(); $("#btnAbrirSenha").focus(); });
+$("#formSenha").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  mensagem("#msgSenha", "");
+  const atualS = $("#sAtual").value, nova = $("#sNova").value, nova2 = $("#sNova2").value;
+  if (!atualS) { mensagem("#msgSenha", "Informe a senha atual."); $("#sAtual").focus(); return; }
+  if (nova.length < 6) { mensagem("#msgSenha", "A nova senha precisa ter pelo menos 6 caracteres."); $("#sNova").focus(); return; }
+  if (nova !== nova2) { mensagem("#msgSenha", "As duas novas senhas não são iguais."); $("#sNova2").focus(); return; }
+  if (nova === atualS) { mensagem("#msgSenha", "A nova senha é igual à atual."); $("#sNova").focus(); return; }
+  const btn = $("#btnSalvarSenha"); btn.disabled = true;
+  try {
+    const u = auth.currentUser;
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, atualS));
+    await updatePassword(u, nova);
+    $("#formSenha").reset();
+    mensagem("#msgSenha", "Senha alterada. Use a nova senha nos próximos acessos.", "ok");
+    avisar("Senha alterada.");
+  } catch (err) {
+    console.error(err);
+    const c = err && err.code;
+    mensagem("#msgSenha", c === "auth/invalid-credential" || c === "auth/wrong-password" ? "Senha atual incorreta."
+      : c === "auth/requires-recent-login" ? "Por segurança, saia do sistema, entre de novo e repita a troca."
+      : erroAuth(err));
+  } finally { btn.disabled = false; }
 });
 $("#btnFecharInfo").addEventListener("click", () => $("#dlgInfo").close());
 $("#dlgInfo").addEventListener("click", (e) => { if (e.target === $("#dlgInfo")) $("#dlgInfo").close(); });
