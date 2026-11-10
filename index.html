@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.1">
+<meta name="sde-versao" content="2026-11-10.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -919,7 +919,7 @@
           <button type="button" role="tab" id="estVAnot" aria-selected="false"><span class="sub-tit">Anotadores</span><small>quem mais lança AAD e FO+</small></button>
         </div>
         <div class="filtros filtro-turma">
-          <input id="eBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
+          <input id="estBusca" type="search" placeholder="Buscar por nome ou nome de guerra">
           <select id="eFAno" aria-label="Filtrar por curso / ano"></select>
           <select id="eFTurma" aria-label="Filtrar por turma"></select>
           <select id="eFPel" aria-label="Filtrar por pelotão"></select>
@@ -950,6 +950,14 @@
     <div class="aba" id="aba-escalas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Importar escala em PDF</h2>
+        <label for="iNatureza">Natureza da escala</label>
+        <select id="iNatureza" class="sel-natureza">
+          <option value="">Selecione</option>
+          <option value="interno">Escala de serviços internos</option>
+          <option value="estagio">Escala de estágio</option>
+          <option value="especial">Escala especial</option>
+        </select>
+        <label for="arqEscala">Arquivo PDF</label>
         <input type="file" id="arqEscala" accept="application/pdf,.pdf">
         <div id="resultadoImport"></div>
       </div>
@@ -968,19 +976,37 @@
             <div><label for="eInicio">Início</label><input id="eInicio" type="datetime-local"></div>
             <div><label for="eFim">Fim</label><input id="eFim" type="datetime-local"></div>
           </div>
-          <label for="eServico">Serviço</label>
-          <input id="eServico" maxlength="200" placeholder="Ex.: Sentinela da Guarda, Eleições 2º turno">
+          <div class="linha" style="grid-template-columns: 1fr 2fr;">
+            <div><label for="eNatureza">Natureza</label>
+              <select id="eNatureza">
+                <option value="">Selecione</option>
+                <option value="interno">Serviços internos</option>
+                <option value="estagio">Estágio</option>
+                <option value="especial">Especial</option>
+              </select></div>
+            <div><label for="eServico">Serviço</label>
+              <input id="eServico" maxlength="200" placeholder="Ex.: Sentinela da Guarda, Eleições 2º turno"></div>
+          </div>
           <div id="msgEscala" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
         </form>
         </div>
       </div>
       <div class="cartao">
-        <h2>Escalas no fim de semana</h2>
+        <h2>Escalas no fim de semana <button type="button" class="dica" aria-label="Ajuda" data-dica="Mostra só as escalas dos cadetes que têm punição para cumprir no fim de semana escolhido: depois da NAMCE, quem recebeu MCE; antes dela, quem foi anotado (AAD) na semana ou teve a anotação transferida para ela. As escalas dos demais cadetes ficam guardadas e continuam valendo para os bloqueios da Dosimetria.">?</button></h2>
         <div class="ciclo-escolha">
           <label for="selFds" style="margin:0">Fim de semana</label>
           <select id="selFds"></select>
+          <label for="selNatureza" style="margin:0">Natureza</label>
+          <select id="selNatureza">
+            <option value="">Todas</option>
+            <option value="interno">Serviços internos</option>
+            <option value="estagio">Estágio</option>
+            <option value="especial">Especiais</option>
+            <option value="-">Não informada</option>
+          </select>
         </div>
+        <div id="infoPunidos" class="ajuda" style="margin:4px 0 8px"></div>
         <div id="listaEscalas"></div>
       </div>
     </div>
@@ -1752,7 +1778,7 @@ function abrirApp() {
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "escalasAnot", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
     estatAnot = []; estatCarregado = false;
   }
   desenharMinhas();
@@ -2508,6 +2534,7 @@ function assinarSemana() {
     rotularCiclos();
     desenharSemana();
     desenharAtual();
+    if (escalasProntas) desenharEscalas();
   }, (err) => console.error(err)));
   desenharAtual();
   desenharSemana();
@@ -3579,12 +3606,38 @@ function prepararEscalas() {
   }
   sel.value = String(padrao);
   sel.addEventListener("change", assinarEscalasLista);
+  $("#selNatureza").addEventListener("change", desenharEscalas);
+  $("#iNatureza").addEventListener("change", () => { if (importacao) desenharImportacao(); });
   $("#formEscala").addEventListener("submit", lancarEscala);
   $("#arqEscala").addEventListener("change", importarPdf);
 }
 
+// Natureza da escala (escolhida na importação / no lançamento). Escalas antigas: deduzida do tipo do PDF.
+const NATUREZAS = { interno: "Serviços internos", estagio: "Estágio", especial: "Especial" };
+function naturezaDe(e) { return e.natureza || (e.tipo === "interno" ? "interno" : e.tipo === "especial" ? "especial" : ""); }
+
+// Anotações (AAD) da semana cujo cumprimento é o fim de semana escolhido
+let anotFds = [];
+/** Cadetes com punição para cumprir no fim de semana de W. */
+function punidosDoFds(W) {
+  const n = namces[String(W)];
+  if (n && n.status === "publicada") {
+    const ids = new Set(n.itens.filter((it) => (it.blocos || []).length && !["justif", "transf", "aguardando", "td", "cumprida"].includes(it.decisao)).map((it) => it.cadeteId));
+    return { modo: "namce", ids, namce: `${n.numero}/${n.ano}` };
+  }
+  const ids = new Set(anotFds.filter((a) => a.tipo !== "fo").map((a) => a.cadeteId));
+  const ant = namces[String(W - 7 * DIA)];
+  if (ant && ant.status === "publicada") ant.itens.filter((it) => PASSA_ADIANTE.includes(it.decisao)).forEach((it) => ids.add(it.cadeteId));
+  return { modo: "anotados", ids };
+}
+
 function assinarEscalasLista() {
   const W = +$("#selFds").value;
+  anotFds = [];
+  assinar("escalasAnot", W, () => onSnapshot(
+    query(collection(db, "anotacoes"), where("prazo", "==", Timestamp.fromMillis(W))),
+    (snap) => { anotFds = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharEscalas(); },
+    (err) => console.error(err)));
   assinar("escalasLista", W, () => onSnapshot(
     query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W)))),
     (snap) => {
@@ -3598,18 +3651,31 @@ function assinarEscalasLista() {
 }
 
 function desenharEscalas() {
-  $("#listaEscalas").replaceChildren(escalasLista.length
+  if (!$("#selFds").value) return;
+  const W = +$("#selFds").value, nat = $("#selNatureza").value;
+  const p = punidosDoFds(W);
+  const daNatureza = escalasLista.filter((e) => !nat || (nat === "-" ? !naturezaDe(e) : naturezaDe(e) === nat));
+  const lista = daNatureza.filter((e) => p.ids.has(e.cadeteId));
+  const ocultas = daNatureza.length - lista.length;
+  $("#infoPunidos").textContent = (p.modo === "namce"
+    ? `NAMCE nº ${p.namce} publicada: ${p.ids.size} cadete(s) com MCE para cumprir neste fim de semana.`
+    : `NAMCE ainda não publicada: ${p.ids.size} cadete(s) anotado(s) que podem receber punição neste fim de semana.`)
+    + (ocultas ? ` ${ocultas} escala(s) de cadetes sem punição não aparecem aqui.` : "");
+  $("#listaEscalas").replaceChildren(lista.length
     ? h("table", { class: "tabela" },
-        h("thead", {}, h("tr", {}, h("th", {}, "Cadete"), h("th", {}, "Serviço"), h("th", {}, "Início"), h("th", {}, "Fim"), h("th", {}, "Origem"), h("th", {}))),
-        h("tbody", {}, escalasLista.map((e) => h("tr", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "Cadete"), h("th", {}, "Natureza"), h("th", {}, "Serviço"), h("th", {}, "Início"), h("th", {}, "Fim"), h("th", {}, "Origem"), h("th", {}))),
+        h("tbody", {}, lista.map((e) => h("tr", {},
           h("td", {}, h("strong", {}, e.cadeteGuerra || "?")),
+          h("td", {}, NATUREZAS[naturezaDe(e)] || h("span", { class: "ajuda" }, "não informada")),
           h("td", {}, e.servico),
           h("td", {}, dataHoraMs(e.inicio.toMillis())),
           h("td", {}, dataHoraMs(e.fim.toMillis())),
           h("td", { class: "ajuda" }, e.origem || ""),
           h("td", { class: "acoes" }, h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirEscala(e) }, "Excluir"))
         ))))
-    : h("p", { class: "vazio" }, "Nenhuma escala lançada para este fim de semana."));
+    : h("p", { class: "vazio" }, !p.ids.size
+        ? "Nenhum cadete com punição para este fim de semana."
+        : "Nenhum cadete com punição tem escala " + (nat ? "desta natureza " : "") + "neste fim de semana."));
 }
 
 async function lancarEscala(ev) {
@@ -3621,6 +3687,8 @@ async function lancarEscala(ev) {
   if (isNaN(ini) || isNaN(fim)) { mensagem("#msgEscala", "Informe início e fim."); return; }
   if (fim <= ini) { mensagem("#msgEscala", "O fim precisa ser depois do início."); return; }
   if (fim - ini > 4 * DIA) { mensagem("#msgEscala", "Serviço com mais de 4 dias: confira as datas."); return; }
+  const natureza = $("#eNatureza").value;
+  if (!natureza) { mensagem("#msgEscala", "Selecione a natureza da escala."); return; }
   if (servico.length < 2) { mensagem("#msgEscala", "Informe o serviço."); return; }
   const btn = $("#btnEscala"); btn.disabled = true;
   try {
@@ -3628,7 +3696,7 @@ async function lancarEscala(ev) {
     for (const c of seletorEscala.escolhidos.values()) {
       lote.set(doc(collection(db, "escalas")), {
         cadeteId: c.id, cadeteGuerra: c.guerra, inicio: Timestamp.fromDate(ini), fim: Timestamp.fromDate(fim),
-        servico, tipo: "manual", origem: "Lançamento manual", criadoPor: nomeCurto(perfil).toUpperCase(), criadoEm: serverTimestamp()
+        servico, tipo: "manual", natureza, origem: "Lançamento manual", criadoPor: nomeCurto(perfil).toUpperCase(), criadoEm: serverTimestamp()
       });
     }
     await lote.commit();
@@ -3698,6 +3766,7 @@ function desenharImportacao() {
   const partes = [
     h("div", { class: "import-resumo" },
       h("span", {}, h("strong", {}, imp.leitura.titulo || nomeTipo)),
+      h("span", {}, "Natureza: ", h("strong", {}, NATUREZAS[$("#iNatureza").value] || "não escolhida")),
       h("span", {}, h("strong", {}, imp.leitura.registros.length), " escalações no PDF"),
       h("span", {}, h("strong", {}, imp.ligados.length), " de cadetes cadastrados no SDE"),
       h("span", {}, h("strong", {}, linhas.length), " serviços no período de cumprimento"))
@@ -3751,7 +3820,9 @@ function desenharImportacao() {
 }
 
 async function salvarImportacao(linhas, btn) {
-  if (!confirm(`Salvar ${linhas.length} escala(s) de serviço?\n\nSe este PDF já foi importado antes, os mesmos serviços são atualizados (não duplicam).`)) return;
+  const natureza = $("#iNatureza").value;
+  if (!natureza) { avisar("Selecione a natureza da escala (no alto do quadro) antes de salvar.", true); $("#iNatureza").focus(); return; }
+  if (!confirm(`Natureza: ${NATUREZAS[natureza]}\n\n` + `Salvar ${linhas.length} escala(s) de serviço?\n\nSe este PDF já foi importado antes, os mesmos serviços são atualizados (não duplicam).`)) return;
   btn.disabled = true;
   const tipo = importacao.leitura.tipo, quem = nomeCurto(perfil).toUpperCase();
   try {
@@ -3760,7 +3831,7 @@ async function salvarImportacao(linhas, btn) {
       linhas.slice(i, i + 400).forEach((r) => {
         lote.set(doc(db, "escalas", `pdf_${r.cadete.id}_${r.ini}_${r.fim}`), {
           cadeteId: r.cadete.id, cadeteGuerra: r.cadete.guerra, inicio: Timestamp.fromMillis(r.ini), fim: Timestamp.fromMillis(r.fim),
-          servico: r.servico.slice(0, 200), tipo, origem: `${r.origem} (${importacao.arquivo})`.slice(0, 200),
+          servico: r.servico.slice(0, 200), tipo, natureza, origem: `${r.origem} (${importacao.arquivo})`.slice(0, 200),
           criadoPor: quem, criadoEm: serverTimestamp()
         });
       });
@@ -3768,7 +3839,7 @@ async function salvarImportacao(linhas, btn) {
     }
     avisar(`${linhas.length} escala(s) salvas.`);
     importacao = null;
-    $("#arqEscala").value = "";
+    $("#arqEscala").value = ""; $("#iNatureza").value = "";
     $("#resultadoImport").replaceChildren(h("div", { class: "msg ok" }, `${linhas.length} escala(s) salvas. Os blocos em conflito já aparecem bloqueados na Dosimetria.`));
   } catch (err) {
     console.error(err);
@@ -4024,7 +4095,7 @@ const estatAbertos = new Set();   // "cad:<id>" / "anot:<uid>" com o detalhe abe
 function prepararEstat() {
   if (estatPronto) return;
   estatPronto = true;
-  filtroEstat = criarFiltroTurma("eF", $("#eBusca"), desenharEstat);
+  filtroEstat = criarFiltroTurma("eF", $("#estBusca"), desenharEstat);
   try {
     const o = localStorage.getItem("sde-est-ordem"); if (o) $("#eOrdem").value = o;
     if (localStorage.getItem("sde-est-visao") === "anot") estatVisao = "anot";
