@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.5">
+<meta name="sde-versao" content="2026-11-10.6">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -479,8 +479,6 @@
     font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
   .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
   .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
-  .aula-pel { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borda); }
-  .aula-pel h3 { margin: 0 0 8px; font-size: 15px; }
   .aula-lista { margin-top: 10px; display: grid; gap: 6px; }
   .aula-lista > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 14px; }
   .res-cad { max-height: 280px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 8px; margin-top: 6px; }
@@ -994,8 +992,12 @@
           <div id="msgEscala" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
         </form>
-        <div class="aula-pel">
-          <h3>Pelotão com aula na sexta à tarde <button type="button" class="dica" aria-label="Ajuda" data-dica="Use quando um pelotão inteiro tiver aula na sexta-feira depois das 12h. Escolha o pelotão, a sexta e o horário em que a aula termina. O sistema lança, para cada cadete ativo do pelotão, um compromisso das 12h até esse horário, e a Dosimetria bloqueia os blocos da sexta que coincidem com ele (EEsp 1 das 14h às 18h, EEsp 2 das 18h às 22h, LC 1 a partir das 19h). Para mudar o horário, lance de novo o mesmo pelotão: o horário anterior é substituído.">?</button></h3>
+        </div>
+      </div>
+      <div class="cartao recolhivel" data-chave="qts">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>QTS<span class="resumo-min"></span></button><button type="button" class="dica" aria-label="Ajuda" data-dica="Use quando um pelotão inteiro tiver aula na sexta-feira depois das 12h. Escolha o pelotão, a sexta e o horário em que a aula termina. O sistema lança, para cada cadete ativo do pelotão, um compromisso das 12h até esse horário, e a Dosimetria bloqueia os blocos da sexta que coincidem com ele (EEsp 1 das 14h às 18h, EEsp 2 das 18h às 22h, LC 1 a partir das 19h). Para mudar o horário, lance de novo o mesmo pelotão: o horário anterior é substituído.">?</button></h2>
+        <div class="corpo-rec">
           <div class="linha">
             <div><label for="aulaGrupo">Pelotão</label><select id="aulaGrupo"></select></div>
             <div><label for="aulaSexta">Sexta-feira</label><select id="aulaSexta"></select></div>
@@ -1004,7 +1006,6 @@
           <p class="ajuda" id="aulaEfeito" style="margin:8px 0"></p>
           <button class="btn" type="button" id="btnAula">Lançar aula do pelotão</button>
           <div id="aulasLancadas"></div>
-        </div>
         </div>
       </div>
       <div class="cartao">
