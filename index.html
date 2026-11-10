@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.4">
+<meta name="sde-versao" content="2026-11-10.5">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -995,12 +995,14 @@
           <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
         </form>
         <div class="aula-pel">
-          <h3>Pelotão com aula até as 18h na sexta <button type="button" class="dica" aria-label="Ajuda" data-dica="Use quando um pelotão inteiro tiver aula na sexta-feira até as 18h. O sistema lança, para cada cadete ativo do pelotão, um compromisso das 12h às 18h dessa sexta, e a Dosimetria passa a bloquear a EEsp 1 (sexta, 14h às 18h) para eles. Os demais blocos não são afetados.">?</button></h3>
+          <h3>Pelotão com aula na sexta à tarde <button type="button" class="dica" aria-label="Ajuda" data-dica="Use quando um pelotão inteiro tiver aula na sexta-feira depois das 12h. Escolha o pelotão, a sexta e o horário em que a aula termina. O sistema lança, para cada cadete ativo do pelotão, um compromisso das 12h até esse horário, e a Dosimetria bloqueia os blocos da sexta que coincidem com ele (EEsp 1 das 14h às 18h, EEsp 2 das 18h às 22h, LC 1 a partir das 19h). Para mudar o horário, lance de novo o mesmo pelotão: o horário anterior é substituído.">?</button></h3>
           <div class="linha">
             <div><label for="aulaGrupo">Pelotão</label><select id="aulaGrupo"></select></div>
             <div><label for="aulaSexta">Sexta-feira</label><select id="aulaSexta"></select></div>
-            <div style="display:flex; align-items:flex-end"><button class="btn" type="button" id="btnAula" style="width:100%">Lançar aula até 18h</button></div>
+            <div><label for="aulaFim">Aula até</label><input type="time" id="aulaFim" min="12:30" max="23:59"></div>
           </div>
+          <p class="ajuda" id="aulaEfeito" style="margin:8px 0"></p>
+          <button class="btn" type="button" id="btnAula">Lançar aula do pelotão</button>
           <div id="aulasLancadas"></div>
         </div>
         </div>
@@ -3623,7 +3625,7 @@ function prepararEscalas() {
   sel.addEventListener("change", assinarEscalasLista);
   $("#selNatureza").addEventListener("change", desenharEscalas);
   $("#iNatureza").addEventListener("change", () => { if (importacao) desenharImportacao(); });
-  // pelotão com aula até 18h: sextas das semanas da lista
+  // pelotão com aula na sexta à tarde: sextas das semanas da lista
   const sx = $("#aulaSexta");
   let sxPadrao = null;
   for (let i = -1; i < 5; i++) {
@@ -3633,6 +3635,8 @@ function prepararEscalas() {
   }
   sx.value = String(sxPadrao);
   sx.addEventListener("change", assinarAulas);
+  $("#aulaFim").addEventListener("input", efeitoAula);
+  efeitoAula();
   $("#btnAula").addEventListener("click", lancarAulaPelotao);
   opcoesAulaGrupo();
   assinarAulas();
@@ -3737,7 +3741,7 @@ async function lancarEscala(ev) {
   } finally { btn.disabled = false; }
 }
 
-// ---------- Pelotão com aula até 18h na sexta (bloqueia a EEsp 1) ----------
+// ---------- Pelotão com aula na sexta à tarde (bloqueia os blocos da sexta que coincidem) ----------
 const chaveGrupo = (c) => `${c.ano}|${c.turma || ""}|${c.pelotao}`;
 function opcoesAulaGrupo() {
   const sel = $("#aulaGrupo");
@@ -3749,6 +3753,21 @@ function opcoesAulaGrupo() {
   if ([...sel.options].some((o) => o.value === atual)) sel.value = atual;
 }
 let aulasSexta = [];
+/** Minutos (desde 0h da sexta) do fim da aula escolhido; null se vazio/inválido. */
+function fimAulaMin() {
+  const m = /^(\d{2}):(\d{2})$/.exec($("#aulaFim").value || "");
+  return m ? +m[1] * 60 + +m[2] : null;
+}
+const hm = (min) => `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
+/** Blocos da sexta que coincidem com a aula das 12h até fimMin. */
+const blocosDaAula = (fimMin) => BLOCOS.filter((b) => b.dia === 0 && b.ini < fimMin && 12 * 60 < b.fim).map((b) => b.rot);
+function efeitoAula() {
+  const f = fimAulaMin(), el = $("#aulaEfeito");
+  if (f === null) { el.textContent = "Informe até que horas vai a aula."; return; }
+  if (f <= 12 * 60) { el.textContent = "O horário precisa ser depois das 12h."; return; }
+  const bl = blocosDaAula(f);
+  el.textContent = bl.length ? `Aula das 12h às ${hm(f)}: bloqueia ${bl.join(", ")} na Dosimetria.` : `Aula das 12h às ${hm(f)}: não coincide com nenhum bloco (a EEsp 1 começa às 14h).`;
+}
 function assinarAulas() {
   const sexta = +$("#aulaSexta").value;
   assinar("aulas", sexta, () => onSnapshot(
@@ -3758,40 +3777,54 @@ function assinarAulas() {
 }
 function desenharAulas() {
   const grupos = new Map();
-  aulasSexta.forEach((e) => { const k = e.grupoAula || e.servico; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(e); });
+  aulasSexta.forEach((e) => {
+    const fimMin = Math.round((e.fim.toMillis() - +$("#aulaSexta").value) / 60000);
+    const k = `${e.grupoAula || e.servico}|${fimMin}`;
+    if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(e);
+  });
   $("#aulasLancadas").replaceChildren(grupos.size
-    ? h("div", { class: "aula-lista" }, [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([g, lista]) =>
-        h("div", {}, h("span", {}, h("strong", {}, g), ` · ${lista.length} cadete(s) · aula até 18h`),
-          h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirAulaGrupo(g, lista) }, "Excluir"))))
-    : h("p", { class: "ajuda", style: "margin:8px 0 0" }, "Nenhum pelotão com aula até 18h nesta sexta."));
+    ? h("div", { class: "aula-lista" }, [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([k, lista]) => {
+        const [g, fimMin] = [k.slice(0, k.lastIndexOf("|")), +k.slice(k.lastIndexOf("|") + 1)];
+        const bl = blocosDaAula(fimMin);
+        return h("div", {}, h("span", {}, h("strong", {}, g), ` · ${lista.length} cadete(s) · aula até ${hm(fimMin)}`, h("br"),
+            h("small", { class: "ajuda" }, bl.length ? "bloqueia " + bl.join(", ") : "não bloqueia nenhum bloco")),
+          h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirAulaGrupo(g, lista) }, "Excluir"));
+      }))
+    : h("p", { class: "ajuda", style: "margin:8px 0 0" }, "Nenhum pelotão com aula lançada nesta sexta."));
 }
 async function lancarAulaPelotao() {
   const k = $("#aulaGrupo").value, sexta = +$("#aulaSexta").value;
   if (!k) { avisar("Escolha o pelotão.", true); return; }
+  const fimMin = fimAulaMin();
+  if (fimMin === null) { avisar("Informe até que horas vai a aula.", true); return; }
+  if (fimMin <= 12 * 60) { avisar("O horário de término precisa ser depois das 12h.", true); return; }
+  const bl = blocosDaAula(fimMin);
   const cadetes = todosCadetes.filter((c) => c.ativo && chaveGrupo(c) === k);
   if (!cadetes.length) { avisar("Nenhum cadete ativo neste pelotão.", true); return; }
   const rotulo = turmaCurta(cadetes[0]);
-  if (!confirm(`${rotulo}: aula até as 18h na sexta ${dataCurta(sexta)}?\n\nSerá lançado um compromisso das 12h às 18h para ${cadetes.length} cadete(s), bloqueando a EEsp 1 deles nessa sexta.`)) return;
+  if (!confirm(`${rotulo}: aula até as ${hm(fimMin)} na sexta ${dataCurta(sexta)}?\n\nSerá lançado um compromisso das 12h às ${hm(fimMin)} para ${cadetes.length} cadete(s). ` +
+    (bl.length ? `Na Dosimetria ficam bloqueados: ${bl.join(", ")}.` : "Esse horário não coincide com nenhum bloco.") +
+    (aulasSexta.some((e) => e.grupoAula === rotulo) ? "\n\nEste pelotão já tem aula lançada nesta sexta: o horário será substituído." : ""))) return;
   const btn = $("#btnAula"); btn.disabled = true;
   try {
     const lote = writeBatch(db), quem = nomeCurto(perfil).toUpperCase();
     cadetes.forEach((c) => lote.set(doc(db, "escalas", `aula_${c.id}_${sexta}`), {
-      cadeteId: c.id, cadeteGuerra: c.guerra, inicio: Timestamp.fromMillis(sexta + 12 * 3600000), fim: Timestamp.fromMillis(sexta + 18 * 3600000),
-      servico: `Aula até 18h · ${rotulo}`, grupoAula: rotulo, tipo: "aula", natureza: "aula", origem: "Aula na sexta (pelotão)",
+      cadeteId: c.id, cadeteGuerra: c.guerra, inicio: Timestamp.fromMillis(sexta + 12 * 3600000), fim: Timestamp.fromMillis(sexta + fimMin * 60000),
+      servico: `Aula até ${hm(fimMin)} · ${rotulo}`, grupoAula: rotulo, tipo: "aula", natureza: "aula", origem: "Aula na sexta (pelotão)",
       criadoPor: quem, criadoEm: serverTimestamp()
     }));
     await lote.commit();
-    avisar(`${rotulo}: aula até 18h lançada para ${cadetes.length} cadete(s). A EEsp 1 deles fica bloqueada na sexta ${dataCurta(sexta)}.`);
+    avisar(`${rotulo}: aula até ${hm(fimMin)} lançada para ${cadetes.length} cadete(s)` + (bl.length ? ` · bloqueados: ${bl.join(", ")}.` : "."));
   } catch (err) { console.error(err); avisar("Não foi possível lançar.", true); }
   finally { btn.disabled = false; }
 }
 async function excluirAulaGrupo(g, lista) {
-  if (!confirm(`Excluir a aula até 18h de ${g} (${lista.length} cadete(s))? A EEsp 1 deles volta a ficar livre nessa sexta.`)) return;
+  if (!confirm(`Excluir a aula de ${g} (${lista.length} cadete(s))? Os blocos da sexta voltam a ficar livres para eles.`)) return;
   try {
     const lote = writeBatch(db);
     lista.forEach((e) => lote.delete(doc(db, "escalas", e.id)));
     await lote.commit();
-    avisar(`Aula até 18h de ${g} excluída.`);
+    avisar(`Aula de ${g} excluída.`);
   } catch (err) { console.error(err); avisar("Não foi possível excluir.", true); }
 }
 
