@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-09.3">
+<meta name="sde-versao" content="2026-11-10.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -953,8 +953,10 @@
         <input type="file" id="arqEscala" accept="application/pdf,.pdf">
         <div id="resultadoImport"></div>
       </div>
-      <div class="cartao">
-        <h2>Lançar escala manualmente</h2>
+      <div class="cartao recolhivel" data-chave="escala-manual">
+        <h2><button type="button" class="btn-recolher" aria-expanded="true">
+          <span class="seta-rec" aria-hidden="true">▾</span>Lançar escala manualmente<span class="resumo-min"></span></button></h2>
+        <div class="corpo-rec">
         <form id="formEscala" novalidate>
           <label for="eBusca">Cadete</label>
           <div class="busca-cadete">
@@ -971,6 +973,7 @@
           <div id="msgEscala" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
         </form>
+        </div>
       </div>
       <div class="cartao">
         <h2>Escalas no fim de semana</h2>
