@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.7">
+<meta name="sde-versao" content="2026-11-10.8">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1064,7 +1064,7 @@
           <span class="seta-rec" aria-hidden="true">▾</span>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span><span class="resumo-min"></span></button></h2>
         <div class="corpo-rec">
         <details class="promover" id="promover">
-          <summary>Promover turmas (virada de ano) <button type="button" class="dica" aria-label="Ajuda" data-dica="Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em &quot;Desativar&quot; deixa de aparecer para lançamentos e escalas (a conta continua podendo ver as próprias anotações).">?</button></summary>
+          <summary>Promover turmas (virada de ano) <button type="button" class="dica" aria-label="Ajuda" data-dica="Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em &quot;Desativar (formados)&quot; deixa de aparecer para lançamentos e escalas e tem a conta de acesso bloqueada; todo o histórico de anotações, NAMCEs e estatísticas fica guardado, e nomes iguais em turmas futuras não dão conflito.">?</button></summary>
           <div id="promoverLinhas"></div>
           <button class="btn" type="button" id="btnPromover">Aplicar promoção</button>
         </details>
@@ -4136,16 +4136,25 @@ async function aplicarPromocao() {
   });
   const alvo = todosCadetes.filter((c) => c.ativo && destino[chaveTurma(c)]);
   if (!alvo.length) { avisar("Nada a mudar: todas as turmas estão em \"Manter como está\".", true); return; }
-  const resumo = Object.entries(destino).map(([k, d]) => `• ${rotuloTurma(k)} → ${d.curso === "desativar" ? "desativados" : rotuloTurma(d.curso + "|" + d.turma)}`
+  const resumo = Object.entries(destino).map(([k, d]) => `• ${rotuloTurma(k)} → ${d.curso === "desativar" ? "desativados (formados)" : rotuloTurma(d.curso + "|" + d.turma)}`
     + ` (${alvo.filter((c) => chaveTurma(c) === k).length})`).join("\n");
-  if (!confirm(`Aplicar a promoção de turmas?\n\n${resumo}\n\nTodos de uma vez. Para desfazer, seria preciso editar cadete por cadete.`)) return;
+  const meuUid = auth.currentUser.uid;
+  const desat = alvo.filter((c) => destino[chaveTurma(c)].curso === "desativar");
+  const contas = desat.filter((c) => c.uid && c.uid !== meuUid).length;
+  const euDesat = desat.some((c) => c.uid === meuUid);
+  const txtDesat = desat.length ? `\n\nDesativados: ${desat.length} cadete(s); ${contas} conta(s) de acesso serão BLOQUEADAS. Todas as anotações, NAMCEs e estatísticas deles continuam guardadas.`
+    + (euDesat ? "\n\nObs.: a sua própria conta está numa turma desativada e NÃO será bloqueada (bloqueie depois, por outra conta de nível 3, se for o caso)." : "") : "";
+  if (!confirm(`Aplicar a promoção de turmas?\n\n${resumo}${txtDesat}\n\nTodos de uma vez. Para desfazer, seria preciso editar cadete por cadete.`)) return;
   const btn = $("#btnPromover"); btn.disabled = true;
   try {
     const ops = [];
     for (const c of alvo) {
       const d = destino[chaveTurma(c)];
-      if (d.curso === "desativar") ops.push((b) => b.update(doc(db, "cadetes", c.id), { ativo: false, atualizadoEm: serverTimestamp() }));
-      else {
+      if (d.curso === "desativar") {
+        ops.push((b) => b.update(doc(db, "cadetes", c.id), { ativo: false, atualizadoEm: serverTimestamp() }));
+        // formado: a conta perde o acesso (bloqueada); o histórico de anotações fica
+        if (c.uid && c.uid !== meuUid) ops.push((b) => b.update(doc(db, "usuarios", c.uid), { status: "bloqueado", analisadoPor: meuUid, analisadoEm: serverTimestamp() }));
+      } else {
         ops.push((b) => b.update(doc(db, "cadetes", c.id), { ano: d.curso, turma: d.turma, atualizadoEm: serverTimestamp() }));
         if (c.uid) ops.push((b) => b.update(doc(db, "usuarios", c.uid), { ano: d.curso, turma: d.turma }));
       }
@@ -4155,7 +4164,7 @@ async function aplicarPromocao() {
       ops.slice(i, i + 400).forEach((f) => f(lote));
       await lote.commit();
     }
-    avisar(`Promoção aplicada a ${alvo.length} cadete(s).`);
+    avisar(`Promoção aplicada a ${alvo.length} cadete(s)` + (contas ? ` · ${contas} conta(s) bloqueada(s).` : "."));
     $("#promover").open = false;
   } catch (err) {
     console.error(err);
@@ -4227,7 +4236,7 @@ function linhaEdicao(c) {
   // cadastro sem conta: unir manualmente ao cadastro com conta da mesma pessoa (quando o nome foi escrito diferente)
   let unir = null;
   if (!c.uid && !c.unidoA) {
-    const comConta = todosCadetes.filter((x) => x.uid && x.id !== c.id).sort((x, y) => x.guerra.localeCompare(y.guerra, "pt-BR"));
+    const comConta = todosCadetes.filter((x) => x.uid && x.ativo && x.id !== c.id).sort((x, y) => x.guerra.localeCompare(y.guerra, "pt-BR"));
     const alvo = h("select", { "aria-label": "Unir a um cadastro com conta" },
       h("option", { value: "" }, "Ligar a este cadastro a conta que está em…"),
       comConta.map((x) => h("option", { value: x.id }, `${x.guerra} — ${x.nome} (${turmaCurta(x)})`)));
@@ -4246,9 +4255,32 @@ function linhaEdicao(c) {
 }
 
 async function alternarAtivo(c) {
-  if (c.ativo && !confirm(`Desativar ${c.guerra}? Ele deixa de aparecer para lançamento de anotações e escalas.`)) return;
-  try { await updateDoc(doc(db, "cadetes", c.id), { ativo: !c.ativo, atualizadoEm: serverTimestamp() }); }
-  catch (err) { console.error(err); avisar("Não foi possível alterar.", true); }
+  const meuUid = auth.currentUser.uid;
+  const comConta = !!c.uid && c.uid !== meuUid;
+  try {
+    if (c.ativo) {
+      if (!confirm(`Desativar ${c.guerra}? Ele deixa de aparecer para lançamento de anotações e escalas` +
+        (comConta ? " e a conta de acesso dele é BLOQUEADA" : "") + ". As anotações dele continuam guardadas.")) return;
+      const lote = writeBatch(db);
+      lote.update(doc(db, "cadetes", c.id), { ativo: false, atualizadoEm: serverTimestamp() });
+      if (comConta) lote.update(doc(db, "usuarios", c.uid), { status: "bloqueado", analisadoPor: meuUid, analisadoEm: serverTimestamp() });
+      await lote.commit();
+      avisar(`${c.guerra} desativado` + (comConta ? " e acesso bloqueado." : "."));
+    } else {
+      const lote = writeBatch(db);
+      lote.update(doc(db, "cadetes", c.id), { ativo: true, atualizadoEm: serverTimestamp() });
+      let desbloq = false;
+      if (comConta) {
+        const u = await getDoc(doc(db, "usuarios", c.uid));
+        if (u.exists() && u.data().status === "bloqueado" && confirm(`${c.guerra} reativado. Desbloquear também a conta de acesso dele?`)) {
+          lote.update(doc(db, "usuarios", c.uid), { status: "ativo", analisadoPor: meuUid, analisadoEm: serverTimestamp() });
+          desbloq = true;
+        }
+      }
+      await lote.commit();
+      avisar(`${c.guerra} reativado` + (desbloq ? " e acesso desbloqueado." : "."));
+    }
+  } catch (err) { console.error(err); avisar("Não foi possível alterar.", true); }
 }
 
 async function cadastrarCadete(ev) {
@@ -4262,7 +4294,7 @@ async function cadastrarCadete(ev) {
   if (v.nome.length < 3) { mensagem("#msgCadete", "Informe o nome completo."); return; }
   if (v.guerra.length < 2) { mensagem("#msgCadete", "Informe o nome de guerra."); return; }
   if (!v.ano || !v.pelotao) { mensagem("#msgCadete", "Informe curso/ano e pelotão."); return; }
-  const igual = todosCadetes.find((c) => mesmoNome(c.nome, v.nome));
+  const igual = todosCadetes.find((c) => c.ativo && mesmoNome(c.nome, v.nome));   // desativados (formados) não conflitam
   if (igual) { mensagem("#msgCadete", `Já existe um cadete cadastrado com este nome completo (${igual.guerra}, ${turmaCurta(igual)}).`); return; }
   const btn = $("#btnCadete"); btn.disabled = true;
   try {
@@ -4623,7 +4655,7 @@ function desenharAtivos(ativos) {
 function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === normBusca(b).replace(/\s+/g, " ").trim(); }
 /** Cadastro feito antes pela coordenação (sem conta) com o mesmo nome completo do pedido. */
 function cadastroParaLigar(u) {
-  const c = todosCadetes.filter((x) => !x.uid && mesmoNome(x.nome, u.nome));
+  const c = todosCadetes.filter((x) => !x.uid && x.ativo && mesmoNome(x.nome, u.nome));
   if (c.length === 1) return c[0];
   // sem nome igual: um único cadastro sem conta com o mesmo nome de guerra, curso/ano e turma (nome escrito diferente no pedido)
   const g = todosCadetes.filter((x) => !x.uid && x.ativo && mesmaPessoaProvavel(x, u));
@@ -4636,7 +4668,7 @@ function mesmaPessoaProvavel(x, y) {
 /** Para um cadastro SEM conta: o cadastro COM conta que parece ser a mesma pessoa (nome igual, ou guerra + curso/ano + turma). */
 function duplicadoComConta(c) {
   if (c.uid || !c.ativo) return null;
-  const cand = todosCadetes.filter((x) => x.id !== c.id && x.uid && (mesmoNome(x.nome, c.nome) || mesmaPessoaProvavel(x, c)));
+  const cand = todosCadetes.filter((x) => x.id !== c.id && x.uid && x.ativo && (mesmoNome(x.nome, c.nome) || mesmaPessoaProvavel(x, c)));
   return cand.length === 1 ? cand[0] : null;
 }
 
