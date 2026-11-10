@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.3">
+<meta name="sde-versao" content="2026-11-10.4">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -479,6 +479,10 @@
     font-size: 13.5px; font-weight: 400; line-height: 1.45; text-align: left; letter-spacing: normal; text-transform: none; }
   .recolhivel > h2 { display: flex; align-items: center; gap: 2px; }
   .recolhivel > h2 .btn-recolher { width: auto; flex: 0 1 auto; }
+  .aula-pel { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borda); }
+  .aula-pel h3 { margin: 0 0 8px; font-size: 15px; }
+  .aula-lista { margin-top: 10px; display: grid; gap: 6px; }
+  .aula-lista > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 14px; }
   .res-cad { max-height: 280px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 8px; margin-top: 6px; }
   .res-cad:empty { display: none; }
   .res-cad button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--borda);
@@ -990,6 +994,15 @@
           <div id="msgEscala" class="msg" hidden></div>
           <button class="btn cheio" type="submit" id="btnEscala">Lançar escala</button>
         </form>
+        <div class="aula-pel">
+          <h3>Pelotão com aula até as 18h na sexta <button type="button" class="dica" aria-label="Ajuda" data-dica="Use quando um pelotão inteiro tiver aula na sexta-feira até as 18h. O sistema lança, para cada cadete ativo do pelotão, um compromisso das 12h às 18h dessa sexta, e a Dosimetria passa a bloquear a EEsp 1 (sexta, 14h às 18h) para eles. Os demais blocos não são afetados.">?</button></h3>
+          <div class="linha">
+            <div><label for="aulaGrupo">Pelotão</label><select id="aulaGrupo"></select></div>
+            <div><label for="aulaSexta">Sexta-feira</label><select id="aulaSexta"></select></div>
+            <div style="display:flex; align-items:flex-end"><button class="btn" type="button" id="btnAula" style="width:100%">Lançar aula até 18h</button></div>
+          </div>
+          <div id="aulasLancadas"></div>
+        </div>
         </div>
       </div>
       <div class="cartao">
@@ -1003,6 +1016,7 @@
             <option value="interno">Serviços internos</option>
             <option value="estagio">Estágio</option>
             <option value="especial">Especiais</option>
+            <option value="aula">Aula na sexta (pelotão)</option>
             <option value="-">Não informada</option>
           </select>
         </div>
@@ -1778,7 +1792,7 @@ function abrirApp() {
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "escalasAnot", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
+    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "escalasAnot", "aulas", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
     estatAnot = []; estatCarregado = false;
   }
   desenharMinhas();
@@ -2146,6 +2160,7 @@ function assinarCadetes() {
     cadetes = todosCadetes.filter((c) => c.ativo);
     desenharSugestoes();
     if (seletorEscala) seletorEscala.desenhar();
+    if (escalasProntas) opcoesAulaGrupo();
     desenharCadetes();
     desenharEstat();
     ajustarTemConta();
@@ -3608,12 +3623,25 @@ function prepararEscalas() {
   sel.addEventListener("change", assinarEscalasLista);
   $("#selNatureza").addEventListener("change", desenharEscalas);
   $("#iNatureza").addEventListener("change", () => { if (importacao) desenharImportacao(); });
+  // pelotão com aula até 18h: sextas das semanas da lista
+  const sx = $("#aulaSexta");
+  let sxPadrao = null;
+  for (let i = -1; i < 5; i++) {
+    const sexta = sextaDe(recebendo + i * 7 * DIA);
+    sx.append(h("option", { value: String(sexta) }, "sexta " + dataCurta(sexta)));
+    if (sxPadrao === null && sexta + 18 * 3600000 > Date.now()) sxPadrao = sexta;
+  }
+  sx.value = String(sxPadrao);
+  sx.addEventListener("change", assinarAulas);
+  $("#btnAula").addEventListener("click", lancarAulaPelotao);
+  opcoesAulaGrupo();
+  assinarAulas();
   $("#formEscala").addEventListener("submit", lancarEscala);
   $("#arqEscala").addEventListener("change", importarPdf);
 }
 
 // Natureza da escala (escolhida na importação / no lançamento). Escalas antigas: deduzida do tipo do PDF.
-const NATUREZAS = { interno: "Serviços internos", estagio: "Estágio", especial: "Especial" };
+const NATUREZAS = { interno: "Serviços internos", estagio: "Estágio", especial: "Especial", aula: "Aula na sexta" };
 function naturezaDe(e) { return e.natureza || (e.tipo === "interno" ? "interno" : e.tipo === "especial" ? "especial" : ""); }
 
 // Anotações (AAD) da semana cujo cumprimento é o fim de semana escolhido
@@ -3707,6 +3735,64 @@ async function lancarEscala(ev) {
     console.error(err);
     mensagem("#msgEscala", "Não foi possível lançar a escala.");
   } finally { btn.disabled = false; }
+}
+
+// ---------- Pelotão com aula até 18h na sexta (bloqueia a EEsp 1) ----------
+const chaveGrupo = (c) => `${c.ano}|${c.turma || ""}|${c.pelotao}`;
+function opcoesAulaGrupo() {
+  const sel = $("#aulaGrupo");
+  if (!sel) return;
+  const atual = sel.value, vistos = new Map();
+  todosCadetes.filter((c) => c.ativo).forEach((c) => { if (!vistos.has(chaveGrupo(c))) vistos.set(chaveGrupo(c), c); });
+  const ord = [...vistos.values()].sort((a, b) => ordemGrupo(`${a.ano}${a.turma ? "/" + a.turma : ""}`, `${b.ano}${b.turma ? "/" + b.turma : ""}`) || a.pelotao.localeCompare(b.pelotao));
+  sel.replaceChildren(h("option", { value: "" }, "Selecione"), ...ord.map((c) => h("option", { value: chaveGrupo(c) }, turmaCurta(c))));
+  if ([...sel.options].some((o) => o.value === atual)) sel.value = atual;
+}
+let aulasSexta = [];
+function assinarAulas() {
+  const sexta = +$("#aulaSexta").value;
+  assinar("aulas", sexta, () => onSnapshot(
+    query(collection(db, "escalas"), where("tipo", "==", "aula"), where("inicio", "==", Timestamp.fromMillis(sexta + 12 * 3600000))),
+    (snap) => { aulasSexta = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharAulas(); },
+    (err) => console.error(err)));
+}
+function desenharAulas() {
+  const grupos = new Map();
+  aulasSexta.forEach((e) => { const k = e.grupoAula || e.servico; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(e); });
+  $("#aulasLancadas").replaceChildren(grupos.size
+    ? h("div", { class: "aula-lista" }, [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([g, lista]) =>
+        h("div", {}, h("span", {}, h("strong", {}, g), ` · ${lista.length} cadete(s) · aula até 18h`),
+          h("button", { class: "btn-link-perigo", type: "button", onclick: () => excluirAulaGrupo(g, lista) }, "Excluir"))))
+    : h("p", { class: "ajuda", style: "margin:8px 0 0" }, "Nenhum pelotão com aula até 18h nesta sexta."));
+}
+async function lancarAulaPelotao() {
+  const k = $("#aulaGrupo").value, sexta = +$("#aulaSexta").value;
+  if (!k) { avisar("Escolha o pelotão.", true); return; }
+  const cadetes = todosCadetes.filter((c) => c.ativo && chaveGrupo(c) === k);
+  if (!cadetes.length) { avisar("Nenhum cadete ativo neste pelotão.", true); return; }
+  const rotulo = turmaCurta(cadetes[0]);
+  if (!confirm(`${rotulo}: aula até as 18h na sexta ${dataCurta(sexta)}?\n\nSerá lançado um compromisso das 12h às 18h para ${cadetes.length} cadete(s), bloqueando a EEsp 1 deles nessa sexta.`)) return;
+  const btn = $("#btnAula"); btn.disabled = true;
+  try {
+    const lote = writeBatch(db), quem = nomeCurto(perfil).toUpperCase();
+    cadetes.forEach((c) => lote.set(doc(db, "escalas", `aula_${c.id}_${sexta}`), {
+      cadeteId: c.id, cadeteGuerra: c.guerra, inicio: Timestamp.fromMillis(sexta + 12 * 3600000), fim: Timestamp.fromMillis(sexta + 18 * 3600000),
+      servico: `Aula até 18h · ${rotulo}`, grupoAula: rotulo, tipo: "aula", natureza: "aula", origem: "Aula na sexta (pelotão)",
+      criadoPor: quem, criadoEm: serverTimestamp()
+    }));
+    await lote.commit();
+    avisar(`${rotulo}: aula até 18h lançada para ${cadetes.length} cadete(s). A EEsp 1 deles fica bloqueada na sexta ${dataCurta(sexta)}.`);
+  } catch (err) { console.error(err); avisar("Não foi possível lançar.", true); }
+  finally { btn.disabled = false; }
+}
+async function excluirAulaGrupo(g, lista) {
+  if (!confirm(`Excluir a aula até 18h de ${g} (${lista.length} cadete(s))? A EEsp 1 deles volta a ficar livre nessa sexta.`)) return;
+  try {
+    const lote = writeBatch(db);
+    lista.forEach((e) => lote.delete(doc(db, "escalas", e.id)));
+    await lote.commit();
+    avisar(`Aula até 18h de ${g} excluída.`);
+  } catch (err) { console.error(err); avisar("Não foi possível excluir.", true); }
 }
 
 async function excluirEscala(e) {
