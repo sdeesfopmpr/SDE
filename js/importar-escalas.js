@@ -3,7 +3,8 @@
 // encontrados, com cadete, início e fim. Tipos reconhecidos:
 //   • Previsão de Escala de Serviço Interno (mensal, um dia por página)
 //   • Boletim Interno (escalas diárias com "HORÁRIO: Das ... às ...")
-//   • Escalas especiais (tabela com graduação, nome e turno, ex.: eleições)
+//   • Escalas especiais e de estágio (tabela com graduação e nome; data/horário no cabeçalho
+//     ou por dia, ex.: eleições, "Estágio de acompanhamento de CPU")
 // Nenhum dado de CPF é lido, usado ou guardado: só nome, data e horário.
 
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.min.mjs";
@@ -210,46 +211,87 @@ function lerBoletim(linhas) {
   return { tipo: "boletim", titulo: `Boletim Interno${numero ? " nº " + numero : ""}`, registros, avisos };
 }
 
-// ---------------------------------------------------------------- Escala especial (graduação, nome e turno)
+// ---------------------------------------------------------------- Escala especial / de estágio
+// Cabeçalho com "Evento:", "Data:" e "Horário:" (às vezes com letras "a) b) c)"). A data pode vir como
+// "8 nov. 26", "14/11/2026" ou "14 e 15 de novembro" (sem ano: usa o ano do documento). Se a escala
+// separa os cadetes por dia ("Sábado, 14 de Novembro de 2026"), cada cadete fica no dia do seu bloco.
+const RE_DIA_TITULO = /^\s*(domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado)(?:-feira)?\s*,?\s*(\d{1,2})\s+de\s+([A-Za-zÀ-ú]+)(?:\s+de\s+(\d{4}))?/i;
+const RE_HORARIO = /(\d{1,2})h(\d{2})?(?:min)?\s*(?:[-–]|às|as|a)\s*(\d{1,2})h(\d{2})?/gi;
+
+/** Dias citados num texto de data ("14 e 15 de novembro", "14 a 16 de nov", "14/11/2026", "8 nov. 26"). */
+function diasDoTexto(txt, anoDoc) {
+  let m = txt.match(/(\d{1,2})\s+([A-Za-zÀ-ú]{3})[A-Za-zÀ-ú]*\.?\s+(\d{2,4})/);
+  if (m && mesDe(m[2]) !== undefined) return [diaBrt(anoDe(m[3]), mesDe(m[2]), +m[1])];
+  m = txt.match(/^\s*((?:\d{1,2}\s*(?:,|e|a|-|–)\s*)*\d{1,2})\s*(?:º)?\s+de\s+([A-Za-zÀ-ú]+)(?:\s+de\s+(\d{4}))?/i);
+  if (m && mesDe(m[2]) !== undefined && (m[3] || anoDoc)) {
+    const nums = m[1].match(/\d{1,2}/g).map(Number), ano = m[3] ? +m[3] : anoDoc, mes = mesDe(m[2]);
+    const faixa = nums.length === 2 && /\d\s*(?:a|-|–)\s*\d/.test(m[1]);
+    const lista = faixa ? Array.from({ length: Math.max(0, nums[1] - nums[0]) + 1 }, (_, i) => nums[0] + i) : nums;
+    return lista.map((d) => diaBrt(ano, mes, d));
+  }
+  m = txt.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (m && (m[3] || anoDoc)) return [diaBrt(m[3] ? anoDe(m[3]) : anoDoc, +m[2] - 1, +m[1])];
+  return [];
+}
+
 function lerEspecial(linhas) {
   const avisos = [], registros = [];
-  let evento = "", dia = null, turnos = [];
-  for (const l of linhas.slice(0, 80)) {
+  let evento = "", dias = [], turnos = [];
+  const cab = linhas.slice(0, 80);
+  const ma = cab.map((l) => l.texto).join("\n").match(/\b(20\d{2})\b/);
+  const anoDoc = ma ? +ma[1] : null;
+  for (const l of cab) {
     const t = l.texto;
     const me = t.match(/Evento:\s*(.+?);?\s*$/i); if (me && !evento) evento = me[1].replace(/;$/, "").trim();
-    const md = t.match(/Data:\s*(\d{1,2})\s+([A-Za-zÀ-ú]{3})[A-Za-zÀ-ú]*\.?\s+(\d{2,4})/i);
-    if (md && dia === null) dia = diaBrt(anoDe(md[3]), mesDe(md[2]), +md[1]);
+    const md = t.match(/Data:\s*(.+?);?\s*$/i);
+    if (md && !dias.length) dias = diasDoTexto(md[1], anoDoc);
     if (/Hor[áa]rio:/i.test(t) && !turnos.length) {
-      for (const m of t.matchAll(new RegExp(RE_TURNO, "g"))) turnos.push(intervalo(m));
+      for (const m of t.matchAll(RE_HORARIO)) turnos.push(intervalo(m));
     }
   }
-  if (dia === null) { avisos.push("Não encontrei a data do evento (linha \"Data:\")."); return { tipo: "especial", titulo: evento, registros, avisos }; }
+  const titulos = linhas.filter((l) => RE_DIA_TITULO.test(l.texto));
+  if (!dias.length && titulos.length) dias = titulos.map((l) => diaDoTitulo(l.texto)).filter((d) => d !== null);
+  if (!dias.length) { avisos.push("Não encontrei a data do evento (linha \"Data:\" ou títulos como \"Sábado, 14 de Novembro de 2026\")."); return { tipo: "especial", titulo: evento, registros, avisos }; }
   if (!evento) evento = "Escala especial";
   function intervalo(m) { return [(+m[1]) * 60 + (+(m[2] || 0)), (+m[3]) * 60 + (+(m[4] || 0))]; }
+  function diaDoTitulo(t) {
+    const m = t.match(RE_DIA_TITULO);
+    const ano = m[4] ? +m[4] : anoDoc, mes = mesDe(m[3]);
+    return ano && mes !== undefined ? diaBrt(ano, mes, +m[2]) : null;
+  }
   const geral = turnos.length ? [Math.min(...turnos.map((x) => x[0])), Math.max(...turnos.map((x) => x[1]))] : [0, 24 * 60];
+  // sem títulos por dia e com mais de um dia na data: o cadete fica em todos os dias (confira)
+  if (!titulos.length && dias.length > 1) avisos.push(`A escala cita ${dias.length} dias (${dias.map(rotuloDia).join(", ")}) sem separar os cadetes por dia: considerei cada cadete escalado em todos eles. Desmarque o que não for o caso.`);
 
-  let sobreaviso = false, atual = null;
+  let sobreaviso = false, atual = null, diaBloco = null;
   for (const l of linhas) {
     const t = l.texto;
+    if (RE_DIA_TITULO.test(t)) { const d = diaDoTitulo(t); if (d !== null) { diaBloco = d; sobreaviso = false; } atual = null; continue; }
     if (/^\s*SOBREAVISO\s*$/i.test(t)) { sobreaviso = true; atual = null; continue; }
     const mg = t.match(RE_GRAD);
     if (mg) {
       // nome = a coluna logo depois da graduação (as demais colunas são ignoradas)
       const nome = t.slice(mg.index + mg[0].length).trim().split(/\s{3,}/)[0].trim();
       if (!nome || /\d/.test(nome)) { atual = null; continue; }
+      const esquerda = t.slice(0, mg.index).trim();          // ex.: "12° BPM" ou "SOBREAVISO 1"
+      const sobLinha = /sobreaviso/i.test(esquerda);
+      const local = esquerda && !sobLinha && esquerda.length <= 40 && /[A-Za-zÀ-ú]/.test(esquerda) ? esquerda : "";   // não usa o nº da linha
       const mt = [...t.matchAll(new RegExp(RE_TURNO, "g"))].pop();
-      const [a, b] = mt && !sobreaviso ? intervalo(mt) : geral;
+      const [a, b] = mt && !sobreaviso && !sobLinha ? intervalo(mt) : geral;
       // limites da coluna do nome (para juntar nomes que quebram em duas linhas)
       const iG = l.itens.findIndex((i) => RE_GRAD.test(i.str));
       let k = iG + 1;
       while (k + 1 < l.itens.length && l.itens[k + 1].x - l.itens[k].x2 <= 6) k++;
       const x1 = iG >= 0 ? l.itens[iG].x2 + 1 : 0, x2 = l.itens[k + 1] ? l.itens[k + 1].x - 1 : Infinity;
-      atual = {
-        nome, inicio: dia + a * 60000, fim: dia + (b <= a ? b + 1440 : b) * 60000,
-        servico: `${evento}${sobreaviso ? " (sobreaviso)" : ""}`, origem: evento,
-        _x1: x1, _x2: x2, _pag: l.pagina, _y: l.y
-      };
-      registros.push(atual);
+      const servico = `${evento}${local ? " · " + local : ""}${sobreaviso || sobLinha ? " (sobreaviso)" : ""}`;
+      const diasRow = diaBloco !== null ? [diaBloco] : dias;
+      atual = null;
+      diasRow.forEach((dia, i) => {
+        const r = { nome, inicio: dia + a * 60000, fim: dia + (b <= a ? b + 1440 : b) * 60000, servico, origem: evento };
+        if (i === 0) Object.assign(r, { _x1: x1, _x2: x2, _pag: l.pagina, _y: l.y });
+        registros.push(r);
+        if (i === 0) atual = r;
+      });
       continue;
     }
     if (atual && (l.pagina !== atual._pag || l.y - atual._y > 16)) atual = null;
@@ -260,7 +302,8 @@ function lerEspecial(linhas) {
     }
   }
   registros.forEach((r) => { delete r._x1; delete r._x2; delete r._pag; delete r._y; });
-  return { tipo: "especial", titulo: `${evento} · ${rotuloDia(dia)}`, registros, avisos };
+  const diasUsados = [...new Set(registros.map((r) => r.inicio - ((r.inicio - 3 * HORA) % DIA + DIA) % DIA))].sort((a, b) => a - b);
+  return { tipo: "especial", titulo: `${evento} · ${(diasUsados.length ? diasUsados : dias).map(rotuloDia).join(", ")}`, registros, avisos };
 }
 
 // ---------------------------------------------------------------- correspondência com o cadastro
