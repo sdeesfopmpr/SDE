@@ -211,7 +211,10 @@ service cloud.firestore {
           && request.resource.data.cienteEm == request.time)
         || (nivel(3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
-          && (!resource.data.keys().hasAny(['mce']) || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial']));
+          && (!resource.data.keys().hasAny(['mce'])
+              || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial', 'naocumprida']
+              // MCE não cumprida (atestado, caso fortuito, força maior): o nível 3 marca a MCE publicada
+              || request.resource.data.mce.decisao == 'naocumprida'));
 
       allow delete: if nivel(3) && request.time < resource.data.prazo - duration.value(280799, 's');
 

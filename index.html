@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.9">
+<meta name="sde-versao" content="2026-11-10.10">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -139,6 +139,10 @@
     text-align: left; background: none; border: 0; font: inherit; color: inherit; padding: 9px 12px; border-radius: 6px; cursor: pointer;
   }
   .menu-usuario button:hover, .menu-usuario button:focus-visible { background: var(--fundo-2); outline: none; }
+  .nc-blocos { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 2px 0 6px; }
+  .nc-blocos label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; }
+  .nc-blocos input { width: auto; }
+  .selo-nc { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #c2410c; color: #fff; font-size: 12px; font-weight: 700; }
   .troca-senha { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
   .troca-senha form { margin-top: 10px; }
   .menu-usuario .sair { color: var(--erro); border-top: 1px solid var(--borda); border-radius: 0 0 6px 6px; margin-top: 4px; }
@@ -1144,6 +1148,29 @@
   <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharInfo">Fechar</button></div>
 </dialog>
 
+<dialog class="dialogo" id="dlgNC" aria-labelledby="dlgNCTitulo">
+  <h2 id="dlgNCTitulo">MCE não cumprida</h2>
+  <p id="ncInfo" style="margin-top:0"></p>
+  <form id="formNC" novalidate>
+    <label>Blocos que NÃO foram cumpridos</label>
+    <div id="ncBlocos" class="nc-blocos"></div>
+    <label for="ncMotivo">Motivo</label>
+    <select id="ncMotivo">
+      <option value="">Selecione</option>
+      <option>Atestado médico</option>
+      <option>Caso fortuito</option>
+      <option>Força maior</option>
+    </select>
+    <label for="ncObs">Observação (opcional)</label>
+    <input id="ncObs" maxlength="200" placeholder="Ex.: atestado de 2 dias do HPM">
+    <div id="msgNC" class="msg" hidden></div>
+    <div class="dialogo-acoes" style="gap:8px; flex-wrap:wrap">
+      <button class="btn sec" type="button" id="btnCancelarNC">Cancelar</button>
+      <button class="btn" type="submit" id="btnSalvarNC">Transferir para a próxima semana</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="dialogo dialogo-img" id="dlgImagem" aria-label="Imagem da defesa">
   <img id="imgDefesa" alt="Imagem enviada com a defesa">
   <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharImg">Fechar</button></div>
@@ -2053,6 +2080,8 @@ function cartaoMinha(a) {
     const txt = {
       blocos: [h("strong", {}, "MCE: "), m.texto],
       parcial: [h("strong", {}, "MCE (cumprimento parcial): "), m.texto, ". O restante será definido na próxima NAMCE."],
+      naocumprida: [h("strong", {}, "MCE não cumprida"), ` (${m.motivo || "motivo excepcional"}). A MCE será aplicada novamente na próxima NAMCE.`,
+        m.original ? h("div", { class: "ajuda" }, "MCE original: " + m.original) : null],
       justif: [h("strong", {}, "Justificada"), " — defesa aceita, sem MCE."],
       transf: [h("strong", {}, "Transferida"), " para a próxima NAMCE."],
       aguardando: [h("strong", {}, "Aguardando decisão do Comando"), " — há outro procedimento administrativo; a decisão sai em uma próxima NAMCE."],
@@ -2367,7 +2396,8 @@ function resultadoAnotacao(a) {
   if (!a.mce) return h("span", { class: "ajuda" }, "aguardando a NAMCE");
   const m = a.mce;
   const txt = m.decisao === "justif" ? "Justificada" : m.decisao === "transf" ? "Transferida para a semana seguinte"
-    : m.decisao === "aguardando" ? "Aguardando decisão do Comando" : (m.texto || "—");
+    : m.decisao === "aguardando" ? "Aguardando decisão do Comando"
+    : m.decisao === "naocumprida" ? `Não cumprida (${m.motivo || "motivo excepcional"}); reaplicada na próxima NAMCE` : (m.texto || "—");
   return h("span", {}, h("strong", {}, txt), h("div", { class: "ajuda" }, "NAMCE nº " + (m.namce || "—")));
 }
 
@@ -2420,7 +2450,8 @@ function sufixoOrigem(x) {
   let t = "";
   if (x.aguardandoDe) t = ` (Aguardando decisão do Comando desde a NAMCE ${x.aguardandoDe.split("/")[0]}).`;
   else if (x.transferidaDe) t = ` (Transferida NAMCE ${x.transferidaDe.split("/")[0]}).`;
-  if (x.parcialDe && temRest(x.pendente)) t += ` (Restante da NAMCE ${x.parcialDe.split("/")[0]}: ${fmtRest(x.pendente)}` + (x.cumpridoAntes ? `; já cumprido: ${x.cumpridoAntes}` : "") + ").";
+  if (x.parcialDe && temRest(x.pendente)) t += (x.motivoNC ? ` (MCE não cumprida na NAMCE ${x.parcialDe.split("/")[0]} por ${x.motivoNC}; a cumprir: ${fmtRest(x.pendente)}`
+    : ` (Restante da NAMCE ${x.parcialDe.split("/")[0]}: ${fmtRest(x.pendente)}`) + (x.cumpridoAntes ? `; já cumprido: ${x.cumpridoAntes}` : "") + ").";
   return t;
 }
 
@@ -3152,7 +3183,7 @@ function montarNamce() {
       fato: a.fatoEm.toMillis(), descricao: a.descricao, anotadorNome: a.anotadorNome,
       decisao: d.decisao || "", blocos: d.blocos || [], obs: d.obs || "", mce: textoMce(d), transferidaDe: d.transferidaDe || "", aguardandoDe: d.aguardandoDe || "",
       ...(d.decisao === "blocos" && d.parcial ? { parcial: true, restante: d.restante } : {}),
-      ...(d.parcialDe ? { parcialDe: d.parcialDe, pendente: d.pendente || null, cumpridoAntes: d.cumpridoAntes || "" } : {}),
+      ...(d.parcialDe ? { parcialDe: d.parcialDe, pendente: d.pendente || null, cumpridoAntes: d.cumpridoAntes || "", motivoNC: d.motivoNC || "" } : {}),
       origemTxt: sufixoOrigem(d)
     });
   }));
@@ -3213,6 +3244,8 @@ function desenharLista() {
     && (!soPend || !decidida(dosi[a.id]));
 
   const partes = [];
+  const nc = caixaNaoCumpridas();
+  if (nc) partes.push(nc);
   const foF = fo.filter((a) => !soPend && filtra(a)).sort(ordenarAnot);
   if (foF.length) {
     partes.push(h("h3", { class: "grupo-titulo" }, "Fato Observado Positivo (FO+)"));
@@ -3231,7 +3264,7 @@ function desenharLista() {
     partes.push(tabelaDosi(visiveis, linhas));
     carregarDefesas(linhas, desenharLista);
   }
-  if (!partes.length) partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, linhas.length || fo.length ? "Nada encontrado com esse filtro." : "Nenhuma anotação nesta semana.")));
+  if (partes.length === (nc ? 1 : 0)) partes.push(h("div", { class: "cartao" }, h("p", { class: "vazio" }, linhas.length || fo.length ? "Nada encontrado com esse filtro." : "Nenhuma anotação nesta semana.")));
   $("#listaSemana").replaceChildren(...partes);
 }
 
@@ -3367,7 +3400,8 @@ function linhaDosi(a, num, linhas) {
   const caixas = [];
   if (d.parcialDe && temRest(d.pendente)) {
     caixas.push(h("div", { class: "parc-box" },
-      h("strong", {}, `Restante a cumprir (NAMCE ${d.parcialDe.split("/")[0]}): ${fmtRest(d.pendente)}`),
+      h("strong", {}, d.motivoNC ? `MCE não cumprida na NAMCE ${d.parcialDe.split("/")[0]} (${d.motivoNC}) · a cumprir: ${fmtRest(d.pendente)}`
+        : `Restante a cumprir (NAMCE ${d.parcialDe.split("/")[0]}): ${fmtRest(d.pendente)}`),
       d.cumpridoAntes ? h("div", {}, "Já cumprido: " + d.cumpridoAntes) : null,
       h("div", {}, "Marcado nesta semana: " + (meus.length ? `${selN.eesp} EEsp e ${selN.lc} LC` : "nada"))));
   }
@@ -3396,7 +3430,8 @@ function linhaDosi(a, num, linhas) {
     h("td", { class: "col-cad" },
       h("strong", {}, a.cadeteGuerra), seloCiente(a),
       h("div", { class: "ajuda" }, `${grupoDe(a)} · Pel. ${a.cadetePelotao}`),
-      d.parcialDe && temRest(d.pendente) ? h("span", { class: "selo-rest", title: "Anotação de semana anterior com punição cumprida em parte" }, `↪ restante NAMCE ${d.parcialDe.split("/")[0]}`) : null,
+      d.parcialDe && temRest(d.pendente) ? h("span", { class: "selo-rest", title: d.motivoNC ? "MCE de semana anterior que não foi cumprida (motivo excepcional)" : "Anotação de semana anterior com punição cumprida em parte" },
+        `↪ ${d.motivoNC ? "não cumprida" : "restante"} NAMCE ${d.parcialDe.split("/")[0]}`) : null,
       conflitos.length ? h("div", { class: "aviso-conf" }, "⚠ conflito com escala") : null),
     h("td", { class: "col-data" }, dataFato(a.fatoEm), h("div", { class: "ajuda" }, a.anotadorNome)),
     h("td", { class: "col-desc" }, a.descricao + sufixoOrigem({ ...d, parcialDe: "" }), ...caixas),
@@ -3436,7 +3471,7 @@ async function publicarNamce() {
   for (const it of itens) {
     ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.parcial ? "parcial" : it.decisao, namce: ref } }));
     // o restante de um cumprimento parcial anterior acompanha a anotação se ela for transferida de novo
-    const herdado = it.parcialDe ? { parcialDe: it.parcialDe, pendente: it.pendente, cumpridoAntes: it.cumpridoAntes || "" } : {};
+    const herdado = it.parcialDe ? { parcialDe: it.parcialDe, pendente: it.pendente, cumpridoAntes: it.cumpridoAntes || "", motivoNC: it.motivoNC || "" } : {};
     if (PASSA_ADIANTE.includes(it.decisao)) {
       const origem = it.decisao === "aguardando" ? { aguardandoDe: it.aguardandoDe || ref } : { transferidaDe: it.transferidaDe || ref };
       ops.push((b) => b.set(doc(db, "dosimetria", it.anotacaoId), {
@@ -3500,14 +3535,157 @@ function desenharPublicada(n) {
   Object.keys(grupos).sort(ordemGrupo).forEach((g) => {
     partes.push(h("h3", { class: "grupo-titulo" }, g));
     partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
-      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"))),
+      h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"),
+        h("th", {}, "Cumprimento ", dica("Se o cadete não pôde cumprir a MCE por atestado médico, caso fortuito ou força maior, use \"Não cumpriu\": a anotação volta na Dosimetria da semana seguinte com os blocos que faltam, para aplicar de novo. Disponível até a NAMCE seguinte ser publicada.")))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
         h("td", { class: "desc" }, it.descricao + (it.origemTxt ?? sufixoOrigem(it))),
         h("td", {}, h("strong", {}, it.mce)),
-        h("td", {}, seloCienteNamce(anotPorId(it.anotacaoId), prazoC))))))));
+        h("td", {}, seloCienteNamce(anotPorId(it.anotacaoId), prazoC)),
+        h("td", {}, celCumprimento(n, it, anotPorId(it.anotacaoId), semanaW))))))));
   });
   $("#listaSemana").replaceChildren(...partes);
+  // anotações de semanas anteriores que ainda não estão carregadas (para ciência e cumprimento)
+  const faltam = n.itens.filter((it) => !anotPorId(it.anotacaoId)).map((it) => it.anotacaoId);
+  if (faltam.length) carregarAnotacoes(faltam);
+}
+
+const carregandoAnot = new Set();
+async function carregarAnotacoes(ids) {
+  let mudou = false;
+  for (const id of ids) {
+    if (anotExtra[id] || carregandoAnot.has(id)) continue;
+    carregandoAnot.add(id);
+    try { const s = await getDoc(doc(db, "anotacoes", id)); if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; } }
+    catch (err) { console.error(err); }
+    carregandoAnot.delete(id);
+  }
+  if (mudou) desenharSemana();
+}
+
+// ---------- MCE não cumprida (atestado, caso fortuito, força maior): volta na Dosimetria da semana seguinte ----------
+const NAO_TEM_MCE = ["justif", "transf", "aguardando", "td", "cumprida"];
+const temMce = (it) => (it.blocos || []).length > 0 && !NAO_TEM_MCE.includes(it.decisao);
+/** Wpub = semana (prazo) da NAMCE publicada n. */
+function celCumprimento(n, it, a, Wpub) {
+  if (!temMce(it)) return h("span", { class: "ajuda" }, "—");
+  const ref = `${n.numero}/${n.ano}`;
+  const prox = namces[String(Wpub + 7 * DIA)];
+  const aberta = !(prox && prox.status === "publicada");
+  if (!a) return h("span", { class: "ajuda" }, "carregando…");
+  if (a.mce && a.mce.decisao === "naocumprida" && a.mce.namce === ref) {
+    return h("div", {}, h("span", { class: "selo-nc", title: a.mce.motivo || "" }, "Não cumprida"),
+      h("div", { class: "ajuda" }, a.mce.motivo || ""),
+      h("div", { class: "ajuda" }, `→ volta na Dosimetria (fim de semana de ${dataCurta(sextaDe(Wpub + 7 * DIA))})`),
+      aberta ? h("button", { class: "btn-link-perigo", type: "button", onclick: () => desfazerNaoCumprida(n, it, Wpub) }, "desfazer") : null);
+  }
+  if (!aberta) return h("span", { class: "ajuda" }, "Cumprida");
+  return h("button", { class: "btn sec peq", type: "button", onclick: () => abrirNaoCumprida(n, it, Wpub) }, "Não cumpriu…");
+}
+
+/** Na Dosimetria em aberto: MCEs da NAMCE da semana anterior, para trazer as que não foram cumpridas. */
+let ncCaixaAberta = false;
+function caixaNaoCumpridas() {
+  const Wpub = semanaW - 7 * DIA;
+  const n = namces[String(Wpub)];
+  if (!n || n.status !== "publicada") return null;
+  const itens = n.itens.filter(temMce);
+  if (!itens.length) return null;
+  const anot = (id) => semana.find((a) => a.id === id) || anotExtra[id] || null;
+  const faltam = itens.filter((it) => !anot(it.anotacaoId)).map((it) => it.anotacaoId);
+  if (faltam.length) carregarAnotacoes(faltam);
+  const ref = `${n.numero}/${n.ano}`;
+  const jaNC = itens.filter((it) => { const a = anot(it.anotacaoId); return a && a.mce && a.mce.decisao === "naocumprida" && a.mce.namce === ref; }).length;
+  const det = h("details", { class: "promover" },
+    h("summary", {}, `MCE não cumprida da semana anterior (NAMCE nº ${ref})` + (jaNC ? ` · ${jaNC} trazida(s)` : "") + " ",
+      dica("Se o cadete não pôde cumprir a MCE da NAMCE anterior por atestado médico, caso fortuito ou força maior, toque em \"Não cumpriu\" ao lado dele: a anotação entra nesta Dosimetria com os blocos que faltam, para aplicar de novo.")),
+    h("div", { class: "rolavel", style: "margin-top:8px" }, h("table", { class: "tabela" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Cumprimento"))),
+      h("tbody", {}, itens.slice().sort((x, y) => x.cadeteGuerra.localeCompare(y.cadeteGuerra, "pt-BR")).map((it) => h("tr", {},
+        h("td", {}, h("strong", {}, it.cadeteGuerra), h("div", { class: "ajuda" }, it.grupo)),
+        h("td", { class: "desc" }, it.descricao),
+        h("td", {}, it.mce),
+        h("td", {}, celCumprimento(n, it, anot(it.anotacaoId), Wpub))))))));
+  det.open = ncCaixaAberta;
+  det.addEventListener("toggle", () => { ncCaixaAberta = det.open; });
+  return det;
+}
+
+let ncAtual = null;
+function abrirNaoCumprida(n, it, Wpub) {
+  ncAtual = { n, it, Wpub };
+  $("#ncInfo").textContent = `${it.cadeteGuerra} · MCE da NAMCE nº ${n.numero}/${n.ano}: ${it.mce}. Os blocos marcados abaixo voltam para a Dosimetria da semana seguinte (${fdsTexto(Wpub + 7 * DIA)}).`;
+  $("#ncBlocos").replaceChildren(...BLOCOS.filter((b) => it.blocos.includes(b.id)).map((b) =>
+    h("label", {}, h("input", { type: "checkbox", value: b.id, checked: true }), `${b.rot} (${DIAS[b.dia].slice(0, 3)} ${hhmm(b.ini)})`)));
+  $("#formNC").reset();
+  $("#ncBlocos").querySelectorAll("input").forEach((i) => { i.checked = true; });
+  mensagem("#msgNC", "");
+  $("#dlgNC").showModal();
+}
+$("#btnCancelarNC").addEventListener("click", () => $("#dlgNC").close());
+$("#formNC").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!ncAtual) return;
+  const { n, it, Wpub } = ncAtual;
+  const falhos = [...$("#ncBlocos").querySelectorAll("input:checked")].map((i) => i.value);
+  const motivo = $("#ncMotivo").value, obs = $("#ncObs").value.trim();
+  if (!falhos.length) { mensagem("#msgNC", "Marque pelo menos um bloco que não foi cumprido."); return; }
+  if (!motivo) { mensagem("#msgNC", "Escolha o motivo."); return; }
+  const motivoNC = motivo + (obs ? ` — ${obs}` : "");
+  const ref = `${n.numero}/${n.ano}`, W2 = Wpub + 7 * DIA;
+  const prox = namces[String(W2)];
+  if (prox && prox.status === "publicada") { mensagem("#msgNC", "A NAMCE da semana seguinte já foi publicada."); return; }
+  const cumpridos = it.blocos.filter((b) => !falhos.includes(b));
+  const f = contaBlocos(falhos), r = it.parcial && it.restante ? it.restante : { eesp: 0, lc: 0 };
+  const pendente = { eesp: f.eesp + (r.eesp || 0), lc: f.lc + (r.lc || 0) };
+  const cumpridoAntes = [it.cumpridoAntes, cumpridos.length ? `${textoBlocos(cumpridos)} (NAMCE ${n.numero})` : ""].filter(Boolean).join("; ");
+  const btn = $("#btnSalvarNC"); btn.disabled = true;
+  try {
+    // se a anotação já estiver na Dosimetria seguinte (ex.: parcial), mantém o que já foi decidido lá
+    const atual = await getDoc(doc(db, "dosimetria", it.anotacaoId));
+    const dAtual = atual.exists() && atual.data().semana === W2 ? atual.data() : {};
+    const lote = writeBatch(db);
+    lote.set(doc(db, "dosimetria", it.anotacaoId), {
+      semana: W2, decisao: dAtual.decisao || "", blocos: dAtual.blocos || [], obs: dAtual.obs || "",
+      ...(dAtual.parcial ? { parcial: true, restante: dAtual.restante } : {}),
+      parcialDe: ref, pendente, cumpridoAntes, motivoNC, naoCumpridaDe: ref, ncFalhos: falhos,
+      atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
+    });
+    const mce = { texto: `${it.mce} — NÃO CUMPRIDA (${motivoNC}); será aplicada novamente na próxima NAMCE`, decisao: "naocumprida", namce: ref, motivo: motivoNC, original: it.mce };
+    lote.update(doc(db, "anotacoes", it.anotacaoId), { mce });
+    await lote.commit();
+    if (anotExtra[it.anotacaoId]) anotExtra[it.anotacaoId] = { ...anotExtra[it.anotacaoId], mce };
+    $("#dlgNC").close(); ncAtual = null;
+    avisar(`${it.cadeteGuerra}: MCE não cumprida registrada. A anotação aparece na Dosimetria de ${fdsTexto(W2)} (a cumprir: ${fmtRest(pendente)}).`);
+    desenharSemana();
+  } catch (err) { console.error(err); mensagem("#msgNC", "Não foi possível registrar. Tente de novo."); }
+  finally { btn.disabled = false; }
+});
+
+async function desfazerNaoCumprida(n, it, Wpub) {
+  const ref = `${n.numero}/${n.ano}`, W2 = Wpub + 7 * DIA;
+  if (!confirm(`Desfazer o registro de MCE não cumprida de ${it.cadeteGuerra}? A anotação sai da Dosimetria da semana seguinte` + (it.parcial ? " (fica só o restante do cumprimento parcial)." : "."))) return;
+  try {
+    const atual = await getDoc(doc(db, "dosimetria", it.anotacaoId));
+    const dAtual = atual.exists() && atual.data().semana === W2 ? atual.data() : null;
+    const lote = writeBatch(db);
+    if (it.parcial) {
+      // volta ao que a publicação tinha deixado: só o restante do parcial
+      const cumprido = `${textoBlocos(it.blocos)} (NAMCE ${n.numero})`;
+      lote.set(doc(db, "dosimetria", it.anotacaoId), {
+        semana: W2, decisao: dAtual?.decisao || "", blocos: dAtual?.blocos || [], obs: dAtual?.obs || "",
+        ...(dAtual?.parcial ? { parcial: true, restante: dAtual.restante } : {}),
+        parcialDe: ref, pendente: it.restante, cumpridoAntes: it.cumpridoAntes ? `${it.cumpridoAntes}; ${cumprido}` : cumprido,
+        atualizadoPor: auth.currentUser.uid, atualizadoEm: serverTimestamp()
+      });
+    } else if (dAtual) lote.delete(doc(db, "dosimetria", it.anotacaoId));
+    const mce = { texto: it.mce, decisao: it.parcial ? "parcial" : it.decisao, namce: ref };
+    lote.update(doc(db, "anotacoes", it.anotacaoId), { mce });
+    await lote.commit();
+    if (anotExtra[it.anotacaoId]) anotExtra[it.anotacaoId] = { ...anotExtra[it.anotacaoId], mce };
+    avisar(`Registro de MCE não cumprida de ${it.cadeteGuerra} desfeito.`);
+    desenharSemana();
+  } catch (err) { console.error(err); avisar("Não foi possível desfazer.", true); }
 }
 
 // ================== Seletor de cadetes (reutilizável) ==================
@@ -4412,9 +4590,9 @@ const msFato = (a) => (a.fatoEm && a.fatoEm.toMillis ? a.fatoEm.toMillis() : 0);
 /** Situação da AAD para os resumos: justif | td | transf | aguardando | mce | pendente */
 function situacaoAad(a) {
   if (!a.mce) return "pendente";
-  return ["justif", "td", "transf", "aguardando", "parcial"].includes(a.mce.decisao) ? a.mce.decisao : "mce";
+  return ["justif", "td", "transf", "aguardando", "parcial", "naocumprida"].includes(a.mce.decisao) ? a.mce.decisao : "mce";
 }
-const ROTULO_SIT = { mce: "com MCE", parcial: "MCE parcial", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
+const ROTULO_SIT = { mce: "com MCE", parcial: "MCE parcial", naocumprida: "MCE não cumprida", justif: "justificada", td: "TD", transf: "transferida", aguardando: "aguardando Comando", pendente: "aguardando NAMCE" };
 
 /** Pessoas da visão atual (cadetes anotados ou anotadores), cada uma com as suas anotações do período. */
 function pessoasEstat(desde) {
@@ -4516,7 +4694,7 @@ function detalheEstat(x, anotV) {
   if (!an.length) return [h("p", { class: "vazio", style: "margin-top:8px" }, anotV ? "Nenhuma anotação lançada no período." : "Nenhuma anotação no período.")];
   const cont = {};
   an.filter((a) => a.tipo !== "fo").forEach((a) => { const s = situacaoAad(a); cont[s] = (cont[s] || 0) + 1; });
-  const chips = ["mce", "parcial", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
+  const chips = ["mce", "parcial", "naocumprida", "td", "justif", "transf", "aguardando", "pendente"].filter((s) => cont[s])
     .map((s) => h("span", {}, `${cont[s]} ${ROTULO_SIT[s]}`));
   const distintos = new Set(an.map((a) => a.cadeteId)).size;
   return [
