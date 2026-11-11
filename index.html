@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-11.5">
+<meta name="sde-versao" content="2026-11-11.6">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -508,6 +508,9 @@
   .cad-escolhido dd { margin: 0; font-weight: 600; }
   .est-exportar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
   .est-botoes { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+  .aviso-defesa { margin-bottom: 10px; padding: 10px 12px; border-radius: 8px; background: #eef1fb; color: var(--texto); border: 1px solid #c9d0ef; font-size: 14px; }
+  .aviso-defesa p { margin: 4px 0 0; }
+  html[data-tema="escuro"] .aviso-defesa { background: #1c2140; border-color: #343b6b; }
   .aviso-prazo { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #fff3d6; color: #6b4600; border: 1px solid #f0d58c; font-size: 14px; }
   .aviso-prazo.urgente { background: var(--erro-fundo); color: var(--erro); border-color: var(--erro); }
   html[data-tema="escuro"] .aviso-prazo { background: #3a3016; color: #ffd36b; border-color: #6b5520; }
@@ -820,6 +823,7 @@
     <div class="aba" id="aba-minhas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Minhas anotações <button type="button" class="dica" aria-label="Ajuda" data-dica="As anotações aparecem aqui assim que são lançadas, e a sua ciência fica registrada ao abrir esta aba. A semana de anotações fecha na sexta-feira às 18h. A defesa escrita pode ser enviada ou alterada desde o lançamento até a segunda-feira seguinte ao fechamento, às 23h59.">?</button></h2>
+        <div id="avisoDefesa"></div>
         <div id="avisoPrazo" aria-live="polite"></div>
         <div id="listaMinhas"></div>
       </div>
@@ -2128,7 +2132,19 @@ function faltaTexto(ms) {
   if (hh) return `${hh} h${mm ? ` e ${mm} min` : ""}`;
   return `${mm} min`;
 }
+function desenharAvisoDefesa() {
+  const el = $("#avisoDefesa");
+  if (!el || !perfil || !perfil.cadeteId) return;
+  // só enquanto houver AAD com prazo de defesa aberto
+  const abertas = minhas.some((a) => a.tipo === "aad" && !a.anulada && !a.mce && prazoAberto(a.prazo));
+  el.replaceChildren(abertas ? h("div", { class: "aviso-defesa" },
+    h("strong", {}, "📌 A defesa é feita preferencialmente pelo sistema"),
+    h("p", {}, "A defesa de uma AAD, e também o pedido de transferência, deve ser enviada ", h("strong", {}, "preferencialmente por aqui"),
+      ", no campo de defesa da anotação, dentro do prazo. ", h("strong", {}, "Não é necessário procurar a Coordenação para se defender pessoalmente.")),
+    h("p", {}, "A defesa presencial só acontece quando o Coordenador ", h("strong", {}, "solicitar"), " que você compareça à Coordenação para esse fim.")) : "");
+}
 function desenharAvisoPrazo() {
+  desenharAvisoDefesa();
   const el = $("#avisoPrazo");
   if (!el || !perfil || !perfil.cadeteId) return;
   const sem = minhas.filter((a) => a.tipo === "aad" && !a.anulada && !a.mce && prazoAberto(a.prazo) && !a.defesaEm);
