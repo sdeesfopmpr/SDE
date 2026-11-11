@@ -243,8 +243,17 @@ function lerEspecial(linhas) {
   const cab = linhas.slice(0, 80);
   const ma = cab.map((l) => l.texto).join("\n").match(/\b(20\d{2})\b/);
   const anoDoc = ma ? +ma[1] : null;
-  for (const l of cab) {
-    const t = l.texto;
+  for (const [ci, l] of cab.entries()) {
+    let t = l.texto;
+    // "a) Evento: ... Rede Feminina de" + "Combate ao Câncer." → junta as linhas de continuação
+    if (/Evento:/i.test(t) && !/[.;]\s*$/.test(t)) {
+      for (let k = ci + 1; k < Math.min(cab.length, ci + 3); k++) {
+        const n = cab[k].texto.trim();
+        if (/^[a-z]\)/i.test(n) || /^[A-Za-zÀ-ú ]{2,20}:/.test(n)) break;
+        t += " " + n;
+        if (/[.;]\s*$/.test(n)) break;
+      }
+    }
     const me = t.match(/Evento:\s*(.+?);?\s*$/i); if (me && !evento) evento = me[1].replace(/;$/, "").trim();
     const md = t.match(/Data:\s*(.+?);?\s*$/i);
     if (md && !dias.length) dias = diasDoTexto(md[1], anoDoc);
@@ -282,7 +291,11 @@ function lerEspecial(linhas) {
       const mt = [...t.matchAll(new RegExp(RE_TURNO, "g"))].pop();
       const [a, b] = mt && !sobreaviso && !sobLinha ? intervalo(mt) : geral;
       // limites da coluna do nome (para juntar nomes que quebram em duas linhas)
-      const iG = l.itens.findIndex((i) => RE_GRAD.test(i.str));
+      let iG = l.itens.findIndex((i) => RE_GRAD.test(i.str));
+      if (iG < 0) {   // graduação em vários itens ("Cad." "1º" "PM"): último item que completa a graduação
+        let acc = "";
+        iG = l.itens.findIndex((i) => { acc += " " + i.str; return RE_GRAD.test(acc); });
+      }
       let k = iG + 1;
       while (k + 1 < l.itens.length && l.itens[k + 1].x - l.itens[k].x2 <= 6) k++;
       const x1 = iG >= 0 ? l.itens[iG].x2 + 1 : 0, x2 = l.itens[k + 1] ? l.itens[k + 1].x - 1 : Infinity;
@@ -300,7 +313,7 @@ function lerEspecial(linhas) {
     if (atual && (l.pagina !== atual._pag || l.y - atual._y > 16)) atual = null;
     if (atual) {
       atual._y = l.y;
-      const frag = l.itens.filter((i) => i.x >= atual._x1 - 8 && i.x2 <= atual._x2 + 2).map((i) => i.str.trim()).join(" ").trim();
+      const frag = l.itens.filter((i) => i.x >= atual._x1 - 8 && i.x2 <= atual._x2 + 2 && !/\d/.test(i.str)).map((i) => i.str.trim()).join(" ").trim();
       if (frag && !/\d/.test(frag)) atual.nome = /-$/.test(atual.nome) ? atual.nome.slice(0, -1) + frag : atual.nome + " " + frag;
     }
   }
@@ -423,6 +436,15 @@ export function ligarCadetes(registros, cadetes) {
         if (n > nota) { melhor = c; nota = n; empate = false; } else if (n === nota && n > 0) empate = true;
       }
       if (melhor && nota >= 0.75 && !empate) { cad = melhor; aprox = true; }
+      if (!cad) {
+        // todos os nomes do mais curto aparecem no outro (ex.: cadastro sem um sobrenome), com pelo menos 3 nomes
+        const cont = tk.filter(({ t }) => {
+          let comum = 0; a.forEach((x) => { if (t.has(x)) comum++; });
+          const menor = Math.min(a.size, t.size);
+          return menor >= 3 && comum === menor;
+        });
+        if (cont.length === 1) { cad = cont[0].c; aprox = true; }
+      }
     }
     if (cad) ligados.push({ ...r, cadete: cad, aproximado: aprox });
     else soltos.push(r.nome);
