@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-11.1">
+<meta name="sde-versao" content="2026-11-11.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1649,10 +1649,15 @@ async function carregarCadastrosLivres(forcar) {
   if (cadastrosLivres && !forcar) { desenharResultadosCad(); return; }
   if (carregandoLivres) return carregandoLivres;
   $("#pResultados").replaceChildren(h("p", {}, "Carregando a lista de cadetes…"));
-  carregandoLivres = getDocs(query(collection(db, "cadetes"), where("ativo", "==", true), where("temConta", "==", false)))
-    .then((snap) => {
-      cadastrosLivres = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.guerra || "").localeCompare(b.guerra || "", "pt-BR"));
+  // lista resumida num único documento (config/livres), mantida pelo nível 3: 1 leitura em vez de uma por cadete
+  carregandoLivres = getDoc(doc(db, "config", "livres"))
+    .then(async (r) => {
+      let lista = r.exists() && Array.isArray(r.data().lista) ? r.data().lista : null;
+      if (!lista) {   // ainda não existe o resumo: consulta antiga
+        const snap = await getDocs(query(collection(db, "cadetes"), where("ativo", "==", true), where("temConta", "==", false)));
+        lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
+      cadastrosLivres = lista.slice().sort((a, b) => (a.guerra || "").localeCompare(b.guerra || "", "pt-BR"));
       desenharResultadosCad();
     })
     .catch((err) => {
@@ -2252,17 +2257,57 @@ const escolhidos = new Map();   // cadeteId -> cadete
 let lancamentoPronto = false;
 let seletorLancar = null;
 
+function aplicarCadetes(lista) {
+  todosCadetes = lista.sort(ordenar);
+  cadetes = todosCadetes.filter((c) => c.ativo);
+  desenharSugestoes();
+  if (seletorEscala) seletorEscala.desenhar();
+  if (escalasProntas) opcoesAulaGrupo();
+  desenharCadetes();
+  desenharEstat();
+}
 function assinarCadetes() {
+  if (perfil.nivel < 3) {
+    // nível 2: só precisa dos cadetes ativos → 1 documento (config/cadetes) em vez da coleção inteira
+    assinar("cadetes", "resumo", () => onSnapshot(doc(db, "config", "cadetes"), (snap) => {
+      const lista = snap.exists() && Array.isArray(snap.data().lista) ? snap.data().lista : null;
+      if (lista) { aplicarCadetes(lista.map((c) => ({ ...c, ativo: true }))); return; }
+      // resumo ainda não criado: coleção inteira (como antes)
+      assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"),
+        (s2) => aplicarCadetes(s2.docs.map((d) => ({ id: d.id, ...d.data() }))), (err) => console.error(err)));
+    }, (err) => console.error(err)));
+    return;
+  }
   assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
-    todosCadetes = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(ordenar);
-    cadetes = todosCadetes.filter((c) => c.ativo);
-    desenharSugestoes();
-    if (seletorEscala) seletorEscala.desenhar();
-    if (escalasProntas) opcoesAulaGrupo();
-    desenharCadetes();
-    desenharEstat();
+    aplicarCadetes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     ajustarTemConta();
+    if (!(snap.metadata && snap.metadata.fromCache)) manterResumosCadetes();
   }, (err) => console.error(err)));
+}
+
+/** Nível 3: mantém config/cadetes (ativos, para o nível 2) e config/livres (ativos sem conta, para a tela de pedido). */
+let resumosLidos = null, mantendoResumos = false, resumosDeNovo = false;
+async function manterResumosCadetes() {
+  if (mantendoResumos) { resumosDeNovo = true; return; }
+  mantendoResumos = true;
+  try {
+    do {
+      resumosDeNovo = false;
+      if (!resumosLidos) {
+        const [a, b] = await Promise.all([getDoc(doc(db, "config", "cadetes")), getDoc(doc(db, "config", "livres"))]);
+        resumosLidos = { cadetes: a.exists() ? JSON.stringify(a.data().lista || null) : "", livres: b.exists() ? JSON.stringify(b.data().lista || null) : "" };
+      }
+      const campos = (c) => ({ id: c.id, guerra: c.guerra || "", nome: c.nome || "", ano: c.ano || "", turma: c.turma || "", pelotao: c.pelotao || "" });
+      const ativos = todosCadetes.filter((c) => c.ativo);
+      const listaC = ativos.map(campos), listaL = ativos.filter((c) => !c.uid).map(campos);
+      const jC = JSON.stringify(listaC), jL = JSON.stringify(listaL);
+      const lote = writeBatch(db); let muda = false;
+      if (jC !== resumosLidos.cadetes) { lote.set(doc(db, "config", "cadetes"), { lista: listaC, atualizadoEm: serverTimestamp() }); muda = true; }
+      if (jL !== resumosLidos.livres) { lote.set(doc(db, "config", "livres"), { lista: listaL, atualizadoEm: serverTimestamp() }); muda = true; }
+      if (muda) { await lote.commit(); resumosLidos = { cadetes: jC, livres: jL }; }
+    } while (resumosDeNovo);
+  } catch (err) { console.error("Não foi possível atualizar as listas resumidas de cadetes", err); resumosLidos = null; }
+  finally { mantendoResumos = false; }
 }
 
 function assinarLancadas() {
@@ -2642,7 +2687,7 @@ function assinarSemana() {
     (err) => console.error(err)
   ));
   if (coord()) assinar("escalasDosi", W, () => onSnapshot(
-    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W)))),
+    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W))), where("fim", "<=", Timestamp.fromMillis(fimFdsDe(W) + 7 * DIA))),
     (snap) => {
       const limite = fimFdsDe(W);
       escalasFds = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => e.inicio.toMillis() < limite);
@@ -3086,14 +3131,15 @@ function desenharEtapas() {
   $("#subFechadaInfo").textContent = pubN ? `NAMCE nº ${n.numero}/${n.ano} publicada` : agora <= W ? `defesas até seg ${dataCurta(W)} 23h59 · dosimetria` : "dosimetria";
 }
 
+const semAnot = new Set();   // ids de anotações que não existem mais (não buscar de novo)
 async function carregarExtras() {
   const ids = new Set(semana.map((a) => a.id));
   let mudou = false;
   for (const id of Object.keys(dosi)) {
-    if (ids.has(id) || anotExtra[id]) continue;
+    if (ids.has(id) || anotExtra[id] || semAnot.has(id)) continue;
     try {
       const s = await getDoc(doc(db, "anotacoes", id));
-      if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; }
+      if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; } else semAnot.add(id);
     } catch (err) { console.error(err); }
   }
   if (mudou) desenharSemana();
@@ -3286,18 +3332,19 @@ function conflitosDe(a) {
 const COLUNAS = ["EEsp1", "EEsp2", "EEsp3", "EEsp4", "EEsp5", "EEsp6", "EEsp7", "EEsp8", "LC1", "LC2", "LC3", "LC4", "LC5"]
   .map((id) => BLOCOS.find((b) => b.id === id));
 const COL_DECISOES = [["td", "TD"], ["transf", "Transf."], ["justif", "Justif."], ["aguardando", "Aguard. Cmdo", "Aguardando decisão do Comando (há outro procedimento administrativo; volta na semana seguinte)"]];
-const carregandoDefesa = new Set();
+const carregandoDefesa = new Set(), falhaDefesa = {};
 
 /** Busca (uma vez por versão) as defesas para mostrar direto na lista. */
 async function carregarDefesas(linhas, redesenhar) {
-  const faltam = linhas.filter((a) => a.defesaEm && !(defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) && !carregandoDefesa.has(a.id));
+  const faltam = linhas.filter((a) => a.defesaEm && !(defesas[a.id] && defesas[a.id].versao === a.defesaEm.seconds) && !carregandoDefesa.has(a.id)
+    && !(falhaDefesa[a.id] && Date.now() - falhaDefesa[a.id] < 60000));
   if (!faltam.length) return;
   faltam.forEach((a) => carregandoDefesa.add(a.id));
   await Promise.all(faltam.map(async (a) => {
     try {
       const s = await getDoc(doc(db, "anotacoes", a.id, "defesa", "texto"));
       defesas[a.id] = { ...(s.exists() ? s.data() : { texto: "(defesa não encontrada)" }), versao: a.defesaEm.seconds };
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error(err); falhaDefesa[a.id] = Date.now(); }
     carregandoDefesa.delete(a.id);
   }));
   redesenhar();
@@ -3554,9 +3601,9 @@ const carregandoAnot = new Set();
 async function carregarAnotacoes(ids) {
   let mudou = false;
   for (const id of ids) {
-    if (anotExtra[id] || carregandoAnot.has(id)) continue;
+    if (anotExtra[id] || carregandoAnot.has(id) || semAnot.has(id)) continue;
     carregandoAnot.add(id);
-    try { const s = await getDoc(doc(db, "anotacoes", id)); if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; } }
+    try { const s = await getDoc(doc(db, "anotacoes", id)); if (s.exists()) { anotExtra[id] = { id, ...s.data() }; mudou = true; } else semAnot.add(id); }
     catch (err) { console.error(err); }
     carregandoAnot.delete(id);
   }
@@ -3979,7 +4026,7 @@ function assinarEscalasLista() {
     (snap) => { anotFds = snap.docs.map((d) => ({ id: d.id, ...d.data() })); desenharEscalas(); },
     (err) => console.error(err)));
   assinar("escalasLista", W, () => onSnapshot(
-    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W)))),
+    query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W))), where("fim", "<=", Timestamp.fromMillis(fimFdsDe(W) + 7 * DIA))),
     (snap) => {
       const limite = fimFdsDe(W);
       escalasLista = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => e.inicio.toMillis() < limite)

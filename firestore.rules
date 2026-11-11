@@ -70,6 +70,17 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     // Marca de que os CPFs antigos já foram apagados
+    // Listas resumidas de cadetes (1 leitura em vez de uma por cadete), mantidas pelo nível 3:
+    // ativos (para o nível 2 lançar) e ativos sem conta (para a tela de pedido de acesso, sem login)
+    match /config/cadetes {
+      allow get: if nivel(2);
+      allow write: if nivel(3);
+    }
+    match /config/livres {
+      allow get: if true;
+      allow write: if nivel(3);
+    }
+
     match /config/semCpf {
       allow get, create: if nivel(3);
       allow update, delete: if false;
