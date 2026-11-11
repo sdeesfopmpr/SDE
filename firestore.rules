@@ -115,7 +115,8 @@ service cloud.firestore {
         && request.resource.data.nivel in [0, 1, 2, 3]
         && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
 
-      allow delete: if nivel(3);
+      // nível 3 apaga (pedido recusado não fica registrado); quem tinha pedido recusado antigo apaga o próprio para pedir de novo
+      allow delete: if nivel(3) || (logado() && request.auth.uid == uid && resource.data.status == 'recusado');
 
       // confirmação do e-mail: o próprio usuário marca, só depois de abrir o link (o token do Firebase confirma)
       allow update: if logado()

@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-11.4">
+<meta name="sde-versao" content="2026-11-11.5">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1134,7 +1134,7 @@
       </div>
       <div class="cartao recolhivel" data-chave="inativos">
         <h2><button type="button" class="btn-recolher" aria-expanded="true">
-          <span class="seta-rec" aria-hidden="true">▾</span>Bloqueados e recusados <span class="ajuda" id="totInativos"></span><span class="resumo-min"></span></button></h2>
+          <span class="seta-rec" aria-hidden="true">▾</span>Bloqueados <span class="ajuda" id="totInativos"></span><span class="resumo-min"></span></button></h2>
         <div class="corpo-rec">
         <div id="listaInativos"></div>
         </div>
@@ -1517,7 +1517,14 @@ function rotear() {
     $("#statusEmail").replaceChildren(blocoEmail());
   } else if (perfil.status === "recusado") {
     mostrarStatus("✖", "Pedido não aprovado",
-      "Seu pedido de acesso não foi aprovado. Procure a coordenação ou a Missão SDE.");
+      "Seu pedido de acesso não foi aprovado. Confira os seus dados e faça um novo pedido.");
+    const btn = h("button", { class: "btn", type: "button", style: "margin-top:14px" }, "Fazer novo pedido");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try { await deleteDoc(doc(db, "usuarios", auth.currentUser.uid)); }   // a tela de pedido abre sozinha
+      catch (err) { console.error(err); btn.disabled = false; avisar("Não foi possível agora. Tente de novo mais tarde.", true); }
+    });
+    $("#statusEmail").replaceChildren(btn);
   } else if (perfil.status === "bloqueado") {
     mostrarStatus("🔒", "Acesso bloqueado",
       "Seu acesso está bloqueado. Procure a coordenação ou a Missão SDE.");
@@ -4984,7 +4991,7 @@ function desenharAcessos() {
   const pend = usuarios.filter((u) => u.status === "pendente")
     .sort((a, b) => (a.criadoEm?.seconds || 0) - (b.criadoEm?.seconds || 0));
   const ativos = usuarios.filter((u) => u.status === "ativo").sort(ordenar);
-  const inativos = usuarios.filter((u) => u.status === "recusado" || u.status === "bloqueado").sort(ordenar);
+  const inativos = usuarios.filter((u) => u.status === "bloqueado").sort(ordenar);   // recusados não ficam registrados
 
   // contadores
   $("#totAtivos").textContent = `(${ativos.length})`;
@@ -5009,15 +5016,12 @@ function desenharAcessos() {
   $("#listaInativos").replaceChildren(
     inativos.length
       ? h("table", { class: "tabela" },
-          h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma / posto"), h("th", {}, "Situação"), h("th", {}))),
+          h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma / posto"), h("th", {}))),
           h("tbody", {}, inativos.map((u) => h("tr", {},
             h("td", {}, h("strong", {}, u.guerra), h("div", { class: "ajuda" }, u.nome)),
             h("td", {}, turmaTexto(u)),
-            h("td", {}, h("span", { class: "selo cinza" }, u.status === "bloqueado" ? "Bloqueado" : "Recusado")),
             h("td", { class: "acoes" },
-              u.status === "bloqueado"
-                ? h("button", { class: "btn sec peq", type: "button", onclick: () => mudarStatus(u, "ativo", "Acesso reativado.") }, "Reativar")
-                : h("button", { class: "btn sec peq", type: "button", onclick: () => mudarStatus(u, "pendente", "Pedido reaberto.") }, "Reabrir pedido"))
+              h("button", { class: "btn sec peq", type: "button", onclick: () => mudarStatus(u, "ativo", "Acesso reativado.") }, "Reativar"))
           ))))
       : h("p", { class: "vazio" }, "Ninguém nesta lista.")
   );
@@ -5054,9 +5058,10 @@ function cartaoPedido(u) {
     }
   });
   btnNao.addEventListener("click", async () => {
-    if (!confirm(`Recusar o pedido de ${u.guerra}?`)) return;
+    if (!confirm(`Recusar o pedido de ${u.guerra}?\n\nO pedido é apagado e não fica registrado. Se quiser, o cadete pode pedir o acesso de novo.`)) return;
     btnOk.disabled = btnNao.disabled = true;
-    await mudarStatus(u, "recusado", "Pedido recusado.");
+    try { await deleteDoc(doc(db, "usuarios", u.id)); avisar("Pedido recusado e apagado."); }
+    catch (err) { console.error(err); avisar("Não foi possível recusar. Tente de novo.", true); btnOk.disabled = btnNao.disabled = false; }
   });
 
   return h("div", { class: "pedido" },
