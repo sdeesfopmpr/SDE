@@ -1650,9 +1650,9 @@ async function carregarCadastrosLivres(forcar) {
   if (carregandoLivres) return carregandoLivres;
   $("#pResultados").replaceChildren(h("p", {}, "Carregando a lista de cadetes…"));
   // lista resumida num único documento (config/livres), mantida pelo nível 3: 1 leitura em vez de uma por cadete
-  carregandoLivres = getDoc(doc(db, "config", "livres"))
+  carregandoLivres = getDoc(doc(db, "config", "livres")).catch(() => null)
     .then(async (r) => {
-      let lista = r.exists() && Array.isArray(r.data().lista) ? r.data().lista : null;
+      let lista = r && r.exists() && Array.isArray(r.data().lista) ? r.data().lista : null;
       if (!lista) {   // ainda não existe o resumo: consulta antiga
         const snap = await getDocs(query(collection(db, "cadetes"), where("ativo", "==", true), where("temConta", "==", false)));
         lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -2269,13 +2269,14 @@ function aplicarCadetes(lista) {
 function assinarCadetes() {
   if (perfil.nivel < 3) {
     // nível 2: só precisa dos cadetes ativos → 1 documento (config/cadetes) em vez da coleção inteira
+    // resumo ainda não criado ou sem permissão: coleção inteira (como antes)
+    const colecaoInteira = () => assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"),
+      (s2) => aplicarCadetes(s2.docs.map((d) => ({ id: d.id, ...d.data() }))), (err) => console.error(err)));
     assinar("cadetes", "resumo", () => onSnapshot(doc(db, "config", "cadetes"), (snap) => {
       const lista = snap.exists() && Array.isArray(snap.data().lista) ? snap.data().lista : null;
       if (lista) { aplicarCadetes(lista.map((c) => ({ ...c, ativo: true }))); return; }
-      // resumo ainda não criado: coleção inteira (como antes)
-      assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"),
-        (s2) => aplicarCadetes(s2.docs.map((d) => ({ id: d.id, ...d.data() }))), (err) => console.error(err)));
-    }, (err) => console.error(err)));
+      colecaoInteira();
+    }, (err) => { console.warn("Lista resumida indisponível; usando a coleção de cadetes.", err && err.code); colecaoInteira(); }));
     return;
   }
   assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
