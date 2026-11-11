@@ -69,7 +69,6 @@ service cloud.firestore {
         && getAfter(caminhoPerfil(request.auth.uid)).data.nivel == 3;
       allow update, delete: if false;
     }
-    // Marca de que os CPFs antigos já foram apagados
     // Listas resumidas de cadetes (1 leitura em vez de uma por cadete), mantidas pelo nível 3:
     // ativos (para o nível 2 lançar) e ativos sem conta (para a tela de pedido de acesso, sem login)
     match /config/cadetes {
@@ -81,6 +80,7 @@ service cloud.firestore {
       allow write: if nivel(3);
     }
 
+    // Marca de que os CPFs antigos já foram apagados
     match /config/semCpf {
       allow get, create: if nivel(3);
       allow update, delete: if false;
@@ -116,6 +116,13 @@ service cloud.firestore {
         && request.resource.data.status in ['pendente', 'ativo', 'recusado', 'bloqueado'];
 
       allow delete: if nivel(3);
+
+      // confirmação do e-mail: o próprio usuário marca, só depois de abrir o link (o token do Firebase confirma)
+      allow update: if logado()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailConfirmado'])
+        && request.resource.data.emailConfirmado == true
+        && request.auth.token.email_verified == true;
     }
 
     // ---------- CPFs antigos: o sistema não guarda mais CPF; o nível 3 só pode apagar o que restou ----------
@@ -223,9 +230,7 @@ service cloud.firestore {
         || (nivel(3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
           && (!resource.data.keys().hasAny(['mce'])
-              || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial', 'naocumprida']
-              // MCE não cumprida (atestado, caso fortuito, força maior): o nível 3 marca a MCE publicada
-              || request.resource.data.mce.decisao == 'naocumprida'));
+              || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial']));
 
       allow delete: if nivel(3) && request.time < resource.data.prazo - duration.value(280799, 's');
 

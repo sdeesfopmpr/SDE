@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-11.3">
+<meta name="sde-versao" content="2026-11-11.4">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -258,6 +258,13 @@
   .selo.tipo-cad { background: #eef0f5; color: var(--suave); }
   tr.linha-coord td { background: var(--fundo-2); }
   .selo.cinza { background: #eceeeb; color: var(--suave); }
+  .selo-email { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .selo-email.sim { background: #e3f4e8; color: #17663a; }
+  .selo-email.nao { background: #fff3d6; color: #8a5a00; }
+  html[data-tema="escuro"] .selo-email.sim { background: #173a28; color: var(--ok); }
+  html[data-tema="escuro"] .selo-email.nao { background: #3a3016; color: #ffd36b; }
+  .bloco-email { margin-top: 16px; padding: 12px; border-radius: 10px; border: 1px solid var(--borda); text-align: left; font-size: 14px; }
+  .bloco-email .acoes-email { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .lista-simples { margin: 0; padding-left: 18px; color: var(--suave); }
   .lista-simples li { margin: 4px 0; }
 
@@ -499,6 +506,12 @@
   .cad-escolhido dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0 0 6px; }
   .cad-escolhido dt { color: var(--suave); }
   .cad-escolhido dd { margin: 0; font-weight: 600; }
+  .est-exportar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  .est-botoes { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+  .aviso-prazo { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #fff3d6; color: #6b4600; border: 1px solid #f0d58c; font-size: 14px; }
+  .aviso-prazo.urgente { background: var(--erro-fundo); color: var(--erro); border-color: var(--erro); }
+  html[data-tema="escuro"] .aviso-prazo { background: #3a3016; color: #ffd36b; border-color: #6b5520; }
+  html[data-tema="escuro"] .aviso-prazo.urgente { background: var(--erro-fundo); color: var(--erro); border-color: var(--erro); }
   .aviso-dup { margin-bottom: 10px; padding: 10px 12px; border-radius: 8px; background: var(--erro-fundo); color: var(--erro); font-size: 13.5px; }
   .selo-ciente { display: inline-block; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
   .selo-ciente.sim { background: var(--ok); color: var(--cartao); }
@@ -794,6 +807,7 @@
       <div class="icone-status" id="statusIcone"></div>
       <h1 id="statusTitulo"></h1>
       <p class="legenda" id="statusTexto" style="margin-bottom: 0;"></p>
+      <div id="statusEmail"></div>
     </div>
   </section>
 
@@ -806,6 +820,7 @@
     <div class="aba" id="aba-minhas" role="tabpanel" hidden>
       <div class="cartao">
         <h2>Minhas anotações <button type="button" class="dica" aria-label="Ajuda" data-dica="As anotações aparecem aqui assim que são lançadas, e a sua ciência fica registrada ao abrir esta aba. A semana de anotações fecha na sexta-feira às 18h. A defesa escrita pode ser enviada ou alterada desde o lançamento até a segunda-feira seguinte ao fechamento, às 23h59.">?</button></h2>
+        <div id="avisoPrazo" aria-live="polite"></div>
         <div id="listaMinhas"></div>
       </div>
     </div>
@@ -959,7 +974,14 @@
           <label class="check"><input type="checkbox" id="eInativos"> Incluir inativos</label>
         </div>
         <div id="eResumo" class="est-resumo"></div>
-        <p class="ajuda" id="eTotal" style="margin:0 0 6px"></p>
+        <div class="est-exportar">
+          <p class="ajuda" id="eTotal" style="margin:0"></p>
+          <span class="est-botoes">
+            <button class="btn sec peq" type="button" id="btnEstPdf">Baixar PDF</button>
+            <button class="btn sec peq" type="button" id="btnEstCsv">Baixar planilha</button>
+            <button type="button" class="dica" aria-label="Ajuda" data-dica="Baixa a lista que está na tela, com os filtros, o período e a ordem escolhidos. A planilha (CSV) abre no Excel ou no Google Planilhas e traz também quantas AAD estão em cada situação (MCE, TD, justificada…).">?</button>
+          </span>
+        </div>
         <div id="listaEstat"></div>
       </div>
     </div>
@@ -1187,7 +1209,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword
+  sendPasswordResetEmail, sendEmailVerification, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
@@ -1433,7 +1455,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) conf
 // ================== Autenticação ==================
 function limparMemoria() {
   $("#aviso").hidden = true;
-  usuarios = []; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
+  usuarios = []; usuariosCarregados = false; pendentesUsu = []; cadetesCompletos = false; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
   cienciaEnviada.clear();
   limpezaCpfFeita = false;
   dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; excluidasFechada = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
@@ -1461,6 +1483,7 @@ onAuthStateChanged(auth, (user) => {
   perfil = null;
   perfilCarregado = false;
   if (!user) {
+    emailLinkEnviado = 0;
     $("#usuarioTopo").hidden = true;
     if (!ocupado) mostrar("v-login");
     return;
@@ -1472,6 +1495,7 @@ onAuthStateChanged(auth, (user) => {
   pararPerfil = onSnapshot(doc(db, "usuarios", user.uid), (snap) => {
     perfil = snap.exists() ? { id: snap.id, ...snap.data() } : null;
     perfilCarregado = true;
+    if ($("#dlgInfo").open) desenharInfo();
     if (!ocupado) rotear();
   }, (err) => {
     console.error(err);
@@ -1490,6 +1514,7 @@ function rotear() {
   if (perfil.status === "pendente") {
     mostrarStatus("⏳", "Pedido enviado",
       "Seu pedido de acesso está com a coordenação para análise. Esta tela muda sozinha quando ele for aprovado.");
+    $("#statusEmail").replaceChildren(blocoEmail());
   } else if (perfil.status === "recusado") {
     mostrarStatus("✖", "Pedido não aprovado",
       "Seu pedido de acesso não foi aprovado. Procure a coordenação ou a Missão SDE.");
@@ -1498,12 +1523,14 @@ function rotear() {
       "Seu acesso está bloqueado. Procure a coordenação ou a Missão SDE.");
   } else if (perfil.status === "ativo") {
     abrirApp();
+    if (auth.currentUser && auth.currentUser.emailVerified && !perfil.emailConfirmado) sincronizarEmail();
   } else {
     mostrarStatus("⚠️", "Situação desconhecida", "Procure a Missão SDE.");
   }
 }
 
 function mostrarStatus(icone, titulo, texto) {
+  $("#statusEmail").replaceChildren();
   $("#statusIcone").textContent = icone;
   $("#statusTitulo").textContent = titulo;
   $("#statusTexto").textContent = texto;
@@ -1817,6 +1844,7 @@ $("#formPedido").addEventListener("submit", async (e) => {
     if (primeiro) lote.set(doc(db, "config", "sistema"), { adminInicial: user.uid, criadoEm: serverTimestamp() });
     try {
       await lote.commit();
+      if (!user.emailVerified) { emailLinkEnviado = Date.now(); sendEmailVerification(user, acaoEmail()).catch((err) => { console.error(err); emailLinkEnviado = 0; }); }
     } catch (err) {
       console.error(err);
       falha = err.code === "permission-denied"
@@ -1886,13 +1914,14 @@ function abrirApp() {
     prepararCadetes();
     prepararEstat();
     if (abaAtual === "estat") assinarEstat();
-    assinarUsuarios();
+    assinarPendentes();
+    carregarSobDemanda(abaAtual);
     assinarSemana();
     assinarEscalasLista();
     desenharAcessos();
     desenharCadetes();
   } else {
-    ["usuarios", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "escalasAnot", "aulas", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
+    ["usuarios", "pendentes", "cadetesCompletos", "semana", "recebendo", "dosi", "escalasDosi", "namces", "escalasLista", "escalasAnot", "aulas", "exclusoes", "exclusoesFechada", "estat"].forEach(desassinar);
     estatAnot = []; estatCarregado = false;
   }
   desenharMinhas();
@@ -1903,10 +1932,17 @@ function trocarAba(id) {
   abaAtual = id;
   if (id === "semana") tique();
   if (id === "estat" && perfil && perfil.nivel >= 3) assinarEstat();
+  carregarSobDemanda(id);
   if (id === "minhas") setTimeout(registrarCiencia, 0);
   document.querySelector("main").classList.toggle("largo", id === "semana");
   document.querySelectorAll("#abas button").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === id ? "true" : "false"));
   document.querySelectorAll(".aba").forEach((p) => { p.hidden = p.id !== "aba-" + id; });
+}
+
+/** Nível 3: cadastro completo e contas só nas abas que usam (economiza leituras). */
+function carregarSobDemanda(id) {
+  if (!perfil || perfil.nivel < 3) return;
+  if (["cadetes", "acessos", "estat"].includes(id)) { assinarCadetesCompletos(); assinarUsuarios(); }
 }
 
 function contador(id, n) {
@@ -1924,12 +1960,67 @@ function desenharInfo() {
     h("dt", {}, "Nome"), h("dd", {}, p.nome),
     h("dt", {}, "Nome de guerra"), h("dd", {}, p.guerra),
     h("dt", {}, p.tipo === "coordenacao" ? "Posto" : "Turma"), h("dd", {}, turmaTexto(p)),
-    h("dt", {}, "E-mail"), h("dd", {}, p.email),
+    h("dt", {}, "E-mail"), h("dd", {}, p.email, " ", seloEmail(p)),
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
-
-  $("#infoConteudo").replaceChildren(dados);
+  $("#infoConteudo").replaceChildren(dados, p.emailConfirmado ? "" : blocoEmail());
 }
+
+// ---------- Confirmação do e-mail (link enviado pelo Firebase; selo na aba Acessos) ----------
+let emailLinkEnviado = 0, sincronizandoEmail = false;
+const acaoEmail = () => ({ url: location.origin + location.pathname });
+function seloEmail(u) {
+  return u.emailConfirmado
+    ? h("span", { class: "selo-email sim", title: "O dono da conta abriu o link de confirmação enviado para este e-mail" }, "✓ e-mail confirmado")
+    : h("span", { class: "selo-email nao", title: "Ainda não abriu o link de confirmação enviado para este e-mail" }, "e-mail não confirmado");
+}
+/** Grava no perfil que o e-mail foi confirmado (a regra confere no token do Firebase). */
+async function sincronizarEmail() {
+  const u = auth.currentUser;
+  if (!u || sincronizandoEmail) return false;
+  sincronizandoEmail = true;
+  try {
+    await u.reload();
+    if (!auth.currentUser.emailVerified) return false;
+    if (perfil && !perfil.emailConfirmado) {
+      await auth.currentUser.getIdToken(true);
+      await updateDoc(doc(db, "usuarios", u.uid), { emailConfirmado: true });
+    }
+    return true;
+  } catch (err) { console.error(err); return false; }
+  finally { sincronizandoEmail = false; }
+}
+function blocoEmail() {
+  const u = auth.currentUser;
+  if (!u || !perfil) return "";
+  if (perfil.emailConfirmado) return h("div", { class: "bloco-email" }, seloEmail(perfil));
+  const msg = h("div", { class: "ajuda", "aria-live": "polite" });
+  const btnJa = h("button", { class: "btn peq", type: "button" }, "Já confirmei");
+  const btnReenviar = h("button", { class: emailLinkEnviado ? "btn sec peq" : "btn peq", type: "button" }, emailLinkEnviado ? "Enviar o link de novo" : "Enviar link de confirmação");
+  btnJa.addEventListener("click", async () => {
+    btnJa.disabled = true; msg.textContent = "Conferindo…";
+    const ok = await sincronizarEmail();
+    btnJa.disabled = false;
+    msg.textContent = ok ? "E-mail confirmado." : "Ainda não consta a confirmação. Abra o link que chegou no seu e-mail e toque aqui de novo.";
+  });
+  btnReenviar.addEventListener("click", async () => {
+    if (Date.now() - emailLinkEnviado < 60000) { msg.textContent = "O link acabou de ser enviado. Aguarde um minuto antes de pedir de novo."; return; }
+    btnReenviar.disabled = true;
+    try { await sendEmailVerification(u, acaoEmail()); emailLinkEnviado = Date.now(); msg.textContent = `Link enviado para ${u.email}. Veja também a caixa de spam.`; }
+    catch (err) { console.error(err); msg.textContent = err.code === "auth/too-many-requests" ? "Muitos envios seguidos. Tente de novo mais tarde." : "Não foi possível enviar o link agora."; }
+    finally { btnReenviar.disabled = false; }
+  });
+  return h("div", { class: "bloco-email" },
+    h("strong", {}, "Confirme o seu e-mail"),
+    h("div", {}, emailLinkEnviado
+      ? `Enviamos um link de confirmação para ${u.email}. Abra o e-mail (veja também o spam), toque no link e depois volte aqui e toque em "Já confirmei".`
+      : `Toque em "Enviar link de confirmação": chega um e-mail em ${u.email}. Abra o link (veja também o spam) e depois volte aqui e toque em "Já confirmei".`),
+    h("div", { class: "acoes-email" }, emailLinkEnviado ? btnJa : btnReenviar, emailLinkEnviado ? btnReenviar : btnJa), msg);
+}
+// ao voltar para o sistema depois de abrir o link no e-mail, confere sozinho
+window.addEventListener("focus", () => {
+  if (perfil && !perfil.emailConfirmado && auth.currentUser && !auth.currentUser.emailVerified) sincronizarEmail();
+});
 
 // ================== Ciclo semanal ==================
 // Semana de anotações: fecha na sexta-feira às 18h (pela hora do lançamento no sistema).
@@ -2013,6 +2104,7 @@ function desenharMinhas() {
   if (!perfil || !perfil.cadeteId) return;
   const pendentes = minhas.filter((a) => a.tipo === "aad" && !a.anulada && !a.mce && prazoAberto(a.prazo) && !a.defesaEm).length;
   contador("contMinhas", pendentes);
+  desenharAvisoPrazo();
 
   if (!minhas.length) {
     alvo.replaceChildren(h("p", { class: "vazio" }, "Você não tem anotações."));
@@ -2021,6 +2113,26 @@ function desenharMinhas() {
   alvo.replaceChildren(...minhas.map(cartaoMinha));
   registrarCiencia();
 }
+
+// ---------- Aviso de prazo da defesa (no topo de Minhas anotações; atualiza a cada minuto sem mexer no que está sendo digitado) ----------
+function faltaTexto(ms) {
+  const min = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(min / 1440), hh = Math.floor((min % 1440) / 60), mm = min % 60;
+  if (d) return `${d} dia${d > 1 ? "s" : ""}${hh ? ` e ${hh} h` : ""}`;
+  if (hh) return `${hh} h${mm ? ` e ${mm} min` : ""}`;
+  return `${mm} min`;
+}
+function desenharAvisoPrazo() {
+  const el = $("#avisoPrazo");
+  if (!el || !perfil || !perfil.cadeteId) return;
+  const sem = minhas.filter((a) => a.tipo === "aad" && !a.anulada && !a.mce && prazoAberto(a.prazo) && !a.defesaEm);
+  if (!sem.length) { el.replaceChildren(); return; }
+  const prazo = Math.min(...sem.map((a) => a.prazo.toMillis())), falta = prazo - Date.now();
+  el.replaceChildren(h("div", { class: "aviso-prazo" + (falta < DIA ? " urgente" : "") },
+    h("strong", {}, `⏰ ${sem.length === 1 ? "Você tem 1 AAD sem defesa" : `Você tem ${sem.length} AAD sem defesa`}.`),
+    ` O prazo para a defesa (ou pedido de transferência) vai até ${prazoTexto(a0(sem, prazo).prazo)} — faltam ${faltaTexto(falta)}.`));
+}
+const a0 = (lista, prazo) => lista.find((a) => a.prazo.toMillis() === prazo);
+setInterval(desenharAvisoPrazo, 60000);
 
 // ---------- Ciência automática ----------
 // Quando o cadete está com a aba "Minhas anotações" aberta e a página visível, cada anotação (AAD ou FO+)
@@ -2266,21 +2378,28 @@ function aplicarCadetes(lista) {
   desenharCadetes();
   desenharEstat();
 }
+let cadetesCompletos = false;
 function assinarCadetes() {
-  if (perfil.nivel < 3) {
-    // nível 2: só precisa dos cadetes ativos → 1 documento (config/cadetes) em vez da coleção inteira
-    // resumo ainda não criado ou sem permissão: coleção inteira (como antes)
-    const colecaoInteira = () => assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"),
+  // níveis 2 e 3: os cadetes ativos vêm de 1 documento (config/cadetes) em vez da coleção inteira
+  const semResumo = () => {
+    if (perfil.nivel >= 3) { assinarCadetesCompletos(); return; }
+    // nível 2 sem resumo (ainda não criado ou sem permissão): coleção inteira, como antes
+    assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"),
       (s2) => aplicarCadetes(s2.docs.map((d) => ({ id: d.id, ...d.data() }))), (err) => console.error(err)));
-    assinar("cadetes", "resumo", () => onSnapshot(doc(db, "config", "cadetes"), (snap) => {
-      const lista = snap.exists() && Array.isArray(snap.data().lista) ? snap.data().lista : null;
-      if (lista) { aplicarCadetes(lista.map((c) => ({ ...c, ativo: true }))); return; }
-      colecaoInteira();
-    }, (err) => { console.warn("Lista resumida indisponível; usando a coleção de cadetes.", err && err.code); colecaoInteira(); }));
-    return;
-  }
-  assinar("cadetes", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
+  };
+  assinar("cadetes", "resumo", () => onSnapshot(doc(db, "config", "cadetes"), (snap) => {
+    const lista = snap.exists() && Array.isArray(snap.data().lista) ? snap.data().lista : null;
+    if (!lista) { semResumo(); return; }
+    if (!cadetesCompletos) aplicarCadetes(lista.map((c) => ({ ...c, ativo: true })));
+  }, (err) => { console.warn("Lista resumida indisponível; usando a coleção de cadetes.", err && err.code); semResumo(); }));
+}
+/** Nível 3: coleção completa de cadetes (inativos, contas ligadas…). Só ao abrir Cadetes, Acessos ou Estatísticas. */
+function assinarCadetesCompletos() {
+  if (!perfil || perfil.nivel < 3) return;
+  assinar("cadetesCompletos", "todos", () => onSnapshot(collection(db, "cadetes"), (snap) => {
+    cadetesCompletos = true;
     aplicarCadetes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    desenharAcessos();
     ajustarTemConta();
     if (!(snap.metadata && snap.metadata.fromCache)) manterResumosCadetes();
   }, (err) => console.error(err)));
@@ -2452,12 +2571,14 @@ function desenharLancadas() {
   $("#listaLancadas").replaceChildren(
     lista.length
       ? h("table", { class: "tabela" },
-          h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"), h("th", {}, "Resultado"))),
+          h("thead", {}, h("tr", {}, h("th", {}, "Fato"), h("th", {}, "Cadete"), h("th", {}, "Tipo"), h("th", {}, "Descrição"),
+            h("th", {}, "Ciência ", dica("CIENTE: o cadete já abriu a aba Minhas anotações e viu esta anotação (com data e hora). SEM CIÊNCIA: ainda não viu.")), h("th", {}, "Resultado"))),
           h("tbody", {}, lista.map((a) => h("tr", {},
             h("td", {}, dataFato(a.fatoEm), a.criadoEm && a.criadoEm.toMillis ? h("div", { class: "ajuda" }, "lançada em " + dataHora(a.criadoEm)) : null),
             h("td", {}, cadeteRotulo(a)),
             h("td", {}, a.anulada ? h("span", { class: "tag anulada", title: "Anulada: " + (a.anuladaMotivo || "") }, a.tipo === "fo" ? "FO+" : "AAD") : tagTipo(a.tipo)),
             h("td", { class: "desc" }, a.descricao, a.anulada ? h("div", { class: "ajuda" }, `Anulada pela coordenação${a.anuladaPor ? " (" + a.anuladaPor + ")" : ""}. Motivo: ${a.anuladaMotivo || "—"}`) : null),
+            h("td", {}, seloCiente(a), a.cienteEm && a.cienteEm.toMillis ? h("div", { class: "ajuda" }, dataHora(a.cienteEm)) : null),
             h("td", {}, resultadoAnotacao(a))
           ))))
       : h("p", { class: "vazio" }, "Você ainda não lançou anotações.")
@@ -4470,6 +4591,7 @@ function prepararCadetes() {
 function desenharCadetes() {
   if (!perfil || perfil.nivel < 3) return;
   if (!filtroCadetes) return;
+  if (!cadetesCompletos) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, "Carregando o cadastro…")); return; }
   desenharPromover();
   const lista = filtroCadetes.aplicar(todosCadetes);
   $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
@@ -4603,6 +4725,8 @@ function prepararEstat() {
   if (estatPronto) return;
   estatPronto = true;
   filtroEstat = criarFiltroTurma("eF", $("#estBusca"), desenharEstat);
+  $("#btnEstPdf").addEventListener("click", exportarEstatPdf);
+  $("#btnEstCsv").addEventListener("click", exportarEstatCsv);
   try {
     const o = localStorage.getItem("sde-est-ordem"); if (o) $("#eOrdem").value = o;
     if (localStorage.getItem("sde-est-visao") === "anot") estatVisao = "anot";
@@ -4694,6 +4818,7 @@ function desenharEstat() {
   itens.sort(chave ? (x, y) => chave(y) - chave(x) || alfa(x, y) : alfa);
   // posição no ranking: empatados ficam na mesma posição (1º, 2º, 2º, 4º…); quem tem zero fica sem posição
   itens.forEach((x, i) => { x.pos = !chave || !chave(x) ? null : i && chave(itens[i - 1]) === chave(x) ? itens[i - 1].pos : i + 1; });
+  estatAtual = { itens, anotV, chave: !!chave };
 
   const totA = itens.reduce((s, x) => s + x.nA, 0), totF = itens.reduce((s, x) => s + x.nF, 0);
   const totJ = itens.reduce((s, x) => s + x.just, 0);
@@ -4706,7 +4831,7 @@ function desenharEstat() {
   );
   $("#eTotal").textContent = filtroEstat.filtrando() || $("#eSoCom").checked ? `Mostrando ${itens.length} ${anotV ? "anotador(es)" : "cadete(s)"}.` : "";
 
-  if (!estatCarregado) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, "Carregando as anotações…")); return; }
+  if (!estatCarregado || !cadetesCompletos || !usuariosCarregados) { $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, "Carregando as anotações…")); return; }
   if (!itens.length) {
     $("#listaEstat").replaceChildren(h("p", { class: "vazio" }, pessoas.length ? "Ninguém encontrado." : anotV ? "Nenhum anotador." : "Nenhum cadete cadastrado."));
     return;
@@ -4716,6 +4841,66 @@ function desenharEstat() {
       h("span", { class: "pos" }, chave ? "#" : ""), h("span", {}, anotV ? "Anotador" : "Cadete"), h("span", { class: "tur" }, "Turma"),
       h("span", { class: "n" }, "AAD"), h("span", { class: "n" }, "FO+"), h("span", {})),
     ...itens.map((x) => itemEstat(x, anotV))));
+}
+
+// ---------- Exportar Estatísticas (PDF e planilha CSV) ----------
+let estatAtual = null, geradorEstat = null;
+const SITS_CSV = ["mce", "parcial", "td", "transf", "aguardando", "pendente"];   // justificadas já têm coluna própria
+function filtrosEstatTexto() {
+  const txt = (sel) => { const e = $(sel); return e && e.value ? e.selectedOptions[0].textContent : ""; };
+  const turma = [txt("#eFAno"), txt("#eFTurma"), txt("#eFPel")].filter(Boolean).join(" · ");
+  const busca = $("#estBusca").value.trim();
+  return [
+    `Visão: ${estatAtual.anotV ? "Anotadores (quem lança)" : "Anotados (quem recebe)"} · Período: ${txt("#ePeriodo")} · Ordem: ${txt("#eOrdem")}.`,
+    `Filtros: ${[turma, busca ? `busca "${busca}"` : "", $("#eSoCom").checked ? $("#eSoCom").parentElement.textContent.trim().toLowerCase() : "",
+      $("#eInativos").checked ? $("#eInativos").parentElement.textContent.trim().toLowerCase() : ""].filter(Boolean).join(" · ") || "nenhum"}.`
+  ];
+}
+function linhasEstat() {
+  const { itens, anotV, chave } = estatAtual;
+  return itens.map((x) => {
+    const cont = {};
+    x.an.filter((a) => a.tipo !== "fo").forEach((a) => { const s = situacaoAad(a); cont[s] = (cont[s] || 0) + 1; });
+    return { pos: chave && x.pos ? x.pos + "º" : "", guerra: x.o.guerra || "", nome: x.o.nome || "", turma: turmaTexto(x.o),
+      ativo: x.ativo, nA: x.nA, nF: x.nF, just: x.just, cont, anotV };
+  });
+}
+async function exportarEstatPdf() {
+  if (!estatAtual) return;
+  const btn = $("#btnEstPdf"); btn.disabled = true;
+  try {
+    avisar("Gerando o PDF…");
+    geradorEstat ||= await import(`./js/estatisticas-pdf.js?v=${VERSAO}`);
+    const ls = linhasEstat(), anotV = estatAtual.anotV;
+    const totA = ls.reduce((s, l) => s + l.nA, 0), totF = ls.reduce((s, l) => s + l.nF, 0), totJ = ls.reduce((s, l) => s + l.just, 0);
+    await geradorEstat.gerarEstatisticasPdf({
+      titulo: anotV ? "Estatísticas · Anotadores" : "Estatísticas · Anotados",
+      filtros: filtrosEstatTexto(),
+      resumo: [`${ls.length} ${anotV ? "anotador(es)" : "cadete(s)"}`, `${totA} AAD`, `${totF} FO+`, `${totJ} AAD justificada(s)`],
+      head: ["Pos.", anotV ? "Anotador" : "Cadete", "Turma", "AAD", "Justif.", "FO+"],
+      body: ls.map((l) => [l.pos, `${l.guerra}${l.ativo ? "" : anotV ? " (sem acesso)" : " (inativo)"}\n${l.nome}`, l.turma, String(l.nA), String(l.just), String(l.nF)]),
+      colunas: { 0: { cellWidth: 34, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 110, halign: "center" },
+        3: { cellWidth: 44, halign: "center" }, 4: { cellWidth: 44, halign: "center" }, 5: { cellWidth: 44, halign: "center" } },
+      geradoPor: nomeCurto(perfil).toUpperCase(),
+      nome: anotV ? "Estatisticas_Anotadores" : "Estatisticas_Anotados"
+    });
+  } catch (err) { console.error(err); avisar("Não foi possível gerar o PDF. Verifique a internet e tente de novo.", true); }
+  finally { btn.disabled = false; }
+}
+function exportarEstatCsv() {
+  if (!estatAtual) return;
+  const ls = linhasEstat(), anotV = estatAtual.anotV;
+  const q = (v) => { const t = String(v ?? ""); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const cab = ["Posição", anotV ? "Anotador (guerra)" : "Cadete (guerra)", "Nome", "Turma", "Situação", "AAD", "FO+", "AAD justificadas",
+    ...(anotV ? [] : SITS_CSV.map((k) => "AAD " + ROTULO_SIT[k]))];
+  const linhas = ls.map((l) => [l.pos, l.guerra, l.nome, l.turma, l.ativo ? "ativo" : anotV ? "sem acesso de anotador" : "inativo", l.nA, l.nF, l.just,
+    ...(anotV ? [] : SITS_CSV.map((k) => l.cont[k] || 0))]);
+  const info = filtrosEstatTexto().map((t) => [t]);
+  const csv = "\ufeff" + [...info, [], cab, ...linhas].map((r) => r.map(q).join(";")).join("\r\n");
+  const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })),
+    download: `${anotV ? "Estatisticas_Anotadores" : "Estatisticas_Anotados"}_${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replaceAll("/", "-")}.csv` });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
 function itemEstat(x, anotV) {
@@ -4769,9 +4954,18 @@ function detalheEstat(x, anotV) {
 }
 
 // ---------- Acessos (nível 3) ----------
+let usuariosCarregados = false, pendentesUsu = [];
+/** Só os pedidos pendentes (para o contador da aba Acessos), sem ler todas as contas. */
+function assinarPendentes() {
+  assinar("pendentes", "p", () => onSnapshot(query(collection(db, "usuarios"), where("status", "==", "pendente")), (snap) => {
+    pendentesUsu = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!usuariosCarregados) desenharAcessos();
+  }, (err) => console.error(err)));
+}
 function assinarUsuarios() {
   assinar("usuarios", "todos", () => onSnapshot(collection(db, "usuarios"), (snap) => {
     usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    usuariosCarregados = true;
     desenharAcessos();
     desenharEstat();
     limparCpfsAntigos();
@@ -4796,7 +4990,12 @@ function desenharAcessos() {
   $("#totAtivos").textContent = `(${ativos.length})`;
   $("#totInativos").textContent = `(${inativos.length})`;
   const cont = $("#contPendentes"), contAba = $("#contAba");
-  [cont, contAba].forEach((c) => { if (!c) return; c.textContent = pend.length; c.hidden = pend.length === 0; });
+  const nPend = usuariosCarregados ? pend.length : pendentesUsu.length;
+  [cont, contAba].forEach((c) => { if (!c) return; c.textContent = nPend; c.hidden = nPend === 0; });
+  if (!usuariosCarregados || !cadetesCompletos) {
+    ["#listaPendentes", "#listaAtivos", "#listaInativos"].forEach((sel) => { const el = $(sel); if (el) el.replaceChildren(h("p", { class: "vazio" }, "Carregando…")); });
+    return;
+  }
 
   // pendentes
   $("#listaPendentes").replaceChildren(
@@ -4842,6 +5041,7 @@ function cartaoPedido(u) {
 
   btnOk.addEventListener("click", async () => {
     const n = +sel.value;
+    if (!u.emailConfirmado && !confirm(`O e-mail de ${u.guerra} (${u.email}) ainda NÃO foi confirmado: não há garantia de que a conta é do dono do e-mail.\n\nAprovar mesmo assim?`)) return;
     if (!confirmarNivel(u, n)) return;
     btnOk.disabled = btnNao.disabled = true;
     try {
@@ -4866,7 +5066,7 @@ function cartaoPedido(u) {
     ),
     h("div", { class: "pedido-info" },
       u.nome, " · ", u.tipo === "coordenacao" ? "Coordenação · " + (u.posto || "") : turmaTexto(u),
-      h("br"), u.email,
+      h("br"), u.email, " ", seloEmail(u),
       (() => {
         if (u.tipo === "cadete" && !u.cadeteId && u.cadastroId) {
           const e = todosCadetes.find((x) => x.id === u.cadastroId);
@@ -4922,7 +5122,7 @@ function desenharAtivos(ativos) {
           nivelCel = sel;
         }
         return h("tr", { class: u.tipo === "coordenacao" ? "linha-coord" : "" },
-          h("td", {}, h("strong", {}, u.guerra), " ", seloTipo(u), h("div", { class: "ajuda" }, u.nome)),
+          h("td", {}, h("strong", {}, u.guerra), " ", seloTipo(u), h("div", { class: "ajuda" }, u.nome), seloEmail(u)),
           h("td", {}, turmaTexto(u)),
           h("td", {}, nivelCel),
           h("td", { class: "acoes" }, eu ? null :
