@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-10.11">
+<meta name="sde-versao" content="2026-11-10.12">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -2887,7 +2887,7 @@ function cabPlanilha(W) {
 async function pdfPlanilha(W, previa, publicada = null) {
   try {
     avisar(previa ? "Gerando a prévia da Planilha…" : "Gerando o PDF da Planilha de Anotados…");
-    geradorPlanilha ||= await import("./js/planilha-pdf.js");
+    geradorPlanilha ||= await import(`./js/planilha-pdf.js?v=${VERSAO}`);
     let p;
     if (publicada) p = { ...publicada, ...datasPlanilha(W) };
     else if (W === semanaW && $("#plNumero")) p = { ...dadosPlanilhaForm(W), ...montarPlanilha(semana), ...datasPlanilha(W) };
@@ -2914,7 +2914,7 @@ async function pdfExtrato(W) {
   if (!extratoLiberado(W)) { avisar(`O extrato fica disponível depois do prazo de defesa (segunda ${dataCurta(W)}, 23h59).`, true); return; }
   try {
     avisar("Gerando o extrato de ciência…");
-    geradorExtrato ||= await import("./js/extrato-ciencia-pdf.js");
+    geradorExtrato ||= await import(`./js/extrato-ciencia-pdf.js?v=${VERSAO}`);
     const ms = (t) => (t && t.toMillis ? t.toMillis() : null);
     const grupos = {};
     (W === semanaW ? semana : []).filter((a) => !a.anulada).forEach((a) => { (grupos[grupoDe(a)] ||= []).push(a); });
@@ -2950,7 +2950,7 @@ async function pdfExtratoNamce(n) {
   if (!extratoNamceLiberado(n)) { avisar(`O extrato fica disponível a partir de sexta ${dataCurta(prazoCienciaNamce(n))}, 12h.`, true); return; }
   try {
     avisar("Gerando o extrato de ciência da NAMCE…");
-    geradorExtrato ||= await import("./js/extrato-ciencia-pdf.js");
+    geradorExtrato ||= await import(`./js/extrato-ciencia-pdf.js?v=${VERSAO}`);
     const ms = (t) => (t && t.toMillis ? t.toMillis() : null);
     // lê cada anotação de novo, para ter a ciência mais recente (inclusive das que vieram transferidas)
     const anots = await Promise.all(n.itens.map((it) => getDoc(doc(db, "anotacoes", it.anotacaoId))
@@ -3206,7 +3206,7 @@ let geradorPdf = null;
 async function pdfNamce(previa, publicada = null) {
   try {
     avisar(previa ? "Gerando a prévia do PDF…" : "Gerando o PDF da NAMCE…");
-    geradorPdf ||= await import("./js/namce-pdf.js");
+    geradorPdf ||= await import(`./js/namce-pdf.js?v=${VERSAO}`);
     const n = publicada || { ...dadosCabecalho(), ...montarNamce() };
     await geradorPdf.gerarNamcePdf(n, { previa });
   } catch (err) {
@@ -4156,7 +4156,7 @@ async function importarPdf(ev) {
   if (!arq) return;
   alvo.replaceChildren(h("div", { class: "centro", style: "padding:20px" }, h("div", { class: "giro" }), "Lendo o PDF…"));
   try {
-    leitorPdf ||= await import("./js/importar-escalas.js");
+    leitorPdf ||= await import(`./js/importar-escalas.js?v=${VERSAO}`);
     const linhas = await leitorPdf.linhasDoPdf(arq);
     const leitura = leitorPdf.lerEscala(linhas);
     if (!leitura.tipo) {
@@ -4188,7 +4188,7 @@ function desenharImportacao() {
   const imp = importacao, L = leitorPdf;
   const linhas = linhasImportacao();
   const marcadas = linhas.filter((r) => !imp.desmarcados.has(r.chave));
-  const nomeTipo = { interno: "Previsão de Escala de Serviço Interno", boletim: "Boletim Interno", especial: "Escala especial" }[imp.leitura.tipo];
+  const nomeTipo = { interno: "Previsão de Escala de Serviço Interno", boletim: "Boletim Interno", especial: "Escala especial", tabela: "Escala em tabela" }[imp.leitura.tipo];
 
   const partes = [
     h("div", { class: "import-resumo" },

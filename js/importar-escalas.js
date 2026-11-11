@@ -100,6 +100,8 @@ export function identificarTipo(linhas) {
   if (/BOLETIM INTERNO/.test(tudo)) return "boletim";
   const comGrad = linhas.filter((l) => RE_GRAD.test(l.texto));
   if (comGrad.filter((l) => RE_TURNO.test(l.texto)).length >= 2 || (/EVENTO:/.test(tudo) && comGrad.length)) return "especial";
+  // tabela com colunas HORÁRIO · GRAD · NOME COMPLETO (graduação e nome em linhas separadas, horário mesclado)
+  if (linhas.some((l) => /HOR[AÁ]RIO/i.test(l.texto) && /NOME/i.test(l.texto))) return "tabela";
   return null;
 }
 
@@ -108,6 +110,7 @@ export function lerEscala(linhas, opcoes = {}) {
   if (tipo === "interno") return lerInterno(linhas);
   if (tipo === "boletim") return lerBoletim(linhas);
   if (tipo === "especial") return lerEspecial(linhas);
+  if (tipo === "tabela") return lerTabela(linhas);
   return { tipo: null, titulo: "", registros: [], avisos: ["Não reconheci este PDF como escala de serviço. Confira se é uma Previsão de Escala de Serviço Interno, um Boletim Interno ou uma escala especial com graduação, nome e turno. PDFs escaneados (imagem) não podem ser lidos."] };
 }
 
@@ -304,6 +307,91 @@ function lerEspecial(linhas) {
   registros.forEach((r) => { delete r._x1; delete r._x2; delete r._pag; delete r._y; });
   const diasUsados = [...new Set(registros.map((r) => r.inicio - ((r.inicio - 3 * HORA) % DIA + DIA) % DIA))].sort((a, b) => a - b);
   return { tipo: "especial", titulo: `${evento} · ${(diasUsados.length ? diasUsados : dias).map(rotuloDia).join(", ")}`, registros, avisos };
+}
+
+// ---------------------------------------------------------------- escala em tabela (ex.: Estágio COPOM)
+// Cabeçalho "HORÁRIO | GRAD | NOME COMPLETO | CPF | TELEFONE", um título por dia ("Sexta, 13 de Novembro de 2026").
+// Cada cadete ocupa 3 linhas ("Cad. 1º" / nome / "PM"); o horário é uma célula mesclada (rowspan) e o
+// sobreaviso aparece na coluna do horário, na linha do nome. A tabela pode continuar na página seguinte.
+function lerTabela(linhas) {
+  const avisos = [], registros = [];
+  const cab = linhas.slice(0, 80);
+  const ma = cab.map((l) => l.texto).join("\n").match(/\b(20\d{2})\b/);
+  const anoDoc = ma ? +ma[1] : null;
+  let evento = "", local = "", diasData = [];
+  for (const l of cab) {
+    const me = l.texto.match(/Evento:\s*(.+?);?\s*$/i); if (me && !evento) evento = me[1].replace(/;$/, "").trim();
+    const ml = l.texto.match(/Local:\s*(.+?)[.;]?\s*$/i); if (ml && !local) local = ml[1].trim();
+    const md = l.texto.match(/Data:\s*(.+?);?\s*$/i); if (md && !diasData.length) diasData = diasDoTexto(md[1], anoDoc);
+  }
+  if (!evento) {
+    const t = cab.find((l) => /ESCALA/i.test(l.texto) && !/^\s*[a-g]\)/i.test(l.texto));
+    evento = t ? t.texto.trim() : "Escala";
+  }
+  const servicoBase = evento + (local && !semAcento(evento).toUpperCase().includes(semAcento(local).toUpperCase()) ? " · " + local : "");
+  const diaDoTitulo = (t) => {
+    const m = t.match(RE_DIA_TITULO);
+    const ano = m[4] ? +m[4] : anoDoc, mes = mesDe(m[3]);
+    return ano && mes !== undefined ? diaBrt(ano, mes, +m[2]) : null;
+  };
+  const turnoDe = (txt) => { const m = [...txt.matchAll(RE_HORARIO)][0]; return m ? [(+m[1]) * 60 + (+(m[2] || 0)), (+m[3]) * 60 + (+(m[4] || 0))] : null; };
+
+  // percorre as linhas: colunas pelo cabeçalho mais recente
+  let col = null, dia = diasData.length === 1 ? diasData[0] : null, ordem = 0;
+  const blocos = new Map();   // dia -> { rotulos: [{turno, ordem}], pessoas: [{nome, sob, ordem}] }
+  const bloco = (d) => { if (!blocos.has(d)) blocos.set(d, { rotulos: [], pessoas: [] }); return blocos.get(d); };
+  for (const l of linhas) {
+    ordem++;
+    if (RE_DIA_TITULO.test(l.texto)) { const d = diaDoTitulo(l.texto); if (d !== null) dia = d; continue; }
+    if (/HOR[AÁ]RIO/i.test(l.texto) && /NOME/i.test(l.texto)) {
+      const pos = (re) => { const i = l.itens.find((x) => re.test(x.str)); return i ? i : null; };
+      const g = pos(/^GRAD/i), n = pos(/^NOME/i), c = pos(/^CPF/i);
+      col = { hor: g ? g.x - 5 : (n ? n.x - 100 : 120), nomeIni: g ? g.x + 42 : (n ? n.x - 60 : 0), nomeFim: c ? c.x - 15 : Infinity };
+      continue;
+    }
+    if (!col || dia === null) continue;
+    const hor = l.itens.filter((i) => i.x2 <= col.hor).map((i) => i.str).join(" ");
+    const nomeIt = l.itens.filter((i) => i.x >= col.nomeIni && i.x2 <= col.nomeFim);
+    const nome = nomeIt.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
+    const turno = turnoDe(hor);
+    if (turno) bloco(dia).rotulos.push({ turno, ordem });
+    if (nome && /[A-Za-zÀ-ú]{2}/.test(nome) && !/\d/.test(nome) && !/^(Cad\.?|PM|Al\.?|Of\.?)(\s|$)/i.test(nome)) {
+      bloco(dia).pessoas.push({ nome, sob: /SOBREAVISO/i.test(hor), ordem });
+    }
+  }
+  if (!blocos.size) {
+    avisos.push("Não encontrei os dias da escala (títulos como \"Sábado, 14 de Novembro de 2026\").");
+    return { tipo: "tabela", titulo: evento, registros, avisos };
+  }
+  let semTurno = 0;
+  for (const [d, { rotulos, pessoas }] of [...blocos.entries()].sort((a, b) => a[0] - b[0])) {
+    if (!pessoas.length) continue;
+    // grupos de cada horário: separados pelo sobreaviso (que fecha o grupo); se não bater, usa o horário mais próximo na página
+    const grupos = [];
+    let g = [];
+    pessoas.forEach((p) => { g.push(p); if (p.sob) { grupos.push(g); g = []; } });
+    if (g.length) grupos.push(g);
+    const turnoDaPessoa = new Map();
+    if (rotulos.length && grupos.length === rotulos.length) grupos.forEach((gr, i) => gr.forEach((p) => turnoDaPessoa.set(p, rotulos[i].turno)));
+    else if (rotulos.length) {
+      pessoas.forEach((p) => {
+        let melhor = rotulos[0];
+        rotulos.forEach((r) => { if (Math.abs(r.ordem - p.ordem) < Math.abs(melhor.ordem - p.ordem)) melhor = r; });
+        turnoDaPessoa.set(p, melhor.turno);
+      });
+      avisos.push(`${rotuloDia(d)}: não consegui separar com certeza quem está em cada horário. Confira os horários desse dia.`);
+    }
+    for (const p of pessoas) {
+      const t = turnoDaPessoa.get(p);
+      const [a, b] = t || [0, 24 * 60];
+      if (!t) semTurno++;
+      registros.push({ nome: p.nome, inicio: d + a * 60000, fim: d + (b <= a ? b + 1440 : b) * 60000,
+        servico: servicoBase + (p.sob ? " (sobreaviso)" : ""), origem: evento });
+    }
+  }
+  if (semTurno) avisos.push(`${semTurno} escalação(ões) sem horário identificado: considerei o dia inteiro.`);
+  const diasUsados = [...blocos.keys()].filter((d) => blocos.get(d).pessoas.length).sort((a, b) => a - b);
+  return { tipo: "tabela", titulo: `${evento} · ${diasUsados.map(rotuloDia).join(", ")}`, registros, avisos };
 }
 
 // ---------------------------------------------------------------- correspondência com o cadastro
