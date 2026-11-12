@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-12.1">
+<meta name="sde-versao" content="2026-11-12.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -436,6 +436,8 @@
   .anot.anulada { opacity: .65; }
   .mce-box { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--verde-claro); font-size: 14px; }
   .mce-box strong { color: var(--acento-esc); }
+  .mce-horarios { margin: 6px 0 4px; padding-left: 18px; }
+  .mce-horarios li { margin: 2px 0; }
   .btn-link-perigo { background: none; border: 0; color: var(--erro); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; padding: 0; }
   .edicao { display: grid; grid-template-columns: 2fr 1.2fr 1fr .7fr .7fr auto; gap: 6px; align-items: center; }
   .edicao input, .edicao select { padding: 5px 7px; font-size: 13px; }
@@ -2198,6 +2200,30 @@ function seloCiente(a) {
     : h("span", { class: "selo-ciente nao", title: "O cadete ainda não abriu a aba Minhas anotações depois do lançamento" }, "SEM CIÊNCIA");
 }
 
+/** Horário de cada bloco da MCE, para o cadete: "EEsp 1 — sexta 13/11, das 14h às 18h". */
+function horariosMce(a) {
+  const m = a.mce;
+  // blocos: gravados na publicação (desde a 2026-11-12.2); nas anteriores, lidos do texto da MCE
+  const ids = Array.isArray(m.blocos) && m.blocos.length ? m.blocos
+    : String(m.texto || "").split(" (")[0].split(" + ").map((r) => (BLOCOS.find((b) => b.rot === r.trim()) || {}).id).filter(Boolean);
+  const lista = BLOCOS.filter((b) => ids.includes(b.id));
+  if (!lista.length) return null;
+  // sexta do cumprimento: gravada na publicação; nas anteriores, a da semana da anotação (só se ainda não passou)
+  let sexta = m.sexta || 0;
+  if (!sexta && a.prazo && a.prazo.toMillis) {
+    const s = sextaDe(a.prazo.toMillis());
+    if (s + 3 * DIA > Date.now()) sexta = s;
+  }
+  const nomeDia = (d) => ["sexta", "sábado", "domingo", "segunda"][d] + (sexta ? " " + dataCurta(sexta + d * DIA) : "");
+  const linha = (b) => {
+    const diaFim = b.dia + Math.floor(b.fim / 1440);
+    return diaFim === b.dia
+      ? `${nomeDia(b.dia)}, das ${hhmm(b.ini)} às ${hhmm(b.fim)}`
+      : `${nomeDia(b.dia)}, das ${hhmm(b.ini)} às ${hhmm(b.fim)} de ${nomeDia(diaFim)}`;
+  };
+  return h("ul", { class: "mce-horarios" }, ...lista.map((b) => h("li", {}, h("strong", {}, b.rot), " — " + linha(b))));
+}
+
 function cartaoMinha(a) {
   const filhos = [
     h("div", { class: "anot-cab" },
@@ -2229,7 +2255,8 @@ function cartaoMinha(a) {
       cumprida: [h("strong", {}, "Já cumprida.")]
     }[m.decisao] || [h("strong", {}, "MCE: "), m.texto];
     const cm = cienteDaNamce(a);
-    filhos.push(h("div", { class: "mce-box" }, ...txt, h("div", { class: "ajuda" }, "NAMCE nº " + m.namce),
+    const hor = ["blocos", "parcial"].includes(m.decisao) ? horariosMce(a) : null;
+    filhos.push(h("div", { class: "mce-box" }, ...txt, hor, h("div", { class: "ajuda" }, "NAMCE nº " + m.namce),
       cm ? h("div", { class: "ajuda ciente-txt" }, "✓ Ciente do resultado em " + dataHoraMs(cm)) : null));
   }
 
@@ -3673,7 +3700,10 @@ async function publicarNamce() {
     publicadaEm: serverTimestamp(), publicadaPor: nomeCurto(perfil).toUpperCase(), itens, fo
   }, { merge: true }));
   for (const it of itens) {
-    ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: { texto: it.mce, decisao: it.parcial ? "parcial" : it.decisao, namce: ref } }));
+    ops.push((b) => b.update(doc(db, "anotacoes", it.anotacaoId), { mce: {
+      texto: it.mce, decisao: it.parcial ? "parcial" : it.decisao, namce: ref,
+      ...(it.decisao === "blocos" ? { blocos: it.blocos, sexta: sextaDe(W) } : {})
+    } }));
     // o restante de um cumprimento parcial anterior acompanha a anotação se ela for transferida de novo
     const herdado = it.parcialDe ? { parcialDe: it.parcialDe, pendente: it.pendente, cumpridoAntes: it.cumpridoAntes || "", motivoNC: it.motivoNC || "" } : {};
     if (PASSA_ADIANTE.includes(it.decisao)) {
