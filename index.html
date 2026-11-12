@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-11.6">
+<meta name="sde-versao" content="2026-11-12.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1217,7 +1217,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
-  query, where, Timestamp, setDoc, getDocs, deleteField, deleteDoc, Bytes
+  query, where, Timestamp, setDoc, getDocs, deleteField, deleteDoc, Bytes, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 // ================== Configuração do Firebase ==================
@@ -1459,7 +1459,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) conf
 // ================== Autenticação ==================
 function limparMemoria() {
   $("#aviso").hidden = true;
-  usuarios = []; usuariosCarregados = false; pendentesUsu = []; cadetesCompletos = false; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
+  usuarios = []; usuariosCarregados = false; namcesCarregadas = false; pendentesUsu = []; cadetesCompletos = false; cadetes = []; todosCadetes = []; minhas = []; lancadas = []; semana = [];
   cienciaEnviada.clear();
   limpezaCpfFeita = false;
   dosi = {}; escalasFds = []; escalasLista = []; namces = {}; semanaW = 0; selecaoManual = false; atualW = 0; atual = []; excluidas = []; excluidasFechada = []; planCab = null; corrigindoPlanilha = false; cabW = null; editandoCadete = null; importacao = null;
@@ -1928,7 +1928,6 @@ function abrirApp() {
     assinarPendentes();
     carregarSobDemanda(abaAtual);
     assinarSemana();
-    assinarEscalasLista();
     desenharAcessos();
     desenharCadetes();
   } else {
@@ -1954,6 +1953,7 @@ function trocarAba(id) {
 function carregarSobDemanda(id) {
   if (!perfil || perfil.nivel < 3) return;
   if (["cadetes", "acessos", "estat"].includes(id)) { assinarCadetesCompletos(); assinarUsuarios(); }
+  if (id === "escalas") { assinarEscalasLista(); assinarAulas(); }
 }
 
 function contador(id, n) {
@@ -2455,13 +2455,15 @@ async function manterResumosCadetes() {
 
 function assinarLancadas() {
   const uid = auth.currentUser.uid;
+  const tratar = (snap) => { lancadas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porData); desenharLancadas(); };
+  // só as 30 últimas (índice composto anotadorUid + criadoEm); sem o índice, volta a ler todas
   assinar("lancadas", uid, () => onSnapshot(
-    query(collection(db, "anotacoes"), where("anotadorUid", "==", uid)),
-    (snap) => {
-      lancadas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porData);
-      desenharLancadas();
-    },
-    (err) => console.error(err)
+    query(collection(db, "anotacoes"), where("anotadorUid", "==", uid), orderBy("criadoEm", "desc"), limit(30)),
+    tratar,
+    (err) => {
+      console.warn("Lançadas por você: índice ausente, lendo todas.", err && err.message);
+      assinar("lancadas", uid + "|todas", () => onSnapshot(query(collection(db, "anotacoes"), where("anotadorUid", "==", uid)), tratar, (e) => console.error(e)));
+    }
   ));
 }
 
@@ -2831,7 +2833,27 @@ function assinarSemana() {
     (snap) => { dosi = {}; snap.docs.forEach((d) => { dosi[d.id] = d.data(); }); carregarExtras(); desenharSemana(); },
     (err) => console.error(err)
   ));
-  if (coord()) assinar("escalasDosi", W, () => onSnapshot(
+  assinarEscalasDosi(W);
+  assinar("namces", "todas", () => onSnapshot(collection(db, "namces"), (snap) => {
+    namces = {};
+    snap.docs.forEach((d) => { namces[d.id] = { id: d.id, ...d.data() }; });
+    namcesCarregadas = true;
+    assinarEscalasDosi(semanaW);
+    rotularCiclos();
+    desenharSemana();
+    desenharAtual();
+    if (escalasProntas) desenharEscalas();
+  }, (err) => console.error(err)));
+  desenharAtual();
+  desenharSemana();
+}
+
+/** Escalas que bloqueiam blocos na dosimetria: só enquanto a NAMCE da semana não foi publicada (depois, não servem mais). */
+let namcesCarregadas = false;
+function assinarEscalasDosi(W) {
+  if (!coord() || !namcesCarregadas) return;
+  if (namces[String(W)] && namces[String(W)].status === "publicada") { desassinar("escalasDosi"); escalasFds = []; return; }
+  assinar("escalasDosi", W, () => onSnapshot(
     query(collection(db, "escalas"), where("fim", ">", Timestamp.fromMillis(sextaDe(W))), where("fim", "<=", Timestamp.fromMillis(fimFdsDe(W) + 7 * DIA))),
     (snap) => {
       const limite = fimFdsDe(W);
@@ -2840,16 +2862,6 @@ function assinarSemana() {
     },
     (err) => console.error(err)
   ));
-  assinar("namces", "todas", () => onSnapshot(collection(db, "namces"), (snap) => {
-    namces = {};
-    snap.docs.forEach((d) => { namces[d.id] = { id: d.id, ...d.data() }; });
-    rotularCiclos();
-    desenharSemana();
-    desenharAtual();
-    if (escalasProntas) desenharEscalas();
-  }, (err) => console.error(err)));
-  desenharAtual();
-  desenharSemana();
 }
 
 // ---------- Aba "Semana atual": acompanhamento ao vivo
@@ -4139,7 +4151,6 @@ function prepararEscalas() {
   efeitoAula();
   $("#btnAula").addEventListener("click", lancarAulaPelotao);
   opcoesAulaGrupo();
-  assinarAulas();
   $("#formEscala").addEventListener("submit", lancarEscala);
   $("#arqEscala").addEventListener("change", importarPdf);
 }
