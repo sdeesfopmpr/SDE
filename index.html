@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-13.1">
+<meta name="sde-versao" content="2026-11-13.2">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1101,7 +1101,7 @@
       </div>
       <div class="cartao recolhivel" data-chave="cadastrados">
         <h2><button type="button" class="btn-recolher" aria-expanded="true">
-          <span class="seta-rec" aria-hidden="true">▾</span>Cadetes cadastrados <span class="ajuda" id="totalCadetes"></span><span class="resumo-min"></span></button></h2>
+          <span class="seta-rec" aria-hidden="true">▾</span>Usuários cadastrados <span class="ajuda" id="totalCadetes"></span><span class="resumo-min"></span></button></h2>
         <div class="corpo-rec">
         <details class="promover" id="promover">
           <summary>Promover turmas (virada de ano) <button type="button" class="dica" aria-label="Ajuda" data-dica="Muda o curso/ano de todos os cadetes ativos de uma vez. Cada turma aparece separada (ex.: 1º CFO/1 e 1º CFO/2, que estão em períodos diferentes do mesmo ano), então dá para promover uma e manter a outra. Por padrão a turma (/1, /2) continua a mesma; o pelotão não muda e as anotações antigas também não. Quem estiver em &quot;Desativar (formados)&quot; deixa de aparecer para lançamentos e escalas e tem a conta de acesso bloqueada; todo o histórico de anotações, NAMCEs e estatísticas fica guardado, e nomes iguais em turmas futuras não dão conflito.">?</button></summary>
@@ -1915,7 +1915,7 @@ function abasDisponiveis() {
     abas.push({ id: "semana", nome: "Dosimetria" });
     abas.push({ id: "estat", nome: "Estatísticas" });
     abas.push({ id: "escalas", nome: "Escalas" });
-    abas.push({ id: "cadetes", nome: "Cadetes" });
+    abas.push({ id: "cadetes", nome: "Usuários" });
     abas.push({ id: "acessos", nome: "Acessos", contador: "contAba" });
   }
   return abas;
@@ -4740,10 +4740,12 @@ function desenharCadetes() {
   if (!filtroCadetes) return;
   if (!cadetesCompletos) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, "Carregando o cadastro…")); return; }
   desenharPromover();
-  const lista = filtroCadetes.aplicar(todosCadetes);
-  $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} ativos)`;
-  $("#cFTotal").textContent = filtroCadetes.filtrando() ? `Mostrando ${lista.length} de ${todosCadetes.length} cadastro(s).` : "";
-  if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todosCadetes.length ? "Ninguém encontrado." : "Nenhum cadete cadastrado.")); return; }
+  const coords = coordenadoresCadastro();
+  const todos = [...todosCadetes, ...coords];
+  const lista = filtroCadetes.aplicar(todos);
+  $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} cadetes ativos` + (usuariosCarregados ? ` · ${coords.filter((c) => c.ativo).length} da Coordenação)` : ")");
+  $("#cFTotal").textContent = filtroCadetes.filtrando() ? `Mostrando ${lista.length} de ${todos.length} cadastro(s).` : "";
+  if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todos.length ? "Ninguém encontrado." : "Nenhum cadastro.")); return; }
   const duplicados = todosCadetes.filter((c) => !c.unidoA && duplicadoComConta(c));
   $("#listaCadetes").replaceChildren(
     duplicados.length ? h("div", { class: "aviso-dup" },
@@ -4751,8 +4753,8 @@ function desenharCadetes() {
       duplicados.map((c) => c.guerra).join(", "),
       ". Anotações lançadas no cadastro da Missão não aparecem para o cadete enquanto a conta dele estiver no duplicado. Use \"Manter este cadastro\" na linha do cadastro da Missão (sem conta).") : "",
     h("table", { class: "tabela" },
-    h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
-    h("tbody", {}, lista.map((c) => editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
+    h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma / posto"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
+    h("tbody", {}, lista.map((c) => c._coord ? (editandoCadete === c.id ? linhaEdicaoCoord(c) : linhaCoord(c)) : editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
       h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome),
         (() => { const d = !c.unidoA && duplicadoComConta(c);
           return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, `⚠ Duplicado: a conta está no cadastro "${d.nome}" (${turmaCurta(d)})`) : null; })(),
@@ -4767,6 +4769,41 @@ function desenharCadetes() {
         h("button", { class: "btn perigo peq", type: "button", onclick: () => alternarAtivo(c) }, c.ativo ? "Desativar" : "Reativar"))
     )))
   ));
+}
+
+/** Contas da Coordenação (não têm cadastro de cadete: os dados ficam no perfil de acesso). */
+function coordenadoresCadastro() {
+  if (!usuariosCarregados) return [];
+  return usuarios.filter((u) => u.tipo === "coordenacao" && ["ativo", "bloqueado"].includes(u.status))
+    .map((u) => ({ ...u, id: "u:" + u.id, uid: u.id, _coord: true, ativo: u.status === "ativo" }))
+    .sort((a, b) => (a.guerra || "").localeCompare(b.guerra || "", "pt-BR"));
+}
+function linhaCoord(c) {
+  return h("tr", { class: "linha-coord" },
+    h("td", {}, h("strong", {}, c.guerra), " ", seloTipo(c), h("div", { class: "ajuda" }, c.nome)),
+    h("td", {}, c.posto || "—"),
+    h("td", {}, h("span", { class: "selo" }, "Com acesso")),
+    h("td", {}, c.ativo ? "Ativo" : h("span", { class: "selo cinza" }, "Bloqueado")),
+    h("td", { class: "acoes" },
+      h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = c.id; desenharCadetes(); } }, "Editar")));
+}
+function linhaEdicaoCoord(c) {
+  const nome = h("input", { value: c.nome || "", maxlength: "120", "aria-label": "Nome completo" });
+  const guerra = h("input", { value: c.guerra || "", maxlength: "40", "aria-label": "Nome de guerra", style: "text-transform:uppercase" });
+  const posto = h("input", { value: c.posto || "", maxlength: "40", "aria-label": "Posto / graduação", placeholder: "Posto / graduação" });
+  const salvar = async () => {
+    const v = { nome: nome.value.trim().replace(/\s+/g, " "), guerra: guerra.value.trim().replace(/\s+/g, " ").toUpperCase(), posto: posto.value.trim().replace(/\s+/g, " ") };
+    if (v.nome.length < 3 || v.guerra.length < 2 || v.posto.length < 2) { avisar("Confira nome, nome de guerra e posto.", true); return; }
+    try {
+      await updateDoc(doc(db, "usuarios", c.uid), v);
+      editandoCadete = null; avisar("Cadastro atualizado.");
+    } catch (err) { console.error(err); avisar("Não foi possível salvar.", true); }
+  };
+  return h("tr", {}, h("td", { colspan: "5" }, h("div", { class: "edicao" }, nome, guerra, posto,
+    h("div", { style: "display:flex; gap:6px" },
+      h("button", { class: "btn peq", type: "button", onclick: salvar }, "Salvar"),
+      h("button", { class: "btn sec peq", type: "button", onclick: () => { editandoCadete = null; desenharCadetes(); } }, "Cancelar"))),
+    h("div", { class: "ajuda", style: "margin-top:6px" }, "E-mail, nível e bloqueio desta conta: aba Acessos.")));
 }
 
 function linhaEdicao(c) {
@@ -5115,6 +5152,7 @@ function assinarUsuarios() {
     usuariosCarregados = true;
     desenharAcessos();
     desenharEstat();
+    if (!editandoCadete) desenharCadetes();
     limparCpfsAntigos();
   }, (err) => {
     console.error(err);
@@ -5302,7 +5340,7 @@ function desenharEdicaoUsuario() {
       ...campo("euGuerra", "Nome de guerra", u.guerra, { maxlength: "40", autocomplete: "off", style: "text-transform:uppercase" }));
   } else {
     $("#euDados").replaceChildren(h("p", { class: "ajuda", style: "margin-top:0" },
-      `${u.nome} · ${turmaTexto(u)}. Nome, nome de guerra, curso/ano, turma e pelotão do cadete: edite na aba Cadetes (botão Editar) — a conta acompanha.`));
+      `${u.nome} · ${turmaTexto(u)}. Nome, nome de guerra, curso/ano, turma e pelotão do cadete: edite na aba Usuários (botão Editar) — a conta acompanha.`));
   }
   const pend = u.novoEmail ? h("div", { class: "bloco-email", style: "margin-top:8px" },
     h("strong", {}, "Troca autorizada para " + u.novoEmail),
