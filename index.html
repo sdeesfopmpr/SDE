@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-12.2">
+<meta name="sde-versao" content="2026-11-13.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -265,6 +265,11 @@
   html[data-tema="escuro"] .selo-email.nao { background: #3a3016; color: #ffd36b; }
   .bloco-email { margin-top: 16px; padding: 12px; border-radius: 10px; border: 1px solid var(--borda); text-align: left; font-size: 14px; }
   .bloco-email .acoes-email { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .bloco-email .acoes-email input { flex: 1 1 180px; width: auto; margin: 0; }
+  #avisoTrocaEmail { margin: 0 0 14px; }
+  #avisoTrocaEmail .bloco-email { margin-top: 0; background: var(--cartao, #fff); border-color: var(--acento, #2f5dab); }
+  .troca-pend { color: var(--acento-esc); font-weight: 600; }
+  #dlgEditUsu label { display: block; margin-top: 10px; }
   .lista-simples { margin: 0; padding-left: 18px; color: var(--suave); }
   .lista-simples li { margin: 4px 0; }
 
@@ -819,6 +824,7 @@
   <!-- Sistema -->
   <section class="vista" id="v-app" hidden>
     <nav class="abas" id="abas" role="tablist"></nav>
+    <div id="avisoTrocaEmail" hidden></div>
 
 
     <!-- Minhas anotações (todos os cadetes) -->
@@ -1176,6 +1182,19 @@
   <div class="dialogo-acoes"><button class="btn" type="button" id="btnFecharInfo">Fechar</button></div>
 </dialog>
 
+<dialog class="dialogo" id="dlgEditUsu" aria-labelledby="dlgEditUsuTitulo">
+  <h2 id="dlgEditUsuTitulo">Editar acesso</h2>
+  <form id="formEditUsu" novalidate>
+    <div id="euDados"></div>
+    <div id="euEmail"></div>
+    <div id="msgEditUsu" class="msg" hidden></div>
+    <div class="dialogo-acoes">
+      <button class="btn sec" type="button" id="btnFecharEditUsu">Fechar</button>
+      <button class="btn" type="submit" id="btnSalvarEditUsu">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="dialogo" id="dlgNC" aria-labelledby="dlgNCTitulo">
   <h2 id="dlgNCTitulo">MCE não cumprida</h2>
   <p id="ncInfo" style="margin-top:0"></p>
@@ -1215,7 +1234,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, sendEmailVerification, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword
+  sendPasswordResetEmail, sendEmailVerification, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword,
+  verifyBeforeUpdateEmail
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, onSnapshot, writeBatch, updateDoc, serverTimestamp,
@@ -1489,7 +1509,7 @@ onAuthStateChanged(auth, (user) => {
   perfil = null;
   perfilCarregado = false;
   if (!user) {
-    emailLinkEnviado = 0;
+    emailLinkEnviado = 0; linkTrocaEnviado = "";
     $("#usuarioTopo").hidden = true;
     if (!ocupado) mostrar("v-login");
     return;
@@ -1536,7 +1556,9 @@ function rotear() {
       "Seu acesso está bloqueado. Procure a coordenação ou a Missão SDE.");
   } else if (perfil.status === "ativo") {
     abrirApp();
-    if (auth.currentUser && auth.currentUser.emailVerified && !perfil.emailConfirmado) sincronizarEmail();
+    if (perfil.novoEmail) sincronizarTrocaEmail();
+    else if (auth.currentUser && auth.currentUser.emailVerified && !perfil.emailConfirmado) sincronizarEmail();
+    desenharAvisoTrocaEmail();
   } else {
     mostrarStatus("⚠️", "Situação desconhecida", "Procure a Missão SDE.");
   }
@@ -1976,7 +1998,7 @@ function desenharInfo() {
     h("dt", {}, "E-mail"), h("dd", {}, p.email, " ", seloEmail(p)),
     h("dt", {}, "Acesso"), h("dd", {}, seloNivel(p.nivel))
   );
-  $("#infoConteudo").replaceChildren(dados, p.emailConfirmado ? "" : blocoEmail());
+  $("#infoConteudo").replaceChildren(dados, p.emailConfirmado ? "" : blocoEmail(), blocoTrocaEmail() || "");
 }
 
 // ---------- Confirmação do e-mail (link enviado pelo Firebase; selo na aba Acessos) ----------
@@ -2030,6 +2052,67 @@ function blocoEmail() {
       : `Toque em "Enviar link de confirmação": chega um e-mail em ${u.email}. Abra o link (veja também o spam) e depois volte aqui e toque em "Já confirmei".`),
     h("div", { class: "acoes-email" }, emailLinkEnviado ? btnJa : btnReenviar, emailLinkEnviado ? btnReenviar : btnJa), msg);
 }
+// ---------- Troca do e-mail de acesso (autorizada pelo nível 3; o usuário confirma pelo link no e-mail novo) ----------
+// O sistema não tem servidor: o nível 3 não troca o e-mail de outra conta diretamente. Ele grava em usuarios.novoEmail
+// a autorização; o dono da conta pede o link (verifyBeforeUpdateEmail), abre no e-mail novo e entra com ele;
+// ao entrar, o perfil é atualizado (a regra só aceita o e-mail autorizado e já verificado no token).
+let linkTrocaEnviado = "", sincronizandoTroca = false;
+const trocaPendente = () => !!(perfil && perfil.novoEmail && auth.currentUser
+  && auth.currentUser.email.toLowerCase() !== perfil.novoEmail);
+function blocoTrocaEmail() {
+  if (!trocaPendente()) return null;
+  const novo = perfil.novoEmail;
+  const senha = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Sua senha atual", placeholder: "Sua senha atual" });
+  const msg = h("div", { class: "ajuda", "aria-live": "polite" },
+    linkTrocaEnviado === novo ? `Link já enviado para ${novo}. Abra o link; depois entre no sistema com ${novo} e a mesma senha.` : "");
+  const btn = h("button", { class: "btn peq", type: "button" }, linkTrocaEnviado === novo ? "Enviar o link de novo" : "Enviar link para o novo e-mail");
+  btn.addEventListener("click", async () => {
+    const u = auth.currentUser;
+    if (!senha.value) { msg.textContent = "Digite a sua senha atual."; senha.focus(); return; }
+    btn.disabled = true; msg.textContent = "Enviando…";
+    try {
+      await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, senha.value));
+      await verifyBeforeUpdateEmail(u, novo, acaoEmail());
+      linkTrocaEnviado = novo; senha.value = "";
+      msg.textContent = `Link enviado para ${novo} (veja também o spam). Abra o link; depois entre no sistema com ${novo} e a mesma senha.`;
+    } catch (err) {
+      console.error(err);
+      msg.textContent = ["auth/wrong-password", "auth/invalid-credential", "auth/invalid-login-credentials"].includes(err.code) ? "Senha incorreta."
+        : err.code === "auth/email-already-in-use" ? "Este e-mail já é usado por outra conta. Procure a coordenação."
+        : err.code === "auth/too-many-requests" ? "Muitas tentativas seguidas. Tente de novo mais tarde."
+        : err.code === "auth/invalid-email" ? "O e-mail autorizado é inválido. Procure a coordenação."
+        : "Não foi possível enviar o link agora. Tente de novo mais tarde.";
+    } finally { btn.disabled = false; }
+  });
+  return h("div", { class: "bloco-email troca-email" },
+    h("strong", {}, "📧 Troca do e-mail de acesso autorizada"),
+    h("div", {}, `A coordenação autorizou trocar o seu e-mail de acesso de ${auth.currentUser.email} para `, h("strong", {}, novo), "."),
+    h("div", {}, "Para concluir: digite a sua senha e toque no botão. Chega um link no novo e-mail; abra o link e depois entre no sistema com o novo e-mail e a mesma senha. Até lá, continue entrando com o e-mail atual."),
+    h("div", { class: "acoes-email" }, senha, btn), msg);
+}
+function desenharAvisoTrocaEmail() {
+  const box = $("#avisoTrocaEmail");
+  const b = blocoTrocaEmail();
+  box.hidden = !b;
+  box.replaceChildren(...(b ? [b] : []));
+}
+/** Depois de abrir o link e entrar com o e-mail novo: grava o e-mail novo no perfil e encerra a autorização. */
+async function sincronizarTrocaEmail() {
+  const u = auth.currentUser;
+  if (!u || !perfil || !perfil.novoEmail || sincronizandoTroca) return;
+  if (u.email.toLowerCase() !== perfil.novoEmail) return;
+  sincronizandoTroca = true;
+  try {
+    await u.getIdToken(true);
+    await updateDoc(doc(db, "usuarios", u.uid), {
+      email: u.email.toLowerCase(), emailConfirmado: true,
+      novoEmail: deleteField(), novoEmailPor: deleteField(), novoEmailEm: deleteField()
+    });
+    avisar("E-mail de acesso atualizado.");
+  } catch (err) { console.error(err); }
+  finally { sincronizandoTroca = false; }
+}
+
 // ao voltar para o sistema depois de abrir o link no e-mail, confere sozinho
 window.addEventListener("focus", () => {
   if (perfil && !perfil.emailConfirmado && auth.currentUser && !auth.currentUser.emailVerified) sincronizarEmail();
@@ -5184,11 +5267,13 @@ function desenharAtivos(ativos) {
           nivelCel = sel;
         }
         return h("tr", { class: u.tipo === "coordenacao" ? "linha-coord" : "" },
-          h("td", {}, h("strong", {}, u.guerra), " ", seloTipo(u), h("div", { class: "ajuda" }, u.nome), seloEmail(u)),
+          h("td", {}, h("strong", {}, u.guerra), " ", seloTipo(u), h("div", { class: "ajuda" }, u.nome), seloEmail(u),
+            u.novoEmail ? h("div", { class: "ajuda troca-pend" }, "📧 troca de e-mail pendente → " + u.novoEmail) : null),
           h("td", {}, turmaTexto(u)),
           h("td", {}, nivelCel),
-          h("td", { class: "acoes" }, eu ? null :
-            h("button", { class: "btn perigo peq", type: "button", onclick: () => {
+          h("td", { class: "acoes" },
+            h("button", { class: "btn sec peq", type: "button", onclick: () => abrirEdicaoUsuario(u.id) }, "Editar"), " ",
+            eu ? null : h("button", { class: "btn perigo peq", type: "button", onclick: () => {
               if (confirm(`Bloquear o acesso de ${u.guerra}?`)) mudarStatus(u, "bloqueado", "Acesso bloqueado.");
             } }, "Bloquear"))
         );
@@ -5196,6 +5281,90 @@ function desenharAtivos(ativos) {
     )
   );
 }
+
+// ---------- Editar acesso (nível 3): dados da Coordenação e autorização de troca do e-mail ----------
+let editUsuId = null;
+function abrirEdicaoUsuario(id) {
+  editUsuId = id;
+  desenharEdicaoUsuario();
+  mensagem("#msgEditUsu", "");
+  if (!$("#dlgEditUsu").open) $("#dlgEditUsu").showModal();
+}
+function desenharEdicaoUsuario() {
+  const u = usuarios.find((x) => x.id === editUsuId);
+  if (!u) { $("#dlgEditUsu").close(); return; }
+  $("#dlgEditUsuTitulo").textContent = "Editar acesso — " + u.guerra;
+  const campo = (id, rot, valor, extra = {}) => [h("label", { for: id }, rot), h("input", { id, value: valor || "", ...extra })];
+  if (u.tipo === "coordenacao") {
+    $("#euDados").replaceChildren(
+      ...campo("euNome", "Nome completo", u.nome, { maxlength: "120", autocomplete: "off" }),
+      ...campo("euPosto", "Posto / graduação", u.posto, { maxlength: "40", autocomplete: "off" }),
+      ...campo("euGuerra", "Nome de guerra", u.guerra, { maxlength: "40", autocomplete: "off", style: "text-transform:uppercase" }));
+  } else {
+    $("#euDados").replaceChildren(h("p", { class: "ajuda", style: "margin-top:0" },
+      `${u.nome} · ${turmaTexto(u)}. Nome, nome de guerra, curso/ano, turma e pelotão do cadete: edite na aba Cadetes (botão Editar) — a conta acompanha.`));
+  }
+  const pend = u.novoEmail ? h("div", { class: "bloco-email", style: "margin-top:8px" },
+    h("strong", {}, "Troca autorizada para " + u.novoEmail),
+    h("div", { class: "ajuda" }, `Por ${u.novoEmailPor || "—"}${u.novoEmailEm && u.novoEmailEm.toMillis ? " em " + dataHoraMs(u.novoEmailEm.toMillis()) : ""}. `
+      + "Aguardando o dono da conta pedir o link (aviso no topo do sistema dele), abrir no novo e-mail e entrar com ele."),
+    h("div", { class: "acoes-email" }, h("button", { class: "btn sec peq", type: "button", onclick: () => cancelarTrocaEmail(u) }, "Cancelar autorização"))) : null;
+  $("#euEmail").replaceChildren(
+    h("label", {}, "E-mail de acesso"),
+    h("div", {}, u.email || "—", " ", seloEmail(u)),
+    pend,
+    ...campo("euNovoEmail", u.novoEmail ? "Autorizar outro e-mail (substitui o pendente)" : "Novo e-mail (deixe em branco para não trocar)", "",
+      { type: "email", autocomplete: "off", placeholder: u.tipo === "cadete" ? "nome@pm.pr.gov.br" : "" }),
+    h("div", { class: "ajuda" }, "O sistema não troca o e-mail sozinho: ele autoriza a troca, e o dono da conta confirma pelo link que chega no novo e-mail. A senha continua a mesma."
+      + (u.tipo === "cadete" ? " Cadetes: só e-mail institucional (@pm.pr.gov.br)." : "")));
+}
+async function cancelarTrocaEmail(u) {
+  if (!confirm(`Cancelar a troca de e-mail autorizada para ${u.novoEmail}?`)) return;
+  try {
+    await updateDoc(doc(db, "usuarios", u.id), { novoEmail: deleteField(), novoEmailPor: deleteField(), novoEmailEm: deleteField() });
+    $("#dlgEditUsu").close();
+    avisar("Autorização de troca de e-mail cancelada.");
+  } catch (err) { console.error(err); avisar("Não foi possível cancelar.", true); }
+}
+$("#btnFecharEditUsu").addEventListener("click", () => $("#dlgEditUsu").close());
+$("#dlgEditUsu").addEventListener("close", () => { editUsuId = null; });
+$("#formEditUsu").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const u = usuarios.find((x) => x.id === editUsuId);
+  if (!u) return;
+  const mud = {};
+  const resumo = [];
+  if (u.tipo === "coordenacao") {
+    const nome = $("#euNome").value.trim().replace(/\s+/g, " ");
+    const posto = $("#euPosto").value.trim().replace(/\s+/g, " ");
+    const guerra = $("#euGuerra").value.trim().replace(/\s+/g, " ").toUpperCase();
+    if (nome.length < 3) { mensagem("#msgEditUsu", "Informe o nome completo."); return; }
+    if (posto.length < 2) { mensagem("#msgEditUsu", "Informe o posto ou graduação."); return; }
+    if (guerra.length < 2) { mensagem("#msgEditUsu", "Informe o nome de guerra."); return; }
+    if (nome !== u.nome) { mud.nome = nome; resumo.push(`Nome: ${nome}`); }
+    if (posto !== (u.posto || "")) { mud.posto = posto; resumo.push(`Posto: ${posto}`); }
+    if (guerra !== u.guerra) { mud.guerra = guerra; resumo.push(`Nome de guerra: ${guerra}`); }
+  }
+  const novo = $("#euNovoEmail").value.trim().toLowerCase();
+  if (novo) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo)) { mensagem("#msgEditUsu", "Informe um e-mail válido."); return; }
+    if (u.tipo === "cadete" && !emailInstitucional(novo)) { mensagem("#msgEditUsu", "Cadetes devem usar o e-mail institucional (terminado em @pm.pr.gov.br)."); return; }
+    if (novo === (u.email || "").toLowerCase()) { mensagem("#msgEditUsu", "Este já é o e-mail de acesso da conta."); return; }
+    const outro = usuarios.find((x) => x.id !== u.id && ((x.email || "").toLowerCase() === novo || x.novoEmail === novo));
+    if (outro) { mensagem("#msgEditUsu", `Este e-mail já é usado (ou está autorizado) na conta de ${outro.guerra}.`); return; }
+    mud.novoEmail = novo; mud.novoEmailPor = nomeCurto(perfil).toUpperCase(); mud.novoEmailEm = serverTimestamp();
+    resumo.push(`Autorizar troca do e-mail de acesso para ${novo} (o dono da conta confirma pelo link)`);
+  }
+  if (!resumo.length) { mensagem("#msgEditUsu", "Nada foi alterado."); return; }
+  if (!confirm(`Salvar alterações de ${u.guerra}?\n\n${resumo.map((r) => "• " + r).join("\n")}`)) return;
+  const btn = $("#btnSalvarEditUsu"); btn.disabled = true;
+  try {
+    await updateDoc(doc(db, "usuarios", u.id), mud);
+    $("#dlgEditUsu").close();
+    avisar(mud.novoEmail ? "Troca de e-mail autorizada. Avise o usuário para confirmar pelo aviso no topo do sistema." : "Cadastro atualizado.");
+  } catch (err) { console.error(err); mensagem("#msgEditUsu", "Não foi possível salvar. Tente de novo."); }
+  finally { btn.disabled = false; }
+});
 
 /** Mesmo nome completo (ignora acentos, maiúsculas e espaços a mais). */
 function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === normBusca(b).replace(/\s+/g, " ").trim(); }

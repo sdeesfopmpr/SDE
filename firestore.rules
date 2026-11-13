@@ -109,7 +109,8 @@ service cloud.firestore {
       allow update: if nivel(3)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['nivel', 'status', 'cadeteId', 'analisadoPor', 'analisadoEm',
-                       'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto', 'cpf'])
+                       'nome', 'guerra', 'ano', 'turma', 'pelotao', 'posto', 'cpf',
+                       'novoEmail', 'novoEmailPor', 'novoEmailEm'])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['cpf'])
             || !request.resource.data.keys().hasAny(['cpf']))     // CPF antigo só pode ser apagado
         && request.resource.data.nivel in [0, 1, 2, 3]
@@ -124,6 +125,18 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailConfirmado'])
         && request.resource.data.emailConfirmado == true
         && request.auth.token.email_verified == true;
+
+      // troca do e-mail de acesso: o nível 3 autoriza (novoEmail); o próprio usuário, depois de abrir o link no
+      // e-mail novo e entrar com ele, grava o e-mail novo — só o autorizado e já verificado no token
+      allow update: if logado()
+        && request.auth.uid == uid
+        && resource.data.get('novoEmail', '') == request.auth.token.email
+        && request.auth.token.email_verified == true
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['email', 'emailConfirmado', 'novoEmail', 'novoEmailPor', 'novoEmailEm'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.emailConfirmado == true
+        && !request.resource.data.keys().hasAny(['novoEmail', 'novoEmailPor', 'novoEmailEm']);
     }
 
     // ---------- CPFs antigos: o sistema não guarda mais CPF; o nível 3 só pode apagar o que restou ----------
