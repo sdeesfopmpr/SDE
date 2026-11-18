@@ -463,7 +463,14 @@ function tokens(s) { return normNome(s).split(" ").filter((t) => t && !LIGA.has(
  * Liga só pelo nome (nome completo igual; senão, nome bem parecido, marcado para conferir).
  * cadetes: [{ id, nome, guerra }]. Devolve { ligados: [{...registro, cadete, aproximado}], soltos: [nomes] }.
  */
+// PDF com a inicial do nome em negrito: a cópia sai "D avid", "J oacir". Junta a letra maiúscula solta com o resto
+// da palavra (minúsculas), sem mexer em conectivos ("E de Souza").
+export function juntarInicial(nome) {
+  return (nome || "").replace(/(^|\s)([A-ZÀ-Ú]) (?!(?:de|da|do|dos|das|e)\b)([a-zà-ú]{2,})/g, "$1$2$3");
+}
+
 export function ligarCadetes(registros, cadetes) {
+  registros = registros.map((r) => ({ ...r, nome: juntarInicial(r.nome) }));
   const porNome = new Map();
   cadetes.forEach((c) => { const k = normNome(c.nome); if (!porNome.has(k)) porNome.set(k, []); porNome.get(k).push(c); });
   const tk = cadetes.map((c) => ({ c, t: new Set(tokens(c.nome)) }));
