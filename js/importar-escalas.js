@@ -31,11 +31,30 @@ export async function linhasDoPdf(arquivo) {
   return agruparLinhas(paginas);
 }
 
+/**
+ * PDFs do "Microsoft Print To PDF" (Word) repetem o texto em camadas sobrepostas: "Carlos Henrique" por cima de
+ * "Carlos Henrique Gianfelice", "35" por cima do fim de "131.XXX.XXX-35". Tira o item que está inteiro dentro de outro
+ * (mesma altura, mesma faixa horizontal) e cujo texto já está nesse outro.
+ */
+function semSobrepostos(itens) {
+  const fora = new Set();
+  for (let a = 0; a < itens.length; a++) {
+    const A = itens[a], ta = A.str.trim();
+    for (let b = 0; b < itens.length; b++) {
+      if (a === b || fora.has(b)) continue;
+      const B = itens[b], tb = B.str.trim();
+      if (Math.abs(A.y - B.y) > 4 || A.x < B.x - 1.5 || A.x2 > B.x2 + 3) continue;   // +3: espaço no fim da camada de cima
+      if (tb.length > ta.length ? tb.includes(ta) : (tb === ta && b < a)) { fora.add(a); break; }
+    }
+  }
+  return itens.filter((_, i) => !fora.has(i));
+}
+
 /** Agrupa itens soltos em linhas (mesma altura), ordenadas por página, y e x. */
 export function agruparLinhas(paginas) {
   const linhas = [];
   for (const { pagina, itens } of paginas) {
-    const ord = itens.filter((i) => i.str && i.str.trim()).sort((a, b) => a.y - b.y || a.x - b.x);
+    const ord = semSobrepostos(itens.filter((i) => i.str && i.str.trim())).sort((a, b) => a.y - b.y || a.x - b.x);
     let atual = null;
     for (const it of ord) {
       if (!atual || Math.abs(it.y - atual.y) > 2.5) { atual = { pagina, y: it.y, itens: [] }; linhas.push(atual); }
@@ -99,6 +118,9 @@ export function identificarTipo(linhas) {
   if (/PREVISAO DE ESCALA DE SERVICO INTERNO/.test(tudo)) return "interno";
   if (/BOLETIM INTERNO/.test(tudo)) return "boletim";
   const comGrad = linhas.filter((l) => RE_GRAD.test(l.texto));
+  // tabela com colunas HORÁRIO · GRAD · NOME no mesmo cabeçalho (estágio COPOM), mesmo com "Cad. 1º PM" na linha do nome
+  const cabTabela = linhas.some((l) => /HOR[AÁ]RIO/i.test(l.texto) && /GRAD/i.test(l.texto) && /NOME/i.test(l.texto));
+  if (cabTabela && comGrad.filter((l) => RE_TURNO.test(l.texto)).length < 2) return "tabela";
   if (comGrad.filter((l) => RE_TURNO.test(l.texto)).length >= 2 || (/EVENTO:/.test(tudo) && comGrad.length)) return "especial";
   // tabela com colunas HORÁRIO · GRAD · NOME COMPLETO (graduação e nome em linhas separadas, horário mesclado)
   if (linhas.some((l) => /HOR[AÁ]RIO/i.test(l.texto) && /NOME/i.test(l.texto))) return "tabela";
@@ -398,6 +420,7 @@ function lerTabela(linhas) {
   // percorre as linhas: colunas pelo cabeçalho mais recente
   let col = null, dia = diasData.length === 1 ? diasData[0] : null, ordem = 0;
   const blocos = new Map();   // dia -> { rotulos: [{turno, ordem}], pessoas: [{nome, sob, ordem}] }
+  const gradDe = new Map(), nomeDe = new Map();
   const horDe = new Map();    // ordem -> texto da coluna do horário naquela linha (para achar "SOBREAVISO" / "DIA TODO" nas linhas vizinhas)
   const bloco = (d) => { if (!blocos.has(d)) blocos.set(d, { rotulos: [], pessoas: [] }); return blocos.get(d); };
   for (const l of linhas) {
@@ -414,13 +437,15 @@ function lerTabela(linhas) {
     const grad = l.itens.filter((i) => i.x2 > col.hor && i.x < col.nomeIni).map((i) => i.str).join(" ").trim();
     const nomeIt = l.itens.filter((i) => i.x >= col.nomeIni && i.x2 <= col.nomeFim);
     const nome = nomeIt.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
-    horDe.set(ordem, { hor, pagina: l.pagina, y: l.y });
+    horDe.set(ordem, { hor, pagina: l.pagina, y: l.y }); gradDe.set(ordem, grad); nomeDe.set(ordem, nome);
     const turno = turnoDe(hor);
     if (turno) bloco(dia).rotulos.push({ turno, ordem });
     if (nome && /[A-Za-zÀ-ú]{2}/.test(nome) && !/\d/.test(nome) && !/^(Cad\.?|PM|Al\.?|Of\.?)(\s|$)/i.test(nome)) {
       // nome que quebrou em duas linhas: 1ª parte na linha do "Cad. 1º", resto na linha do "PM" logo abaixo
       const ant = bloco(dia).pessoas.at(-1);
       if (ant && ant.ordem === ordem - 1 && /^PM$/i.test(grad) && /Cad/i.test(ant.grad || "")) { ant.nome += " " + nome; continue; }
+      // (Word) 1ª parte numa linha sem graduação, "Cad. 1º PM" sozinho na linha seguinte, resto do nome na outra
+      if (ant && !grad && !ant.grad && ant.ordem === ordem - 2 && /Cad.*PM/i.test(gradDe.get(ordem - 1) || "") && !nomeDe.get(ordem - 1)) { ant.nome += " " + nome; continue; }
       bloco(dia).pessoas.push({ nome, grad, ordem, sob: /SOBREAVISO/i.test(hor) });
     }
   }
