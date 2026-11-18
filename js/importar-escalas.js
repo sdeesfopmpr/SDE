@@ -455,7 +455,7 @@ function lerTabela(linhas) {
 
 // ---------------------------------------------------------------- correspondência com o cadastro
 const LIGA = new Set(["de", "da", "do", "das", "dos", "e"]);
-export function normNome(s) { return semAcento(s).toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim(); }
+export function normNome(s) { return semAcento(juntarInicial(s)).toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim(); }
 function tokens(s) { return normNome(s).split(" ").filter((t) => t && !LIGA.has(t)); }
 
 /**
@@ -473,13 +473,15 @@ export function ligarCadetes(registros, cadetes) {
   registros = registros.map((r) => ({ ...r, nome: juntarInicial(r.nome) }));
   const porNome = new Map();
   cadetes.forEach((c) => { const k = normNome(c.nome); if (!porNome.has(k)) porNome.set(k, []); porNome.get(k).push(c); });
-  const tk = cadetes.map((c) => ({ c, t: new Set(tokens(c.nome)) }));
+  const tk = cadetes.filter((c) => c.ativo !== false && !c.unidoA).map((c) => ({ c, t: new Set(tokens(c.nome)) }));   // aproximação só com ativos
   const ligados = [], soltos = [];
   for (const r of registros) {
     let cad = null, aprox = false;
     const exatos = porNome.get(normNome(r.nome)) || [];
-    if (exatos.length === 1) cad = exatos[0];
-    const cands = exatos.length > 1 ? exatos : null;      // homônimos: não liga sozinho
+    // vários com o mesmo nome: vale o único cadastro ativo (formados/unidos ficam inativos e não atrapalham)
+    const validos = exatos.length > 1 ? exatos.filter((c) => c.ativo !== false && !c.unidoA) : exatos;
+    if (validos.length === 1) cad = validos[0];
+    const cands = !cad && exatos.length > 1 ? exatos : null;      // homônimos ativos: não liga sozinho
     if (!cad && !cands) {
       const a = new Set(tokens(r.nome));
       let melhor = null, nota = 0, empate = false;

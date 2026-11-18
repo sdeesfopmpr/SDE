@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-18.2">
+<meta name="sde-versao" content="2026-11-18.3">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -4746,18 +4746,18 @@ function desenharCadetes() {
   $("#totalCadetes").textContent = `(${todosCadetes.filter((c) => c.ativo).length} cadetes ativos` + (usuariosCarregados ? ` · ${coords.filter((c) => c.ativo).length} da Coordenação)` : ")");
   $("#cFTotal").textContent = filtroCadetes.filtrando() ? `Mostrando ${lista.length} de ${todos.length} cadastro(s).` : "";
   if (!lista.length) { $("#listaCadetes").replaceChildren(h("p", { class: "vazio" }, todos.length ? "Ninguém encontrado." : "Nenhum cadastro.")); return; }
-  const duplicados = todosCadetes.filter((c) => !c.unidoA && duplicadoComConta(c));
+  const duplicados = todosCadetes.filter((c) => !c.unidoA && duplicadoComConta(c) && !(c.uid && duplicadoComConta(c).id < c.id));   // mesma conta em 2: conta 1 vez
   $("#listaCadetes").replaceChildren(
     duplicados.length ? h("div", { class: "aviso-dup" },
       h("strong", {}, `${duplicados.length} cadastro(s) possivelmente duplicado(s): `),
       duplicados.map((c) => c.guerra).join(", "),
-      ". Anotações lançadas no cadastro da Missão não aparecem para o cadete enquanto a conta dele estiver no duplicado. Use \"Manter este cadastro\" na linha do cadastro da Missão (sem conta).") : "",
+      ". Anotações lançadas no cadastro da Missão não aparecem para o cadete enquanto a conta dele estiver no duplicado. Use \"Manter este cadastro\" na linha do cadastro da Missão.") : "",
     h("table", { class: "tabela" },
     h("thead", {}, h("tr", {}, h("th", {}, "Nome de guerra"), h("th", {}, "Turma / posto"), h("th", {}, "Conta"), h("th", {}, "Situação"), h("th", {}))),
     h("tbody", {}, lista.map((c) => c._coord ? (editandoCadete === c.id ? linhaEdicaoCoord(c) : linhaCoord(c)) : editandoCadete === c.id ? linhaEdicao(c) : h("tr", {},
       h("td", {}, h("strong", {}, c.guerra), h("div", { class: "ajuda" }, c.nome),
         (() => { const d = !c.unidoA && duplicadoComConta(c);
-          return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, `⚠ Duplicado: a conta está no cadastro "${d.nome}" (${turmaCurta(d)})`) : null; })(),
+          return d ? h("div", { class: "ajuda", style: "color:var(--erro); font-weight:600" }, c.uid ? `⚠ Duplicado: a mesma conta também está no cadastro "${d.nome}" (${turmaCurta(d)})` : `⚠ Duplicado: a conta está no cadastro "${d.nome}" (${turmaCurta(d)})`) : null; })(),
         c.unidoA ? h("div", { class: "ajuda" }, "Unido ao cadastro com conta de " + ((todosCadetes.find((x) => x.id === c.unidoA) || {}).guerra || "—")) : null),
       h("td", {}, `${c.ano}${c.turma ? "/" + c.turma : ""} · Pel. ${c.pelotao}`),
       h("td", {}, c.uid ? h("span", { class: "selo" }, "Com acesso") : h("span", { class: "selo cinza" }, "Sem conta")),
@@ -4813,7 +4813,7 @@ function linhaEdicao(c) {
   const turma = h("select", { "aria-label": "Turma" }); opcoesSubturma(turma); turma.value = c.turma || "";
   const pel = h("select", { "aria-label": "Pelotão" }); opcoesPelotao(pel, false); pel.value = c.pelotao;
   const salvar = async () => {
-    const v = { nome: nome.value.trim().replace(/\s+/g, " "), guerra: guerra.value.trim().replace(/\s+/g, " ").toUpperCase(), ano: ano.value, turma: turma.value, pelotao: pel.value };
+    const v = { nome: limparNome(nome.value), guerra: guerra.value.trim().replace(/\s+/g, " ").toUpperCase(), ano: ano.value, turma: turma.value, pelotao: pel.value };
     if (v.nome.length < 3 || v.guerra.length < 2) { avisar("Confira nome e nome de guerra.", true); return; }
     try {
       const lote = writeBatch(db);
@@ -4877,7 +4877,7 @@ async function cadastrarCadete(ev) {
   ev.preventDefault();
   mensagem("#msgCadete", "");
   const v = {
-    nome: $("#cNome").value.trim().replace(/\s+/g, " "),
+    nome: limparNome($("#cNome").value),
     guerra: $("#cGuerra").value.trim().replace(/\s+/g, " ").toUpperCase(),
     ano: $("#cAno").value, turma: $("#cTurma").value, pelotao: $("#cPelotao").value
   };
@@ -5388,7 +5388,15 @@ $("#formEditUsu").addEventListener("submit", async (e) => {
 });
 
 /** Mesmo nome completo (ignora acentos, maiúsculas e espaços a mais). */
-function mesmoNome(a, b) { return normBusca(a).replace(/\s+/g, " ").trim() === normBusca(b).replace(/\s+/g, " ").trim(); }
+/** Junta a inicial solta que vem de cópia de PDF com a 1ª letra em negrito ("D avid" → "David"), sem mexer em conectivos. */
+function juntarInicial(nome) {
+  return (nome || "").replace(/(^|\s)([A-ZÀ-Ú]) (?!(?:de|da|do|dos|das|e)\b)([a-zà-ú]{2,})/g, "$1$2$3");
+}
+/** Nome limpo para gravar: inicial solta juntada e espaços normalizados. */
+function limparNome(nome) { return juntarInicial((nome || "").trim().replace(/\s+/g, " ")); }
+/** Chave de comparação: sem acento, sem maiúsculas, só letras (hífen, apóstrofo e ponto viram espaço), inicial solta juntada. */
+function chaveNome(nome) { return normBusca(limparNome(nome)).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim(); }
+function mesmoNome(a, b) { return chaveNome(a) === chaveNome(b); }
 /** Cadastro feito antes pela coordenação (sem conta) com o mesmo nome completo do pedido. */
 function cadastroParaLigar(u) {
   const c = todosCadetes.filter((x) => !x.uid && x.ativo && mesmoNome(x.nome, u.nome));
@@ -5403,7 +5411,9 @@ function mesmaPessoaProvavel(x, y) {
 }
 /** Para um cadastro SEM conta: o cadastro COM conta que parece ser a mesma pessoa (nome igual, ou guerra + curso/ano + turma). */
 function duplicadoComConta(c) {
-  if (c.uid || !c.ativo) return null;
+  if (!c.ativo) return null;
+  // a mesma conta ligada a dois cadastros ativos (ex.: SALES, 18/11)
+  if (c.uid) { const o = todosCadetes.filter((x) => x.id !== c.id && x.ativo && x.uid === c.uid); return o.length === 1 ? o[0] : null; }
   const cand = todosCadetes.filter((x) => x.id !== c.id && x.uid && x.ativo && (mesmoNome(x.nome, c.nome) || mesmaPessoaProvavel(x, c)));
   return cand.length === 1 ? cand[0] : null;
 }
