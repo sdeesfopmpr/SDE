@@ -124,9 +124,55 @@ function lerInterno(linhas) {
   let mesRef = "";
   const cab = linhas.find((l) => /de\s+20\d{2}\s*$/i.test(l.texto.trim()) && /janeiro|fevereiro|mar|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro/i.test(l.texto));
   if (cab) mesRef = cab.texto.trim();
-  let dia = null, tabela = -1, linhaTab = 0, rotulo = "", paginaAviso = new Set();
+  const origem = "Previsão de Escala de Serviço Interno" + (mesRef ? ` · ${mesRef}` : "");
+  let dia = null, tabela = -1, paginaAviso = new Set();
+  let tab = null;            // tabela em leitura: { indice, linhas: [{ nome, esquerda }], textos: [] }
+  const usadas = new Set();  // linhas cujo texto já virou nome de outra linha
 
-  for (const l of linhas) {
+  // Fecha a tabela: decide a função e o horário de cada linha.
+  //  · tabela 0: Respondente;
+  //  · tabela da Guarda (tem "Cmt. da Guarda" ou "Sentinela"): 1ª linha Cmt. da Guarda; as outras são sentinelas
+  //    (em dia útil começam às 18h50);
+  //  · demais tabelas (Bloco III, Postos Externos, Adjunto do Cmt. do Bloco III…): começam às 07h15.
+  const fechar = () => {
+    if (!tab || !tab.linhas.length) { tab = null; return; }
+    const tx = tab.textos.join(" ");
+    const guarda = /cmt\.?\s*da\s*guarda|sentinela/i.test(tx);
+    let nomeGrupo = "Dia-à-EsFO / Bloco III";
+    if (!guarda && tab.indice > 0) {
+      const partes = [];
+      if (/adjunto/i.test(tx)) partes.push("Adjunto do Cmt. do Bloco III");
+      if (/postos?\s+externos?/i.test(tx)) partes.push("Postos Externos");
+      const semAdj = tx.replace(/adjunto\s+do\s+cmt\.?\s+do(\s+bloco\s+iii)?/gi, " ");
+      if (/dia-?\s*[àa]-?\s*esfo|plant[õo]es|cmt\.?\s*do\s*bloco/i.test(semAdj) || !partes.length) partes.push("Dia-à-EsFO / Bloco III");
+      nomeGrupo = partes.join(" / ");
+    }
+    tab.linhas.forEach((ln, i) => {
+      let grupo, sentinela = false;
+      if (tab.indice === 0) grupo = "Respondente";
+      else if (guarda) { if (i === 0) grupo = "Cmt. da Guarda"; else { grupo = "Sentinelas da Guarda / Posto II"; sentinela = true; } }
+      else grupo = nomeGrupo;
+      registros.push({ nome: ln.nome, dia: tab.dia, sentinela, servico: `Serviço interno · ${grupo}`, origem });
+    });
+    tab = null;
+  };
+
+  // Nome que ficou numa linha vizinha (o PDF às vezes põe o nome alguns pontos abaixo ou acima da graduação,
+  // quando a função ocupa duas linhas ou é uma célula mesclada): pega só o que está à direita da graduação.
+  const nomeVizinho = (i, l) => {
+    const fimGrad = Math.max(...l.itens.map((it) => it.x2));
+    for (const j of [i + 1, i - 1]) {
+      const v = linhas[j];
+      if (!v || v.pagina !== l.pagina || usadas.has(j) || Math.abs(v.y - l.y) > 8) continue;
+      if (RE_GRAD.test(v.texto) || /FUN[ÇC][ÃA]O|Data:/i.test(v.texto)) continue;
+      const nome = v.itens.filter((it) => it.x >= fimGrad - 1).map((it) => it.str.trim()).join(" ").replace(/\s+/g, " ").trim();
+      if (nome && !/\d/.test(nome)) { usadas.add(j); return nome; }
+    }
+    return "";
+  };
+
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i];
     const t = l.texto;
     const md = t.match(/Data:\s*(\d{1,2})\s+([A-Za-zÀ-ú]{3})[A-Za-zÀ-ú]*\.?\s+(\d{2,4})\s*\(([^)]+)\)/);
     if (md) {
@@ -147,24 +193,24 @@ function lerInterno(linhas) {
         if (!paginaAviso.has(l.pagina)) { paginaAviso.add(l.pagina); }
         continue;
       }
-      dia = cand; tabela = -1; linhaTab = 0; rotulo = "";
+      fechar();
+      dia = cand; tabela = -1;
       continue;
     }
     if (dia === null) continue;
-    if (/FUN[ÇC][ÃA]O/i.test(t) && /NOME/i.test(t)) { tabela++; linhaTab = 0; rotulo = ""; continue; }
+    // cabeçalho da tabela: "FUNÇÃO | GRAD | NOME COMPLETO" (às vezes vem sem o "NOME COMPLETO")
+    if (/FUN[ÇC][ÃA]O/i.test(t) && /NOME|GRAD/i.test(t)) { fechar(); tabela++; tab = { indice: tabela, dia, linhas: [], textos: [] }; continue; }
+    if (!tab) continue;
     const mg = t.match(RE_GRAD);
-    if (!mg || tabela < 0) continue;
+    if (!mg) { if (!usadas.has(i)) tab.textos.push(t); continue; }
     const esquerda = t.slice(0, mg.index).trim();
-    const nome = t.slice(mg.index + mg[0].length).trim().replace(/\s{2,}.*$/, "");
+    let nome = t.slice(mg.index + mg[0].length).trim().replace(/\s{2,}.*$/, "");
+    if (!nome) nome = nomeVizinho(i, l);
+    if (esquerda) tab.textos.push(esquerda);
     if (!nome) continue;
-    if (esquerda) rotulo = esquerda;
-    let grupo, sentinela = false;
-    if (tabela === 0) grupo = "Respondente";
-    else if (tabela === 1) { if (linhaTab === 0) grupo = "Cmt. da Guarda"; else { grupo = "Sentinelas da Guarda / Posto II"; sentinela = true; } }
-    else grupo = "Dia-à-EsFO / Bloco III";
-    registros.push({ nome, dia, sentinela, servico: `Serviço interno · ${grupo}`, origem: "Previsão de Escala de Serviço Interno" + (mesRef ? ` · ${mesRef}` : "") });
-    linhaTab++;
+    tab.linhas.push({ nome, esquerda });
   }
+  fechar();
   if (paginaAviso.size) avisos.push(`O PDF repete um cabeçalho de data antigo no topo de ${paginaAviso.size} página(s) (págs. ${[...paginaAviso].join(", ")}). Ignorei esses cabeçalhos e mantive o dia correto.`);
   return { tipo: "interno", titulo: "Previsão de Escala de Serviço Interno" + (mesRef ? ` · ${mesRef}` : ""), registros, avisos, horarioInterno: true };
 }
