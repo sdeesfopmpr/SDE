@@ -398,6 +398,7 @@ function lerTabela(linhas) {
   // percorre as linhas: colunas pelo cabeçalho mais recente
   let col = null, dia = diasData.length === 1 ? diasData[0] : null, ordem = 0;
   const blocos = new Map();   // dia -> { rotulos: [{turno, ordem}], pessoas: [{nome, sob, ordem}] }
+  const horDe = new Map();    // ordem -> texto da coluna do horário naquela linha (para achar "SOBREAVISO" / "DIA TODO" nas linhas vizinhas)
   const bloco = (d) => { if (!blocos.has(d)) blocos.set(d, { rotulos: [], pessoas: [] }); return blocos.get(d); };
   for (const l of linhas) {
     ordem++;
@@ -410,30 +411,63 @@ function lerTabela(linhas) {
     }
     if (!col || dia === null) continue;
     const hor = l.itens.filter((i) => i.x2 <= col.hor).map((i) => i.str).join(" ");
+    const grad = l.itens.filter((i) => i.x2 > col.hor && i.x < col.nomeIni).map((i) => i.str).join(" ").trim();
     const nomeIt = l.itens.filter((i) => i.x >= col.nomeIni && i.x2 <= col.nomeFim);
     const nome = nomeIt.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
+    horDe.set(ordem, { hor, pagina: l.pagina, y: l.y });
     const turno = turnoDe(hor);
     if (turno) bloco(dia).rotulos.push({ turno, ordem });
     if (nome && /[A-Za-zÀ-ú]{2}/.test(nome) && !/\d/.test(nome) && !/^(Cad\.?|PM|Al\.?|Of\.?)(\s|$)/i.test(nome)) {
-      bloco(dia).pessoas.push({ nome, sob: /SOBREAVISO/i.test(hor), ordem });
+      // nome que quebrou em duas linhas: 1ª parte na linha do "Cad. 1º", resto na linha do "PM" logo abaixo
+      const ant = bloco(dia).pessoas.at(-1);
+      if (ant && ant.ordem === ordem - 1 && /^PM$/i.test(grad) && /Cad/i.test(ant.grad || "")) { ant.nome += " " + nome; continue; }
+      bloco(dia).pessoas.push({ nome, grad, ordem, sob: /SOBREAVISO/i.test(hor) });
     }
   }
   if (!blocos.size) {
     avisos.push("Não encontrei os dias da escala (títulos como \"Sábado, 14 de Novembro de 2026\").");
     return { tipo: "tabela", titulo: evento, registros, avisos };
   }
+  // "SOBREAVISO" e "DIA TODO" podem estar nas linhas do "Cad. 1º" e do "PM" (acima e abaixo do nome)
+  const vizinhas = (o) => [o - 1, o, o + 1].map((k) => horDe.get(k)).filter((v) => v && v.pagina === horDe.get(o)?.pagina && Math.abs(v.y - horDe.get(o).y) <= 14);
+  for (const { pessoas } of blocos.values()) for (const p of pessoas) {
+    const hs = vizinhas(p.ordem).map((v) => v.hor).join(" ");
+    if (/SOBREAVISO/i.test(hs)) p.sob = true;
+    p.diaTodo = p.sob && /DIA\s*TODO|24\s*H/i.test(hs);
+  }
   let semTurno = 0;
   for (const [d, { rotulos, pessoas }] of [...blocos.entries()].sort((a, b) => a[0] - b[0])) {
     if (!pessoas.length) continue;
-    // grupos de cada horário: separados pelo sobreaviso (que fecha o grupo); se não bater, usa o horário mais próximo na página
+    const turnoDaPessoa = new Map();
+    pessoas.filter((p) => p.diaTodo).forEach((p) => turnoDaPessoa.set(p, [0, 24 * 60]));   // sobreaviso o dia todo
+    const resto = pessoas.filter((p) => !p.diaTodo);
+    // grupos de cada horário: separados pelo sobreaviso (que fecha o grupo)
     const grupos = [];
     let g = [];
-    pessoas.forEach((p) => { g.push(p); if (p.sob) { grupos.push(g); g = []; } });
+    resto.forEach((p) => { g.push(p); if (p.sob) { grupos.push(g); g = []; } });
     if (g.length) grupos.push(g);
-    const turnoDaPessoa = new Map();
     if (rotulos.length && grupos.length === rotulos.length) grupos.forEach((gr, i) => gr.forEach((p) => turnoDaPessoa.set(p, rotulos[i].turno)));
-    else if (rotulos.length) {
-      pessoas.forEach((p) => {
+    else if (rotulos.length && resto.length >= rotulos.length) {
+      // o horário é uma célula mesclada centralizada no seu grupo: divide os cadetes (em ordem) em blocos seguidos
+      // de modo que o meio de cada bloco fique o mais perto possível da linha do seu horário
+      const n = resto.length, k = rotulos.length, INF = 1e9;
+      const custo = (i, j, r) => Math.abs((resto[i].ordem + resto[j].ordem) / 2 - rotulos[r].ordem);
+      const dp = Array.from({ length: k }, () => Array(n).fill(INF)), de = Array.from({ length: k }, () => Array(n).fill(-1));
+      for (let j = 0; j < n; j++) dp[0][j] = Math.max(custo(0, j, 0), 0);
+      for (let r = 1; r < k; r++) for (let j = r; j < n; j++) for (let i = r; i <= j; i++) {
+        const c = Math.max(dp[r - 1][i - 1], custo(i, j, r));
+        if (c < dp[r][j]) { dp[r][j] = c; de[r][j] = i; }
+      }
+      let j = n - 1;
+      for (let r = k - 1; r >= 0; r--) {
+        const i = r ? de[r][j] : 0;
+        for (let x = i; x <= j; x++) turnoDaPessoa.set(resto[x], rotulos[r].turno);
+        j = i - 1;
+      }
+      // desvio grande (mais de ~1 cadete e meio entre o meio do bloco e o horário): pede conferência
+      if (dp[k - 1][n - 1] > 4.5) avisos.push(`${rotuloDia(d)}: não consegui separar com certeza quem está em cada horário. Confira os horários desse dia.`);
+    } else if (rotulos.length) {
+      resto.forEach((p) => {
         let melhor = rotulos[0];
         rotulos.forEach((r) => { if (Math.abs(r.ordem - p.ordem) < Math.abs(melhor.ordem - p.ordem)) melhor = r; });
         turnoDaPessoa.set(p, melhor.turno);
@@ -445,7 +479,7 @@ function lerTabela(linhas) {
       const [a, b] = t || [0, 24 * 60];
       if (!t) semTurno++;
       registros.push({ nome: p.nome, inicio: d + a * 60000, fim: d + (b <= a ? b + 1440 : b) * 60000,
-        servico: servicoBase + (p.sob ? " (sobreaviso)" : ""), origem: evento });
+        servico: servicoBase + (p.sob ? (p.diaTodo ? " (sobreaviso, dia todo)" : " (sobreaviso)") : ""), origem: evento });
     }
   }
   if (semTurno) avisos.push(`${semTurno} escalação(ões) sem horário identificado: considerei o dia inteiro.`);
