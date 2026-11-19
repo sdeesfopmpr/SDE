@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-18.5">
+<meta name="sde-versao" content="2026-11-19.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -2501,6 +2501,7 @@ function botaoImagem(a) {
 const escolhidos = new Map();   // cadeteId -> cadete
 let lancamentoPronto = false;
 let seletorLancar = null;
+let lancamentoAtual = null;   // { chave, id } do último lançamento que não terminou (para a nova tentativa não duplicar)
 
 function aplicarCadetes(lista) {
   todosCadetes = lista.sort(ordenar);
@@ -2642,10 +2643,21 @@ async function lancarAnotacao(e) {
   // Grava em lotes de 15: as regras do servidor conferem o cadastro de cada cadete, e o Firebase
   // limita essas conferências por gravação. Sem limite de cadetes por lançamento.
   const todos = [...escolhidos.values()];
+  // Cada lançamento tem um código, e a anotação de cada cadete tem id fixo (<código>_<cadete>). Se a conexão cair
+  // e o aparelho receber erro mesmo com o servidor tendo gravado, a nova tentativa do MESMO lançamento (mesmo tipo,
+  // descrição e hora do fato) reconhece o que já está gravado e não anota o cadete duas vezes (caso de 19/11).
+  const chave = JSON.stringify([tipo, descricao, fato.getTime(), auth.currentUser.uid]);
+  const repetindo = !!lancamentoAtual && lancamentoAtual.chave === chave;
+  if (!repetindo) lancamentoAtual = { chave, id: doc(collection(db, "anotacoes")).id };
+  const idDe = (c) => `${lancamentoAtual.id}_${c.id}`;
+  const jaGravada = async (c) => {
+    try { return (await getDoc(doc(db, "anotacoes", idDe(c)))).exists(); }
+    catch { return false; }      // anotação que não existe não pode ser lida pelo anotador (regra): conta como não gravada
+  };
   const gravar = async (prazoMs, grupo) => {
     const lote = writeBatch(db);
     for (const c of grupo) {
-      lote.set(doc(collection(db, "anotacoes")), {
+      lote.set(doc(db, "anotacoes", idDe(c)), {
         tipo,
         cadeteId: c.id, cadeteNome: c.nome, cadeteGuerra: c.guerra,
         cadeteAno: c.ano, cadeteTurma: c.turma || "", cadetePelotao: c.pelotao,
@@ -2661,7 +2673,13 @@ async function lancarAnotacao(e) {
   let feitos = 0;
   try {
     for (let i = 0; i < todos.length; i += 15) {
-      const grupo = todos.slice(i, i + 15);
+      let grupo = todos.slice(i, i + 15);
+      if (repetindo) {      // nova tentativa: pula quem já ficou gravado na tentativa anterior
+        const ja = await Promise.all(grupo.map(jaGravada));
+        grupo.filter((_, k) => ja[k]).forEach((c) => { feitos++; escolhidos.delete(c.id); });
+        grupo = grupo.filter((_, k) => !ja[k]);
+        if (!grupo.length) continue;
+      }
       const prazoMs = proximoPrazo().getTime();
       try {
         await gravar(prazoMs, grupo);
@@ -2669,11 +2687,19 @@ async function lancarAnotacao(e) {
         // Lançada no minuto do fechamento (sexta 18h) com o relógio do aparelho atrasado:
         // o servidor já virou a semana, então vai para a semana seguinte.
         if (err.code === "permission-denied" && Math.abs(fechamentoDe(prazoMs) - Date.now()) < 15 * 60000) await gravar(prazoMs + 7 * DIA, grupo);
-        else throw err;
+        else {
+          // o servidor pode ter gravado mesmo com erro na resposta (conexão caiu): confere antes de acusar erro
+          const ja = await Promise.all(grupo.map(jaGravada));
+          if (!ja.every(Boolean)) {
+            grupo.filter((_, k) => ja[k]).forEach((c) => { feitos++; escolhidos.delete(c.id); });
+            throw err;
+          }
+        }
       }
       feitos += grupo.length;
       grupo.forEach((c) => escolhidos.delete(c.id));
     }
+    lancamentoAtual = null;
     avisar(`Anotação lançada para ${feitos} cadete(s).`);
     escolhidos.clear();
     $("#aDesc").value = "";
