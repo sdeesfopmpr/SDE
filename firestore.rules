@@ -244,7 +244,10 @@ service cloud.firestore {
         || (nivel(3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mce'])
           && (!resource.data.keys().hasAny(['mce'])
-              || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial']));
+              || resource.data.mce.decisao in ['transf', 'aguardando', 'parcial', 'naocumprida']
+              // MCE não cumprida (atestado, caso fortuito, força maior, outra situação): o nível 3 marca a MCE publicada
+              // e a anotação volta na Dosimetria da semana seguinte (religado em 24/11 a pedido do Leon)
+              || request.resource.data.mce.decisao == 'naocumprida'));
 
       allow delete: if nivel(3) && request.time < resource.data.prazo - duration.value(280799, 's');
 

@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SDE">
 <meta name="application-name" content="SDE">
-<meta name="sde-versao" content="2026-11-19.1">
+<meta name="sde-versao" content="2026-11-24.1">
 <title>SDE · EsFO</title>
 <script>try { if (localStorage.getItem("sde-tema") === "escuro") document.documentElement.dataset.tema = "escuro"; } catch (e) {}</script>
 <style>
@@ -1207,9 +1207,10 @@
       <option>Atestado médico</option>
       <option>Caso fortuito</option>
       <option>Força maior</option>
+      <option>Outra situação</option>
     </select>
-    <label for="ncObs">Observação (opcional)</label>
-    <input id="ncObs" maxlength="200" placeholder="Ex.: atestado de 2 dias do HPM">
+    <label for="ncObs">Observação <span class="ajuda">(obrigatória em "Outra situação")</span></label>
+    <input id="ncObs" maxlength="300" placeholder="Ex.: atestado de 2 dias do HPM">
     <div id="msgNC" class="msg" hidden></div>
     <div class="dialogo-acoes" style="gap:8px; flex-wrap:wrap">
       <button class="btn sec" type="button" id="btnCancelarNC">Cancelar</button>
@@ -2784,6 +2785,7 @@ function sufixoOrigem(x) {
 }
 
 let semanaW = 0;            // prazo (ms) da semana aberta na dosimetria
+let dosiW = 0;
 let dosi = {};              // id da anotação -> decisão (coleção dosimetria)
 const anotExtra = {};       // anotações transferidas de semanas anteriores
 let escalasFds = [];        // escalas que tocam o fim de semana da semana aberta
@@ -2966,7 +2968,7 @@ function assinarSemana() {
   if (!coord()) { desassinar("dosi"); desassinar("escalasDosi"); dosi = {}; escalasFds = []; }
   else assinar("dosi", W, () => onSnapshot(
     query(collection(db, "dosimetria"), where("semana", "==", W)),
-    (snap) => { dosi = {}; snap.docs.forEach((d) => { dosi[d.id] = d.data(); }); carregarExtras(); desenharSemana(); },
+    (snap) => { dosi = {}; dosiW = W; snap.docs.forEach((d) => { dosi[d.id] = d.data(); }); carregarExtras(); desenharSemana(); if ($("#selFds")?.value) desenharEscalas(); },
     (err) => console.error(err)
   ));
   assinarEscalasDosi(W);
@@ -3879,7 +3881,7 @@ function desenharPublicada(n) {
     partes.push(h("h3", { class: "grupo-titulo" }, g));
     partes.push(h("div", { class: "cartao rolavel", style: "padding:6px 12px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", { class: "num" }, "Nº"), h("th", {}, "Data"), h("th", {}, g === "CHOE" ? "Aluno-Oficial" : "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Ciência do resultado"),
-        !NC_ATIVO ? null : h("th", {}, "Cumprimento ", dica("Se o cadete não pôde cumprir a MCE por atestado médico, caso fortuito ou força maior, use \"Não cumpriu\": a anotação volta na Dosimetria da semana seguinte com os blocos que faltam, para aplicar de novo. Disponível até a NAMCE seguinte ser publicada.")))),
+        !NC_ATIVO ? null : h("th", {}, "Cumprimento ", dica("Se o cadete não pôde cumprir a MCE (atestado médico, caso fortuito, força maior ou outra situação), use \"Não cumpriu\": a anotação volta na Dosimetria da semana seguinte com os blocos que faltam, para aplicar de novo, sem novo prazo de defesa. Disponível até a NAMCE seguinte ser publicada.")))),
       h("tbody", {}, grupos[g].map((it, i) => h("tr", {}, h("td", { class: "num" }, i + 1), h("td", {}, dataCurta(it.fato)),
         h("td", {}, h("strong", {}, it.cadeteGuerra)),
         h("td", { class: "desc" }, it.descricao + (it.origemTxt ?? sufixoOrigem(it))),
@@ -3908,7 +3910,7 @@ async function carregarAnotacoes(ids) {
 
 // ---------- MCE não cumprida (atestado, caso fortuito, força maior): volta na Dosimetria da semana seguinte ----------
 // Função guardada (desligada a pedido do Leon em 10/11): para religar, trocar para true.
-const NC_ATIVO = false;
+const NC_ATIVO = true;    // religada em 24/11 a pedido do Leon
 const NAO_TEM_MCE = ["justif", "transf", "aguardando", "td", "cumprida"];
 const temMce = (it) => (it.blocos || []).length > 0 && !NAO_TEM_MCE.includes(it.decisao);
 /** Wpub = semana (prazo) da NAMCE publicada n. */
@@ -3944,7 +3946,7 @@ function caixaNaoCumpridas() {
   const jaNC = itens.filter((it) => { const a = anot(it.anotacaoId); return a && a.mce && a.mce.decisao === "naocumprida" && a.mce.namce === ref; }).length;
   const det = h("details", { class: "promover" },
     h("summary", {}, `MCE não cumprida da semana anterior (NAMCE nº ${ref})` + (jaNC ? ` · ${jaNC} trazida(s)` : "") + " ",
-      dica("Se o cadete não pôde cumprir a MCE da NAMCE anterior por atestado médico, caso fortuito ou força maior, toque em \"Não cumpriu\" ao lado dele: a anotação entra nesta Dosimetria com os blocos que faltam, para aplicar de novo.")),
+      dica("Se o cadete não pôde cumprir a MCE da NAMCE anterior (atestado médico, caso fortuito, força maior ou outra situação), toque em \"Não cumpriu\" ao lado dele e informe o motivo: a anotação entra nesta Dosimetria com os blocos que faltam, para aplicar de novo. Não há novo prazo de defesa.")),
     h("div", { class: "rolavel", style: "margin-top:8px" }, h("table", { class: "tabela" },
       h("thead", {}, h("tr", {}, h("th", {}, "Cadete"), h("th", {}, "AAD"), h("th", {}, "MCE"), h("th", {}, "Cumprimento"))),
       h("tbody", {}, itens.slice().sort((x, y) => x.cadeteGuerra.localeCompare(y.cadeteGuerra, "pt-BR")).map((it) => h("tr", {},
@@ -3977,6 +3979,7 @@ $("#formNC").addEventListener("submit", async (e) => {
   const motivo = $("#ncMotivo").value, obs = $("#ncObs").value.trim();
   if (!falhos.length) { mensagem("#msgNC", "Marque pelo menos um bloco que não foi cumprido."); return; }
   if (!motivo) { mensagem("#msgNC", "Escolha o motivo."); return; }
+  if (motivo === "Outra situação" && obs.length < 5) { mensagem("#msgNC", "Descreva a situação na observação."); return; }
   const motivoNC = motivo + (obs ? ` — ${obs}` : "");
   const ref = `${n.numero}/${n.ano}`, W2 = Wpub + 7 * DIA;
   const prox = namces[String(W2)];
@@ -4309,7 +4312,9 @@ function punidosDoFds(W) {
   }
   const ids = new Set(anotFds.filter((a) => a.tipo !== "fo").map((a) => a.cadeteId));
   const ant = namces[String(W - 7 * DIA)];
-  if (ant && ant.status === "publicada") ant.itens.filter((it) => PASSA_ADIANTE.includes(it.decisao) || it.parcial).forEach((it) => ids.add(it.cadeteId));
+  // + MCE da NAMCE anterior que não foi cumprida e voltou para esta semana (dosimetria desta semana com naoCumpridaDe)
+  if (ant && ant.status === "publicada") ant.itens.filter((it) => PASSA_ADIANTE.includes(it.decisao) || it.parcial
+    || (dosiW === W && dosi[it.anotacaoId]?.naoCumpridaDe)).forEach((it) => ids.add(it.cadeteId));
   return { modo: "anotados", ids };
 }
 
