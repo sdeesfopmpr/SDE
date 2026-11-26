@@ -79,6 +79,7 @@ const MESES = { jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, 
 const DIAS_SEMANA = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 };
 
 export function semAcento(s) { return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function hhmm(min) { return `${String(Math.floor(min / 60)).padStart(2, "0")}h${String(min % 60).padStart(2, "0")}`; }
 function mesDe(txt) { return MESES[semAcento(txt).toLowerCase().slice(0, 3)]; }
 function anoDe(txt) { const n = +txt; return n < 100 ? 2000 + n : n; }
 /** 00h00 de Brasília (UTC−3) do dia informado, em ms. */
@@ -307,7 +308,7 @@ function diasDoTexto(txt, anoDoc) {
 
 function lerEspecial(linhas) {
   const avisos = [], registros = [];
-  let evento = "", dias = [], turnos = [];
+  let evento = "", dias = [], turnos = [], rotTurnos = [];
   const cab = linhas.slice(0, 80);
   const ma = cab.map((l) => l.texto).join("\n").match(/\b(20\d{2})\b/);
   const anoDoc = ma ? +ma[1] : null;
@@ -327,6 +328,15 @@ function lerEspecial(linhas) {
     if (md && !dias.length) dias = diasDoTexto(md[1], anoDoc);
     if (/Hor[áa]rio:/i.test(t) && !turnos.length) {
       for (const m of t.matchAll(RE_HORARIO)) turnos.push(intervalo(m));
+      // Só horários de início ("Manhã: 06h30min ao término / Tarde: 12h30min ao término"), regra do Leon (26/11):
+      // cada horário vai até o início do seguinte e o último vai até o fim do dia.
+      if (!turnos.length) {
+        const ini = [...t.replace(/^.*?Hor[áa]rio:/i, "").matchAll(/(?:([A-Za-zÀ-ú]+)\s*:\s*)?(\d{1,2})h(\d{2})?(?:min)?/gi)]
+          .map((m) => ({ rot: semAcento(m[1] || "").toLowerCase(), txt: m[1] || "", min: +m[2] * 60 + +(m[3] || 0) }));
+        ini.forEach((x, i) => { turnos.push([x.min, i + 1 < ini.length ? ini[i + 1].min : 24 * 60]); rotTurnos.push(x.rot); });
+        if (ini.length) avisos.push(`A escala só informa o horário de início (${ini.map((x) => (x.txt ? x.txt + " " : "") + hhmm(x.min)).join(", ")}): ` +
+          (ini.length > 1 ? "cada período vai até o início do seguinte e o último até o fim do dia." : "considerei até o fim do dia."));
+      }
     }
   }
   const titulos = linhas.filter((l) => RE_DIA_TITULO.test(l.texto));
@@ -343,9 +353,18 @@ function lerEspecial(linhas) {
   // sem títulos por dia e com mais de um dia na data: o cadete fica em todos os dias (confira)
   if (!titulos.length && dias.length > 1) avisos.push(`A escala cita ${dias.length} dias (${dias.map(rotuloDia).join(", ")}) sem separar os cadetes por dia: considerei cada cadete escalado em todos eles. Desmarque o que não for o caso.`);
 
+  // títulos de período ("PERÍODO DA MANHÃ", "TARDE"…): os cadetes abaixo ficam no horário desse período
+  const RE_PERIODO = /^\s*(?:PER[IÍ]ODO|TURNO)?\s*(?:D[AO]\s+)?(MANH[ÃA]|TARDE|NOITE|MADRUGADA)\s*:?\s*$/i;
+  let periodo = null, nPeriodos = 0;
   let sobreaviso = false, atual = null, diaBloco = null;
   for (const l of linhas) {
     const t = l.texto;
+    const mp = turnos.length > 1 ? t.match(RE_PERIODO) : null;
+    if (mp) {
+      const k = rotTurnos.indexOf(semAcento(mp[1]).toLowerCase());
+      periodo = turnos[k >= 0 ? k : Math.min(nPeriodos, turnos.length - 1)];
+      nPeriodos++; atual = null; continue;
+    }
     if (RE_DIA_TITULO.test(t)) { const d = diaDoTitulo(t); if (d !== null) { diaBloco = d; sobreaviso = false; } atual = null; continue; }
     if (/^\s*SOBREAVISO\s*$/i.test(t)) { sobreaviso = true; atual = null; continue; }
     const mg = t.match(RE_GRAD);
@@ -357,7 +376,7 @@ function lerEspecial(linhas) {
       const sobLinha = /sobreaviso/i.test(esquerda);
       const local = esquerda && !sobLinha && esquerda.length <= 40 && /[A-Za-zÀ-ú]/.test(esquerda) ? esquerda : "";   // não usa o nº da linha
       const mt = [...t.matchAll(new RegExp(RE_TURNO, "g"))].pop();
-      const [a, b] = mt && !sobreaviso && !sobLinha ? intervalo(mt) : geral;
+      const [a, b] = mt && !sobreaviso && !sobLinha ? intervalo(mt) : (periodo || geral);
       // limites da coluna do nome (para juntar nomes que quebram em duas linhas)
       let iG = l.itens.findIndex((i) => RE_GRAD.test(i.str));
       if (iG < 0) {   // graduação em vários itens ("Cad." "1º" "PM"): último item que completa a graduação
